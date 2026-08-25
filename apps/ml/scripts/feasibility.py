@@ -59,7 +59,8 @@ frame = features.build(pd.concat(frames, ignore_index=True))
 print("=" * 78)
 print("### 1. HOW MUCH DATA IS THERE, REALLY?")
 print(f"  laps                 {len(frame):>7,}")
-print(f"  positives (boxed)    {int(frame['boxed'].sum()):>7,}  ({100 * frame['boxed'].mean():.2f}%)")
+pos = int(frame["boxed"].sum())
+print(f"  positives (boxed)    {pos:>7,}  ({100 * frame['boxed'].mean():.2f}%)")
 print(f"  races                {frame.groupby(['year', 'round']).ngroups:>7,}")
 print(f"  driver-races         {frame.groupby(['year', 'round', 'Driver']).ngroups:>7,}")
 print(f"  driver-stints        {frame.groupby(features.STINT_KEYS).ngroups:>7,}")
@@ -97,7 +98,8 @@ y = model_frame["boxed"].astype(int)
 groups = model_frame["round"]
 
 print(f"\n  modelling rows after lagging: {len(model_frame):,}  positives: {int(y.sum()):,}")
-print(f"  features: {len(feature_columns)}   events per feature: {y.sum() / len(feature_columns):.1f}")
+epv = y.sum() / len(feature_columns)
+print(f"  features: {len(feature_columns)}   events per feature: {epv:.1f}")
 
 
 def evaluate(x: pd.DataFrame, target: pd.Series, group: pd.Series, n_splits: int = 5) -> dict:
