@@ -67,19 +67,36 @@ Neutralised laps nearly doubled, and VSC laps more than tripled. This **promotes
 rules (R2, R3 in the conceptualización) from a footnote to the highest-value part of the
 system**: the cheap-stop window is now open roughly one lap in ten.
 
-## Finding 3 — slightly more stops, and much more variance
+## Finding 3 — slightly more stops (corrected for free stops)
 
-| Era | Mean stops | Median | 1-stop share | 3+ stop share |
-|---|---|---|---|---|
-| 2024 | 1.87 | 2.0 | 27.7% | 18.9% |
-| 2026 | 1.94 | 2.0 | 36.6% | 25.8% |
+> **Correction, 2026-08-25.** The first version of this section counted red-flag tyre changes
+> as pit stops. They are not decisions: while the race is suspended a tyre change costs no
+> track time. Across these 24 races **8.1% of all "stops" were free** (7.5% of 2024, 8.7% of
+> 2026), and they cluster hard — 2024 Monaco was 69.6% free stops, 2026 Zandvoort 30.9%. The
+> table below is corrected; `features.add_labels` now emits `free_stop` and `strategic_stop`.
 
-The widely-reported "one-stop races become the default" is visible — the one-stop share rose
-from 27.7% to 36.6% — but it did **not** reduce the average, because the tail got much fatter
-(2026 shows driver-races with 5, 6 and 7 stops; 2024 tops out at 4). Strategy in 2026 is more
-bimodal, not simply more conservative.
+Strategic stops only, per driver-race:
 
-Label balance actually improved slightly: **3.74% positive in 2026 vs 3.36% in 2024.**
+| Era | Mean | Median | 1-stop | 2-stop | 3+ |
+|---|---|---|---|---|---|
+| 2024 | 1.77 | 2.0 | 26.5% | 51.7% | 14.2% |
+| 2026 | 1.87 | 2.0 | 35.4% | 37.4% | 23.0% |
+
+2026 still runs slightly more stops, so that conclusion survives. The "one-stop becomes the
+default" story is visible in the rising one-stop share (26.5% → 35.4%), but two-stop races fell
+much further (51.7% → 37.4%) and 3+ stop races rose, so the field is **more spread across
+strategies**, not more conservative.
+
+**What did not survive the correction:** the earlier claim that 2026 had driver-races with 5, 6
+and 7 stops against a 2024 maximum of 4. Corrected, 2026 tops out at 6 (0.8% of driver-races)
+and 2024 at 5 (0.4%). The tail is fatter in 2026, but nothing like as dramatically as first
+reported.
+
+Label balance: **3.74% positive in 2026 vs 3.36% in 2024** (uncorrected `boxed`).
+
+> Methodology note: this table counts `boxed` events; `scripts/era_compare.py` derives stops
+> from distinct `Stint` values, which differs slightly when a red flag splits a stint without a
+> recorded `PitInTime`. Prefer the `strategic_stop` count.
 
 ## Finding 4 — energy management is invisible, and so is DRS
 
