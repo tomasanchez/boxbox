@@ -124,8 +124,37 @@ evalúa por calibración**:
 | F1 y exhaustividad del clasificador | Línea base declarada, con su lift sobre azar |
 | Delta de posiciones contrafáctico | Posiciones ganadas o perdidas simulando la estrategia recomendada |
 
-**La exactitud queda prohibida en el informe.** "Nunca boxear" acierta el 96,3% de las vueltas y
-no sirve para nada.
+### 7.1. Por qué la exactitud queda prohibida en el informe
+
+"Nunca boxear" acierta el **96,3%** de las vueltas. Pero el argumento es más fuerte que eso:
+**esa estrategia es ilegal.**
+
+> **Artículo B6.3.8** — *2026 Formula 1 Sporting Regulations*, Issue 05, 27-02-2026:
+> "Unless they have used intermediate or wet-weather tyres during the Race, each driver must use
+> at least two (2) different specifications of dry-weather tyres during the Race, at least one (1)
+> of which must be a mandatory dry-weather Race tyre specification."
+>
+> "Failure to comply with these requirements will result in the **disqualification** of the
+> relevant driver from the Race results."
+
+Es decir: un clasificador que maximice exactitud converge a una estrategia que termina en
+**descalificación**. La métrica no premia algo inútil, premia algo prohibido.
+
+Esto es, además, el mejor argumento a favor de la arquitectura propuesta. El motor de reglas
+**no puede** emitir una estrategia ilegal: R12 y la tabla de decisión de compuesto ya codifican la
+restricción. Un clasificador puramente estadístico no tiene forma de saberlo.
+
+**Verificación sobre nuestros datos:** de los 177 pilotos que terminaron una carrera en seco en
+2026, **los 177 usaron dos o más compuestos** (129 usaron exactamente dos, 48 usaron tres). Cero
+violaciones. Es también una validación del pipeline de extracción de stints.
+
+### 7.2. Mónaco es un caso aparte, y el simulador debe saberlo
+
+El mismo artículo B6.3.8 impone en Mónaco un mínimo de **tres juegos de neumáticos** — una
+**doble parada obligatoria** — además de la regla de dos compuestos. Por eso Mónaco 2026 registra
+89 stints entre 22 pilotos (≈ 4,05 por piloto): no es caos, es reglamento.
+
+El simulador debe tratar Mónaco como una restricción distinta, no como un circuito más.
 
 ## 8. Antecedentes
 

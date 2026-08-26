@@ -72,8 +72,12 @@ Small in aggregate, brutal where it lands:
 | 2026 Monte Carlo | 89 | 25 | 28.1% |
 | 2026 Zandvoort | 68 | 21 | **30.9%** |
 
-This also explains the 89 stints at Monaco 2026 that looked anomalous earlier — two red-flag
-periods, not five-stop strategies.
+> **Correction, 2026-08-25.** An earlier version said the 89 stints at Monaco 2026 were explained
+> by its two red-flag periods. That is incomplete and mostly wrong. **Article B6.3.8 of the 2026
+> Sporting Regulations imposes a mandatory three-set minimum at Monaco** — effectively a
+> compulsory two-stop — on top of the usual two-compound requirement. 89 stints across 22 drivers
+> is ~4.05 stints each, which is what a mandated two-stop plus free red-flag changes produces.
+> The regulation is the structural driver; the red flags are secondary.
 
 ### Fixed
 
