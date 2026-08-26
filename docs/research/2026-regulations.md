@@ -63,7 +63,14 @@ Do not cite either figure in the TP without resolving this. It is tracked as an 
 | 2024 | 4.00% | 1.21% | 5.07% |
 | 2026 | 5.21% | 4.40% | **9.61%** |
 
-Neutralised laps nearly doubled, and VSC laps more than tripled. This **promotes the SC/VSC
+> **Correction, 2026-08-25.** "Nearly doubled" overstates it — see
+> [`neutralisation-rates.md`](neutralisation-rates.md). That comparison used 2024 as the only
+> baseline, and 2024 was unusually quiet. Against 2022 (12.6% of laps neutralised) the 2026
+> figure of 16.5% is elevated but not a doubling. 2026 *is* the most neutralised season in the
+> sample and its VSC frequency is genuinely the highest, so the direction holds; the magnitude
+> was an artifact of picking the quietest comparator.
+
+Neutralised laps rose sharply against 2024, and VSC laps more than tripled against it. This **promotes the SC/VSC
 rules (R2, R3 in the conceptualización) from a footnote to the highest-value part of the
 system**: the cheap-stop window is now open roughly one lap in ten.
 
