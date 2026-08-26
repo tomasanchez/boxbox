@@ -167,9 +167,26 @@ R10. SI (costo_tráfico > beneficio_neto)
 R11. SI (vueltas_restantes <= 3) Y (neumático.estado <> Crítico)
      ENTONCES decisión = SEGUIR
 
-R12. SI (parada_obligatoria_pendiente = Sí) Y (vueltas_restantes <= 5)
-     ENTONCES decisión = BOX                                  [regla dura FIA]
+R12. SI (especificacion_obligatoria_cumplida = No)
+         Y (vueltas_restantes <= margen_seguridad)
+     ENTONCES decisión = BOX
+         Y compuesto_destino ∈ especificaciones_obligatorias_carrera
+                                                              [regla dura FIA, B6.3.8]
+
+R13. SI (circuito.min_juegos > juegos_usados)
+         Y (vueltas_restantes <= (circuito.min_juegos - juegos_usados) * margen_seguridad)
+     ENTONCES decisión = BOX                    [Mónaco: tres juegos, B6.3.8]
+
+R14. SI (clima.familia_usada = {Seco}) Y (compuestos_secos_usados < 2)
+         Y (vueltas_restantes <= margen_seguridad)
+     ENTONCES decisión = BOX Y compuesto_destino ≠ neumático.compuesto
+                                                              [regla dura FIA, B6.3.8]
 ```
+
+> Las reglas R12 a R14 son **duras**: su incumplimiento no es una pérdida de tiempo sino la
+> **descalificación** del piloto. Por eso se evalúan antes que cualquier regla estratégica y no
+> pueden ser anuladas por ella. `margen_seguridad` es el número de vueltas que el equipo se
+> reserva para no quedar sin ventana; en carrera seca sin incidentes suele tomarse 5.
 
 **Tabla de decisión — determinar `neumático.estado`**
 
@@ -190,17 +207,59 @@ R12. SI (parada_obligatoria_pendiente = Sí) Y (vueltas_restantes <= 5)
 | `riesgo_perder_posición` | — | — | — | Nulo | — | — |
 | **Decisión** | **BOX** | **BOX** | **BOX** | **BOX** | **SEGUIR** | **SEGUIR** |
 
-**Tabla de decisión — determinar `compuesto_destino`**
+**Determinación de `compuesto_destino` — dos etapas**
 
-| Condiciones \ Caminos | 1 | 2 | 3 | 4 | 5 |
-|---|---|---|---|---|---|
-| `clima.pista` | Mojada | Húmeda | Seca | Seca | Seca |
-| `vueltas_restantes` | — | — | <= 18 | 19 a 35 | > 35 |
-| **Compuesto destino** | **Lluvia extrema** | **Intermedio** | **Blando** | **Medio** | **Duro** |
+La elección de compuesto no es una única tabla. El reglamento **restringe el conjunto de
+opciones** antes de que la estrategia elija dentro de él, y confundir ambas cosas produce
+recomendaciones ilegales. Se modela por eso en dos etapas: primero un filtro reglamentario que
+construye el conjunto admisible, después una elección estratégica dentro de ese conjunto.
 
-> Restricción reglamentaria transversal: en carrera seca el piloto debe haber usado al menos
-> **dos compuestos de seco distintos** al finalizar. Si el compuesto elegido violara esa
-> restricción, se selecciona el siguiente candidato admisible de la tabla.
+*Etapa 1 — Filtro reglamentario: construir `compuestos_admisibles`*
+
+| Condiciones \ Caminos | 1 | 2 | 3 | 4 |
+|---|---|---|---|---|
+| `clima.pista` | Mojada | Húmeda | Seca | Seca |
+| `especificacion_obligatoria_cumplida` | — | — | No | Sí |
+| `compuestos_secos_usados` | — | — | — | >= 1 |
+| **`compuestos_admisibles`** | **{Lluvia extrema}** | **{Intermedio}** | **`especificaciones_obligatorias_carrera`** | **secos disponibles ≠ compuesto actual** |
+
+*Etapa 2 — Elección estratégica dentro de `compuestos_admisibles`*
+
+| Condiciones \ Caminos | 1 | 2 | 3 |
+|---|---|---|---|
+| `vueltas_restantes` | <= 18 | 19 a 35 | > 35 |
+| **Preferencia** | **Blando** | **Medio** | **Duro** |
+
+> Se toma la preferencia de mayor prioridad que pertenezca a `compuestos_admisibles`. Si el
+> conjunto admisible es unitario, la etapa 2 no decide nada: manda el reglamento.
+
+**La restricción reglamentaria, con precisión**
+
+> **Artículo B6.3.8** — *2026 Formula 1 Sporting Regulations*, Issue 05:
+> salvo que se hayan usado intermedios o lluvia, cada piloto debe usar **al menos dos
+> especificaciones distintas de neumático de seco**, y **al menos una de ellas debe ser una
+> especificación obligatoria de carrera**. El incumplimiento se sanciona con **descalificación**
+> (o +30 s si la carrera se suspende y no se reanuda).
+
+Tres precisiones que el modelo debe respetar y que una lectura superficial pierde:
+
+1. **No alcanza con "dos compuestos cualesquiera".** Al menos uno debe pertenecer al conjunto
+   `especificaciones_obligatorias_carrera`.
+2. **Ese conjunto no es fijo ni conocido de antemano**: la FIA lo anuncia **dos semanas antes de
+   cada Competición** y puede contener **una o dos** especificaciones (Artículo B6.1.2 b ii). Es
+   un **dato de entrada por carrera**, no una constante del sistema. Para el pronóstico
+   prospectivo esto es conveniente: se conoce mucho antes de la largada.
+3. **Mónaco es un caso aparte.** Exige además **al menos tres juegos** de cualquier
+   especificación de las provistas bajo B6.1.1 a — en la práctica, una **doble parada
+   obligatoria**. Se modela como `circuito.min_juegos`, con valor 2 por defecto y 3 en Mónaco.
+
+El proveedor único entrega en cada Competición **tres especificaciones de seco**, una de
+intermedio y una de lluvia (B6.1.1 a), visualmente distinguibles entre sí.
+
+> **Verificación empírica.** De los 177 pilotos que terminaron una carrera en seco en 2026
+> R01–R12, los 177 usaron dos o más compuestos de seco (129 usaron exactamente dos, 48 usaron
+> tres). Cero violaciones — el reglamento se cumple y la extracción de stints del pipeline es
+> correcta.
 
 #### 3.1.3. Árbol de decisión
 
@@ -254,10 +313,13 @@ R12. SI (parada_obligatoria_pendiente = Sí) Y (vueltas_restantes <= 5)
 | | Edad | Numérico (vueltas) |
 | | Tasa de degradación | Numérico (s/vuelta) |
 | | Estado | { Nuevo, Óptimo, Desgastado, Crítico } |
-| **Piloto propio** | Posición | Numérico (1 a 20) |
+| **Piloto propio** | Posición | Numérico (1 a 22) |
 | | Número de stint | Numérico |
 | | Compuestos ya usados | Conjunto de Compuesto |
-| | Parada obligatoria cumplida | { Sí, No } |
+| | Compuestos de seco usados | Numérico (cardinal del anterior, sólo secos) |
+| | Juegos usados | Numérico |
+| | Especificación obligatoria cumplida | { Sí, No } |
+| | Familia usada en carrera | Subconjunto de { Seco, Mojado } |
 | **Rival** | Rol | { Delante, Atrás } |
 | | Gap | Numérico (s) |
 | | Compuesto | Compuesto |
@@ -268,6 +330,12 @@ R12. SI (parada_obligatoria_pendiente = Sí) Y (vueltas_restantes <= 5)
 | | Dificultad para adelantar | { Alta, Media, Baja } |
 | | Vueltas totales | Numérico |
 | | Abrasividad | { Alta, Media, Baja } |
+| | Mínimo de juegos exigido | Numérico (2 por defecto, **3 en Mónaco**) |
+| **Competición** | Especificaciones de seco provistas | 3 Compuesto (B6.1.1 a) |
+| | Especificaciones obligatorias de carrera | **1 o 2** Compuesto (B6.1.2 b ii) |
+| | Especificación obligatoria de Q3 | Compuesto — siempre el más blando de los tres |
+| | Anuncio de las obligatorias | 2 semanas antes de la Competición |
+| | Formato | { Convencional, Sprint } |
 | **Clima** | Estado de pista | { Seca, Húmeda, Mojada, Secándose } |
 | | Lluvia | { No, Inminente, Presente } |
 | | Temperatura de pista | Numérico (grados C) |
@@ -282,7 +350,8 @@ R12. SI (parada_obligatoria_pendiente = Sí) Y (vueltas_restantes <= 5)
 **Identificación de relaciones entre conceptos**
 
 ```text
-Circuito       1 --- N   Carrera
+Circuito       1 --- N   Competición
+Competición    1 --- 1   Carrera
 Carrera        1 --- N   Vuelta
 Vuelta         1 --- N   EstadoPiloto        (una fila por piloto y vuelta)
 EstadoPiloto   1 --- 1   Neumático           (el montado en esa vuelta)
@@ -293,7 +362,15 @@ Vuelta         1 --- 1   EventoPista
 EstadoPiloto + Clima + EventoPista + Circuito          ==>  Recomendación
 Neumático.Compuesto + Circuito.Abrasividad + TempPista ==>  VidaEsp
 Neumático.Edad + VidaEsp + TD                          ==>  Neumático.Estado
+
+Competición.EspecificacionesObligatoriasCarrera
+  + Piloto.CompuestosYaUsados + Clima.EstadoPista       ==>  compuestos_admisibles
+compuestos_admisibles + V_rest                          ==>  compuesto_destino
+Circuito.MinimoJuegos + Piloto.JuegosUsados             ==>  R13 (paradas obligatorias)
 ```
+
+> Nótese la dirección de la dependencia: `compuestos_admisibles` se calcula **antes** que
+> `compuesto_destino` y lo restringe. Es un filtro, no una preferencia más a ponderar.
 
 ### 3.2. Modelos dinámicos
 
@@ -363,9 +440,10 @@ Neumático.Edad + VidaEsp + TD                          ==>  Neumático.Estado
 | Ítem | Contenido |
 |---|---|
 | **Propósito** | Elegir el compuesto con el que se reincorpora, respetando el reglamento. |
-| **Entrada necesaria** | `V_rest`, `Clima.EstadoPista`, `Piloto.CompuestosYaUsados`, `familia_requerida`, juegos de neumáticos disponibles |
-| **Acciones** | 1) Aplicar la tabla de decisión de compuesto. 2) Verificar la restricción de dos compuestos distintos. 3) Verificar la disponibilidad física del juego; si no hay, tomar el siguiente candidato. |
-| **Salida producida** | `compuesto_destino` |
+| **Entrada necesaria** | `V_rest`, `Clima.EstadoPista`, `Piloto.CompuestosYaUsados`, `Piloto.JuegosUsados`, `Competición.EspecificacionesObligatoriasCarrera`, `Circuito.MinimoJuegos`, `familia_requerida`, juegos disponibles |
+| **Acciones** | 1) **Etapa 1 — filtro reglamentario:** construir `compuestos_admisibles` según la tabla de etapa 1. Si la especificación obligatoria aún no se cumplió, el conjunto admisible se reduce a `EspecificacionesObligatoriasCarrera`. 2) Descartar del conjunto los juegos físicamente no disponibles. 3) **Etapa 2 — elección estratégica:** tomar la preferencia de mayor prioridad que siga perteneciendo al conjunto. 4) Si el conjunto quedó vacío, emitir alerta reglamentaria en lugar de una recomendación. |
+| **Salida producida** | `compuesto_destino`, `compuestos_admisibles`, `alerta_reglamentaria` |
+| **Invariante** | El módulo **no puede** devolver un compuesto fuera de `compuestos_admisibles`. Una recomendación ilegal es un defecto, no una estrategia agresiva. |
 
 **Módulo 1.5 — Emitir recomendación**
 
