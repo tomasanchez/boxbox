@@ -153,4 +153,5 @@ print(
     f"\n  mean MAE model {results['mae_model'].mean():.2f} laps"
     f"   |  naive (median stint) {results['mae_naive'].mean():.2f} laps"
 )
-print(f"  model beats the naive baseline on {int(results['beats_naive'].sum())}/{len(results)} races")
+wins = int(results["beats_naive"].sum())
+print(f"  model beats the naive baseline on {wins}/{len(results)} races")
