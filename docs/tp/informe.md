@@ -374,7 +374,42 @@ Todo resultado se reportará contra dos referencias obligatorias: el **modelo in
 correspondiente (mediana para regresión, tasa positiva para clasificación) y el **azar**. Una
 métrica sin su línea base no se considerará informativa.
 
-### 6.2. Comparación con el estado del arte
+### 6.2. Antecedente propio y su relación con este trabajo
+
+Integrantes de este grupo desarrollaron en 2025, para la asignatura Inteligencia Artificial, el
+TP N.º 2 *"Clasificación de Compuesto para la Fórmula 1 utilizando una Red Neuronal Artificial
+del Tipo Multiperceptrón"* (Pasqualino et al., 2025), también sobre datos de FastF1. **Se declara
+explícitamente**, y la comparación forma parte del análisis previsto.
+
+| Dimensión | TP2 — IA 2025 | Este trabajo |
+|---|---|---|
+| Temporadas | 2020–2022 | **2026**, primer año del nuevo reglamento |
+| Pregunta | ¿Qué compuesto elegir? | **¿Cuándo parar y cuántas veces?** |
+| Salida | Clase puntual (S/M/H) | **Distribución** de estrategias |
+| Técnica | MLP puro | **Híbrido**: regresión + reglas + Monte Carlo |
+| Volumen | 782 registros | **14.095 vueltas**, 756 stints |
+| Partición | 80/20 aleatoria | **Por carrera**, 25%, más pronóstico prospectivo |
+| Reglamento | No modelado | **Filtro duro** (B6.3.8, B6.1.2) |
+
+Aquel trabajo obtuvo entre 0,62 y 0,70 de exactitud con sobreajuste persistente, especialmente
+sobre la clase SOFT. Este trabajo aporta una **explicación** de aquel resultado, que se
+verificará como parte del análisis:
+
+> En 2026 la elección de compuesto está en buena medida **determinada por el reglamento** —el
+> artículo B6.3.8 obliga a usar una especificación obligatoria anunciada por la FIA— y la
+> diferencia de degradación entre compuestos es de apenas 0,029 s/vuelta. La hipótesis es que no
+> se trataba de un problema de arquitectura de red sino de un **problema mal planteado**: se
+> intentaba aprender algo que en buena parte es una restricción, no un patrón.
+
+Por ese motivo, aquí la elección de compuesto se resuelve mediante un **filtro reglamentario** y
+no mediante un clasificador, y el esfuerzo de aprendizaje se traslada al momento de la parada.
+
+Se incorporan además tres correcciones metodológicas señaladas por la corrección de aquel
+trabajo: **ponderación explícita del desbalanceo** (aquí 28:1, peor que el de entonces), **uso de
+*early stopping***, y **partición agrupada por carrera** para evitar la fuga que una partición
+aleatoria sobre registros de parada probablemente introdujo.
+
+### 6.3. Comparación con el estado del arte
 
 El trabajo de referencia (Chaudhary et al., 2025) reporta **F1 = 0,81** con Bi-LSTM sobre datos
 de 2020–2024. Se comparará contra esa cifra explicando las diferencias metodológicas: ellos
@@ -385,7 +420,7 @@ unas 100 carreras contra nuestras 12, y su definición de ventana puede ser más
 ningún trabajo publicado puede haber usado datos de 2026, porque el reglamento cambió este año.
 Citar el antecedente y explicar por qué su modelo **no transfiere** es un aporte concreto.
 
-### 6.3. Discrepancia ya detectada con análisis publicado
+### 6.4. Discrepancia ya detectada con análisis publicado
 
 Un análisis público sostiene que la dispersión de degradación entre compuestos en 2026 es de
 0,008 s/vuelta, la más baja de la era. **No se reproduce:** medimos 0,0293 s/vuelta en 2026
@@ -393,7 +428,7 @@ contra 0,0297 en 2024. La inversión de la jerarquía sí se reproduce; el colap
 no. La causa probable es el estimador. Se resolverá agregando un estimador por stint y **no se
 citará ninguna de las dos cifras como establecida** hasta entonces.
 
-### 6.4. Análisis de la curva de aprendizaje
+### 6.5. Análisis de la curva de aprendizaje
 
 Al entrenar con 3, 6, 9 y 12 carreras, el PR-AUC bajó de 0,3163 a 0,1028. Se analizará
 explícitamente: **no** es que los datos perjudiquen, sino que con tres carreras cada pliegue de
@@ -444,6 +479,11 @@ puntuará la **calibración**, no el acierto puntual.
 Chaudhary, S. et al. (2025). *Data-driven pit stop decision support for Formula 1 using deep
 learning models*. Frontiers in Artificial Intelligence, vol. 8.
 https://www.frontiersin.org/journals/artificial-intelligence/articles/10.3389/frai.2025.1673148/full
+
+Pasqualino, F.; Denoya, A.; Sánchez, C.; Sánchez, T.; Lingeri, M. (2025). *Clasificación de
+Compuesto para la Fórmula 1 utilizando una Red Neuronal Artificial del Tipo Multiperceptrón*.
+Trabajo Práctico N.º 2, Inteligencia Artificial, Universidad Tecnológica Nacional — Facultad
+Regional Buenos Aires. https://github.com/FrancoP08/TP2-IA-2025
 
 Fédération Internationale de l'Automobile (2026). *2026 Formula 1 Sporting Regulations —
 Section B*, Issue 05, 27 de febrero de 2026. Artículos B6.1.1, B6.1.2 y B6.3.8.
