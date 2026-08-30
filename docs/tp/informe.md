@@ -186,19 +186,47 @@ La recomendación **no** se producirá con un único modelo extremo a extremo. U
 carrera no actúa sobre una recomendación que no puede interrogar, y —como se argumenta en la
 sección 6— un clasificador puramente estadístico puede además emitir una estrategia **ilegal**.
 
-| Capa | Técnica | Rol |
-|---|---|---|
-| **1. Estimación de degradación** | Regresión — *gradient boosting* sobre datos tabulares | Cuantifica cuánto tiempo por vuelta pierde cada compuesto |
-| **2. Motor de reglas** | Reglas de producción y tablas de decisión (R1–R14) | Toma la decisión. Capa auditable y garante de la legalidad |
-| **3. Simulación Monte Carlo** | Sorteo de eventos de pista + ejecución del motor de reglas | Produce la **distribución** de estrategias |
+| Capa | Técnica | Unidad del programa | Rol |
+|---|---|---|---|
+| **1. Simulador de carrera** | Monte Carlo sobre degradación estimada y sorteo de eventos | — (infraestructura) | Entorno de evaluación. No es una técnica de IA: es el banco de pruebas de las que sí lo son |
+| **2. Optimización de la estrategia** | **Algoritmo Genético** (DEAP) | **Unidad 3 — Sistemas Evolutivos** | **Técnica principal.** Busca el mejor plan de carrera |
+| **3. Decisión secuencial** | **Aprendizaje por Refuerzo** | **Unidad 5 — Agentes Inteligentes** | Modelo de contraste: decidir vuelta a vuelta en lugar de planificar de antemano |
+| Capa transversal | Restricciones reglamentarias (B6.3.8) | — | Define qué soluciones son **viables**. Garantiza legalidad |
 
-La capa 2 consumirá los números de la capa 1. Toda recomendación se emitirá acompañada de las
-reglas que se dispararon.
+**Capa 1 — el simulador.** Para cada carrera se estimará la degradación por compuesto en ese
+circuito, se sortearán realizaciones de Safety Car, VSC y bandera roja a partir de las tasas
+empíricas medidas, y se ejecutará la carrera vuelta a vuelta. Repetido algunos miles de veces,
+produce la **distribución** de resultados de un plan dado. Es la **función de aptitud** de la capa
+2 y el **entorno** de la capa 3.
 
-**Funcionamiento previsto de la capa 3:** para cada carrera se estimará la degradación por
-compuesto en ese circuito, se sortearán realizaciones de Safety Car, VSC y bandera roja a partir
-de tasas empíricas, se ejecutará el motor de reglas vuelta a vuelta sobre la carrera simulada, y
-se repetirá algunos miles de veces. La salida será la distribución de estrategias resultante.
+**Capa 2 — Algoritmo Genético (técnica principal).** El problema es combinatorio, con
+restricciones duras y una función de aptitud costosa de evaluar: el escenario natural de un
+algoritmo evolutivo.
+
+| Elemento | Definición |
+|---|---|
+| **Cromosoma** | El plan de carrera: vector de longitudes de stint y secuencia de compuestos, p. ej. `[(18, M), (25, H), (14, S)]` |
+| **Función de aptitud** | Posición final simulada, promediada sobre varias realizaciones Monte Carlo. Se optimiza **posición, no segundos** |
+| **Restricciones** | El artículo B6.3.8 determina qué cromosomas son viables; los inviables se reparan o penalizan |
+| **Operadores** | Cruza de un punto sobre la secuencia de stints; mutación que alarga o acorta un stint, o cambia un compuesto |
+| **Selección** | Torneo, con elitismo |
+
+Obsérvese el cambio de pregunta respecto de la predicción puntual: no se pregunta *"¿qué hizo el
+equipo?"* sino *"¿cuál es el mejor plan?"*. La primera pregunta resultó no ser respondible con
+estos datos; la segunda sí lo es, porque se evalúa contra un simulador y no contra una etiqueta
+histórica.
+
+**Capa 3 — Agente de Aprendizaje por Refuerzo (contraste).** Un agente que decide `BOX` /
+`SEGUIR` vuelta a vuelta dentro del mismo simulador. Estado: el vector de situación de carrera.
+Acción: binaria más elección de compuesto. Recompensa: posiciones ganadas al final. Permite
+comparar **optimización global** —el AG planifica la carrera completa de antemano— contra
+**decisión secuencial** —el agente reacciona a lo que ocurre—. Esa comparación es en sí misma un
+resultado.
+
+**Línea futura declarada:** modelar la incertidumbre de Safety Car y VSC con una **red bayesiana**
+(Unidad 4, herramienta GeNIe) que alimente los sorteos del simulador. Se declara como línea futura
+y no como compromiso: el trabajo es individual y prometer cuatro técnicas para entregar una sería
+peor que proponer dos y cumplirlas.
 
 ### 3.2. Las restricciones reglamentarias como filtro duro
 
@@ -225,7 +253,9 @@ agresiva.
 | Lenguaje | Python 3.13 | Ecosistema de datos y compatibilidad con `fastf1` |
 | Adquisición | `fastf1` 3.8.3 | Única fuente pública de timing por vuelta con datos de neumático |
 | Manipulación | `pandas` 2.x, `numpy` 2.x, `pyarrow` | Estándar; Parquet para persistencia |
-| Modelos | `LightGBM` 4.x | Desempeño en datos tabulares e importancias interpretables |
+| **Computación evolutiva** | **`DEAP`** | Biblioteca recomendada por la cátedra para algoritmos genéticos (Unidad 3) |
+| **Aprendizaje por refuerzo** | `gymnasium` + demo `demoRL` de la cátedra | Entorno estándar y convenciones del curso (Unidad 5) |
+| Modelos de regresión | `LightGBM` 4.x | Componente de degradación dentro del simulador |
 | Métricas y partición | `scikit-learn` 1.5 | `GroupKFold`, curvas precisión-exhaustividad |
 | Estadística | `scipy` | Ajuste por máxima verosimilitud del *prior* Beta-Binomial |
 | Entorno | `uv` | Reproducibilidad de dependencias |
@@ -233,14 +263,18 @@ agresiva.
 | Backend | FastAPI + PostgreSQL | Exposición del sistema como servicio |
 | Frontend | React 19 + Vite + TypeScript | Interfaz de demostración |
 
-**Topología prevista del regresor:** LightGBM, 400 árboles, tasa de aprendizaje 0,05, 31 hojas.
+**Topología prevista del Algoritmo Genético:** población de 100 individuos, 200 generaciones,
+selección por torneo de tamaño 3 con elitismo, probabilidad de cruza 0,7 y de mutación 0,2. Cada
+evaluación de aptitud promedia 200 realizaciones Monte Carlo.
+
+**Topología prevista del regresor de degradación:** LightGBM, 400 árboles, tasa 0,05, 31 hojas.
+
 **Topología prevista del clasificador de contraste:** LightGBM, 300 árboles, tasa 0,05, 31 hojas,
 con `scale_pos_weight` igual a la razón entre clases para compensar el desbalance de 28:1.
 
-**Alternativas descartadas:** una red neuronal profunda extremo a extremo, porque la estrategia
-exige justificación y 12 carreras no sostienen esa complejidad; y aprendizaje por refuerzo sobre
-un simulador de carrera, que sería el abordaje ideal pero exige construir primero un simulador
-fiel, lo que excede el cuatrimestre. Se propone como línea futura.
+**Alternativa descartada:** una red neuronal profunda extremo a extremo. La estrategia exige
+justificación, 12 carreras no sostienen esa complejidad, y además el MLP ya fue la técnica del
+antecedente propio de 2025 (sección 6.2), con resultados limitados.
 
 ---
 
