@@ -24,10 +24,12 @@ técnico, por dos motivos: la jerarquía de degradación de compuestos se invirt
 anteriores —lo que impide mezclar temporadas— y ningún trabajo publicado puede haber utilizado
 estos datos.
 
-Se propone una **arquitectura híbrida de tres capas**: un modelo de regresión que estima la
-degradación del neumático, un motor de reglas de producción que toma la decisión de forma
-auditable, y una simulación Monte Carlo que emite una **distribución** de estrategias posibles en
-lugar de un valor puntual.
+Se propone un **simulador de carrera Monte Carlo** como entorno de evaluación, sobre el cual se
+aplican dos técnicas del programa de la asignatura: un **Algoritmo Genético** (Unidad 3) que
+busca el mejor plan de carrera —representando la estrategia como cromosoma y la posición final
+simulada como función de aptitud—, y un **agente de Aprendizaje por Refuerzo** (Unidad 5) que
+decide vuelta a vuelta, como modelo de contraste entre optimización global y decisión secuencial.
+Las restricciones del reglamento deportivo actúan como filtro de viabilidad sobre ambas.
 
 Como parte de la elaboración de esta propuesta se realizó un **estudio de factibilidad** sobre
 los datos disponibles, cuyos hallazgos se presentan a lo largo del documento porque son los que
