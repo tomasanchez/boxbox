@@ -1,5 +1,6 @@
 # BoxBox — Asistente de estrategia de neumáticos y paradas en Fórmula 1
 
+**Propuesta de Trabajo Práctico Integral**
 **Inteligencia Artificial Avanzada — Ingeniería en Sistemas de Información**
 **Universidad Tecnológica Nacional — Facultad Regional Buenos Aires**
 
@@ -13,54 +14,64 @@
 
 ## Resumen
 
-Este trabajo desarrolla un Sistema Inteligente que asiste al ingeniero de estrategia de
+Este trabajo propone desarrollar un Sistema Inteligente que asista al ingeniero de estrategia de
 Fórmula 1 en la decisión de parada en boxes: dado el estado de una carrera, estimar cuántas
-paradas conviene hacer, en qué ventana de vueltas y con qué compuesto.
+paradas conviene hacer, en qué ventana de vueltas y con qué compuesto de neumático.
 
-El sistema **no predice el resultado de la carrera**, sino el *plan de neumáticos*. Se trabaja
-exclusivamente sobre la temporada **2026**, la primera bajo el nuevo reglamento técnico, por dos
-razones: la jerarquía de degradación de compuestos se invirtió respecto de años anteriores, lo
-que impide mezclar temporadas, y ningún trabajo publicado puede haber usado estos datos.
+El sistema **no buscará predecir el resultado de la carrera**, sino el *plan de neumáticos*. Se
+trabajará exclusivamente sobre la temporada **2026**, la primera bajo el nuevo reglamento
+técnico, por dos motivos: la jerarquía de degradación de compuestos se invirtió respecto de años
+anteriores —lo que impide mezclar temporadas— y ningún trabajo publicado puede haber utilizado
+estos datos.
 
-Se construyó el pipeline completo de adquisición y preparación sobre la biblioteca `fastf1`
-(14.095 vueltas, 12 carreras), se implementaron dos modelos —un regresor de degradación y un
-clasificador de parada— y se evaluaron sobre un conjunto de prueba del 25% separado por carrera.
+Se propone una **arquitectura híbrida de tres capas**: un modelo de regresión que estima la
+degradación del neumático, un motor de reglas de producción que toma la decisión de forma
+auditable, y una simulación Monte Carlo que emite una **distribución** de estrategias posibles en
+lugar de un valor puntual.
 
-**El resultado central es negativo y se reporta como tal:** la predicción puntual falla en todos
-los niveles ensayados, mientras que la medición agregada funciona bien. Ese contraste es el que
-justifica la arquitectura propuesta para la etapa siguiente: un simulador Monte Carlo que emite
-una **distribución** de estrategias en lugar de un valor puntual.
+Como parte de la elaboración de esta propuesta se realizó un **estudio de factibilidad** sobre
+los datos disponibles, cuyos hallazgos se presentan a lo largo del documento porque son los que
+justifican cada decisión de diseño. En particular, ese estudio mostró que la predicción puntual
+no es alcanzable con estos datos y que la medición agregada sí lo es, lo que determinó el enfoque
+distribucional aquí propuesto.
 
 ---
 
 ## 1. Introducción
 
 Durante una carrera de Fórmula 1 el ingeniero de estrategia debe decidir, vuelta a vuelta, si su
-piloto entra a boxes y con qué compuesto continúa. La decisión combina el desgaste del neumático
-actual, el ritmo de los rivales cercanos, la pérdida de tiempo del pit-lane del circuito, la
-dificultad para adelantar y la posibilidad de un evento de pista que altere por completo el
-cálculo.
+piloto entra a boxes y con qué compuesto continúa. La decisión debe tomarse en segundos y combina
+el desgaste del neumático actual, el ritmo de los rivales cercanos, la pérdida de tiempo del
+pit-lane del circuito, la dificultad para adelantar y la posibilidad de un evento de pista
+—Safety Car, Virtual Safety Car o bandera roja— que altere por completo el cálculo.
 
-### 1.1. Objetivo
+### 1.1. Objetivo del Sistema Inteligente
 
-Construir un Sistema Inteligente que, dado el estado de una carrera, **estime la estrategia de
-neumáticos y paradas** —cantidad de paradas, ventana de vueltas y secuencia de compuestos— y
-justifique cada recomendación con las reglas que la produjeron.
+Construir un prototipo que, dado el estado de una carrera de la temporada 2026, **estime la
+estrategia de neumáticos y paradas** y **justifique** cada recomendación con las reglas que la
+produjeron.
 
-La recomendación es **asistiva**: no reemplaza al ingeniero de estrategia, le ofrece una segunda
-opinión cuantificada y trazable.
+Concretamente, el prototipo deberá emitir para cada piloto:
+
+- la probabilidad de que la carrera se resuelva con una, dos o tres paradas;
+- la secuencia modal de compuestos;
+- un intervalo creíble para la vuelta de la primera parada;
+- la traza de reglas que sustentan la recomendación.
+
+La recomendación será **asistiva**: no reemplaza al ingeniero de estrategia, le ofrece una
+segunda opinión cuantificada y trazable.
 
 ### 1.2. Alcance
 
-**Dentro:** temporada 2026, carreras en seco y mixtas, estrategia de neumáticos, eventos de pista
-(Safety Car, Virtual Safety Car, bandera roja), restricciones reglamentarias de compuesto.
+**Dentro del alcance:** temporada 2026, carreras en seco y mixtas, estrategia de neumáticos,
+eventos de pista, y las restricciones reglamentarias de compuesto.
 
-**Fuera, y declarado explícitamente:** la **gestión de energía**. Bajo el reglamento 2026
-aproximadamente el 50% de la potencia proviene del MGU-K, y el estado de carga de la batería junto
-con el modo *Manual Override* son hoy parte real del cálculo estratégico. **La FIA y la Fórmula 1
-no publican esos datos**, lo que se verificó empíricamente sobre los canales de telemetría
-disponibles y está confirmado por el mantenedor de la biblioteca utilizada. El sistema modela la
-mitad correspondiente a neumáticos y posición en pista, y declara la otra fuera de alcance.
+**Fuera del alcance, y declarado explícitamente:** la **gestión de energía**. Bajo el reglamento
+2026 aproximadamente el 50% de la potencia proviene del MGU-K, y el estado de carga de la batería
+junto con el modo *Manual Override* son hoy parte real del cálculo estratégico. **La Fórmula 1 no
+publica esos datos**, lo que se verificó sobre los canales de telemetría disponibles y está
+confirmado por el mantenedor de la biblioteca a utilizar. El sistema modelará la mitad
+correspondiente a neumáticos y posición en pista, y declara la otra fuera de alcance.
 
 También quedan fuera: fallas mecánicas, penalizaciones deportivas, órdenes de equipo, sesiones de
 clasificación y carreras sprint.
@@ -69,95 +80,101 @@ clasificación y carreras sprint.
 
 ## 2. Materiales Disponibles
 
-### 2.1. Fuentes de conocimiento
+### 2.1. Fuentes de información
 
-| Fuente | Tipo | Uso |
+| Fuente | Tipo | Uso previsto |
 |---|---|---|
 | Biblioteca `fastf1` v3.8.3 (licencia MIT) | Datos | Tiempos por vuelta, compuesto, edad de neumático, stint, posición, clima, estado de pista |
 | *2026 Formula 1 Sporting Regulations*, Sección B, Issue 05 | Conocimiento experto | Reglas duras: artículos B6.1.1, B6.1.2 y B6.3.8 sobre obligación de compuestos |
+| Sesiones de entrenamiento libre (FP1, FP2, FP3) | Datos | Estimación del ritmo del circuito antes de la carrera |
 | API `jolpica-f1` (sucesora de Ergast) | Datos | Fuente secundaria de resultados históricos |
 | Prensa técnica y análisis públicos de estrategia | Conocimiento experto | Heurísticas de *undercut* y *overcut* |
 
-### 2.2. Descripción del conjunto de datos
+### 2.2. Descripción de los datos disponibles
+
+Verificado sobre las rondas ya disputadas de 2026:
 
 | | |
 |---|---|
-| Temporada | 2026, rondas 1 a 12 |
 | Vueltas | 14.095 |
 | Stints | 756 |
 | Pilotos-carrera | 257 |
 | Paradas registradas | 527 |
-| Grilla | 11 equipos, 22 pilotos (incorporan Audi y Cadillac) |
+| Carreras disponibles hoy | 12 de 23 |
+| Grilla | 11 equipos, 22 pilotos (se incorporan Audi y Cadillac) |
 
-**Completitud medida** sobre las columnas críticas: `Stint`, `Compound`, `TyreLife`,
+**Completitud verificada** de las columnas críticas: `Stint`, `Compound`, `TyreLife`,
 `FreshTyre`, `TrackStatus` e `IsAccurate` al **100%**; `LapTime` 99,4%; `Position` 99,8%.
-`PitInTime` está poblada en el 3,3% de las vueltas — esa escasez **es la etiqueta**.
+`PitInTime` aparece en el 3,3% de las vueltas — esa escasez **es la etiqueta**.
 
-**Limitación operativa detectada:** `fastf1` impone un límite de **500 llamadas por hora**
-(`RateLimitExceededError`). Una ingesta de varias temporadas lo supera y descarta silenciosamente
-las carreras restantes. Se resolvió construyendo el caché por tandas e incorporando un modo
-`--offline` que trabaja sólo sobre datos ya descargados.
+**El conjunto crecerá durante el cuatrimestre.** Restan 11 carreras hasta Abu Dhabi
+(2026-12-06), de modo que al cierre de las entregas se dispondrá de casi el doble de datos.
 
-### 2.3. Técnicas de preparación aplicadas
+**Limitación operativa detectada:** `fastf1` impone un tope de **500 llamadas por hora**. Una
+ingesta de varias temporadas lo supera y descarta silenciosamente las carreras restantes. Se
+trabajará construyendo el caché por tandas.
 
-El pipeline `ingest → features` aplica cinco pasos. Cada uno responde a un problema concreto
-encontrado en los datos.
+### 2.3. Técnicas de preparación que se aplicarán sobre los datos
 
-**a. Marcado de vueltas representativas.** Se excluyen del ajuste de ritmo las vueltas de entrada
-y salida de boxes (que contienen el tránsito por el pit-lane), las vueltas anuladas por los
+El estudio de factibilidad permitió identificar seis transformaciones necesarias. Cada una
+responde a un problema concreto verificado en los datos, no a una precaución teórica.
+
+**a. Marcado de vueltas representativas.** Se excluirán del ajuste de ritmo las vueltas de
+entrada y salida de boxes —que contienen el tránsito por el pit-lane—, las anuladas por los
 comisarios y las que no superan la verificación de sincronía de `fastf1`. Quedan utilizables el
-**90,0%** de las vueltas. No se eliminan del conjunto: una vuelta de entrada a boxes es
-exactamente donde vive la etiqueta.
+**90,0%**. No se eliminarán del conjunto: una vuelta de entrada a boxes es exactamente donde vive
+la etiqueta.
 
 **b. Corrección por carga de combustible.** Un auto con combustible para `n` vueltas más es
-aproximadamente `0,035 × n` segundos más lento. Se resta ese término para que una vuelta 8 sea
-comparable con una vuelta 45.
+aproximadamente `0,035 × n` segundos más lento. Se restará ese término para que una vuelta 8 sea
+comparable con una vuelta 45. *(El coeficiente deberá reajustarse con datos de 2026: los autos
+son unos 32 kg más livianos que en la era anterior.)*
 
-**c. Cálculo de la posición dentro del stint.** No puede usarse `TyreLife` para esto: un piloto
-que arranca con un juego usado en clasificación comienza la carrera con `TyreLife = 4`. Se deriva
-`stint_lap` contando dentro del stint, y `FreshTyre` responde la pregunta distinta de si el juego
+**c. Cálculo de la posición dentro del stint.** No puede usarse `TyreLife`: un piloto que arranca
+con un juego usado en clasificación comienza la carrera con `TyreLife = 4`. Se derivará
+`stint_lap` contando dentro del stint; `FreshTyre` responde la pregunta distinta de si el juego
 era nuevo.
 
 **d. Decodificación del estado de pista.** `TrackStatus` es una **cadena concatenada**, no un
 código: una vuelta en verde es `"1"` y una donde se desplegó y terminó el VSC es `"167"`. Se
-evalúa por contención, nunca por igualdad.
+evaluará por contención, nunca por igualdad.
 
 **e. Separación de paradas libres.** Un cambio de neumáticos bajo **bandera roja es gratuito**:
-la carrera está detenida y no cuesta tiempo en pista. La etiqueta derivada de `PitInTime` no
-puede distinguirlo de una parada estratégica que cuesta ~20 s. Se midió que el **8,1%** de todas
-las paradas son libres (7,5% en 2024, 8,7% en 2026), con concentraciones extremas: Mónaco 2024
-69,6%, Zandvoort 2026 30,9%. Se emiten por eso dos etiquetas separadas, `free_stop` y
-`strategic_stop`.
+la carrera está detenida. La etiqueta derivada de `PitInTime` no puede distinguirlo de una parada
+estratégica que cuesta ~20 s. Se verificó que el **8,1%** de las paradas son libres, con
+concentraciones extremas (Zandvoort 2026: 30,9%). Se emitirán dos etiquetas separadas.
 
-**f. Desfase temporal de las variables de ritmo (control de fuga).** Este es el paso más
-importante. Las variables de degradación están presentes en el **87,2%** de las vueltas normales
-y en el **0,0%** de las vueltas con parada, porque una vuelta de entrada a boxes nunca es
-representativa. Un modelo alimentado con ellas en crudo lee la respuesta en el patrón de
-faltantes y obtiene un desempeño casi perfecto sin haber aprendido nada. **Todas las variables de
-ritmo se desfasan una vuelta**: la pregunta es "¿boxeará al final de esta vuelta?" usando sólo lo
-conocido al comenzarla.
+**f. Desfase temporal de las variables de ritmo (control de fuga).** El más importante. Las
+variables de degradación están presentes en el **87,2%** de las vueltas normales y en el **0,0%**
+de las vueltas con parada, porque una vuelta de entrada a boxes nunca es representativa. Un
+modelo alimentado con ellas en crudo lee la respuesta en el patrón de faltantes. **Todas las
+variables de ritmo se desfasarán una vuelta**: la pregunta será "¿boxeará al final de esta
+vuelta?" usando sólo lo conocido al comenzarla.
 
 ### 2.4. Método de selección de datos para entrenamiento, validación y prueba
 
-**La unidad de partición es la carrera, no la vuelta.** Vueltas consecutivas de un mismo stint
+**La unidad de partición será la carrera, no la vuelta.** Vueltas consecutivas de un mismo stint
 son casi duplicados; partir por vuelta pondría datos del mismo stint a ambos lados y filtraría
 información.
 
-Se reservan las **últimas 3 de las 12 rondas** como conjunto de prueba, que **nunca** se usan
-para entrenar ni ajustar. Tres de doce carreras es el **25%** exigido. Se eligen las más recientes
-en lugar de tres al azar porque replica la tarea real: pronosticar rondas que aún no ocurrieron.
+Se reservará como conjunto de prueba el **25% de las carreras**, tomando las **más recientes** en
+lugar de una selección aleatoria, porque replica la tarea real: pronosticar rondas que aún no
+ocurrieron. Ese conjunto no se usará para entrenar ni para ajustar hiperparámetros.
 
-| Partición | Rondas | Carreras | Vueltas | Paradas estratégicas | Tasa |
+Con las 12 carreras disponibles hoy la partición queda así, y se recalculará a medida que avance
+la temporada:
+
+| Partición | Rondas | Carreras | Vueltas | Paradas | Tasa |
 |---|---|---|---|---|---|
-| Entrenamiento + validación | 1 a 9 | 9 | 10.143 | 350 | 3,45% |
-| **Prueba** | **10, 11, 12** | **3 (25%)** | **3.501 (25,7%)** | **118** | **3,37%** |
+| Entrenamiento + validación | 1 a 9 | 9 (75%) | 10.143 | 350 | 3,45% |
+| **Prueba** | **10 a 12** | **3 (25%)** | **3.501 (25,7%)** | **118** | **3,37%** |
 
-Dentro del conjunto de entrenamiento la validación se hace con **`GroupKFold` de 4 particiones
-agrupadas por carrera**, de modo que ninguna carrera aparezca simultáneamente en entrenamiento y
+Las tasas de parada de ambas particiones resultan casi idénticas, lo que indica que la partición
+temporal no introduce un desbalance adicional.
+
+Dentro del conjunto de entrenamiento la validación se hará con **`GroupKFold` de 4 particiones
+agrupadas por carrera**, de modo que ninguna carrera aparezca a la vez en entrenamiento y
 validación de un mismo pliegue.
-
-Las tasas de parada de ambas particiones son casi idénticas (3,45% contra 3,37%), lo que indica
-que la partición temporal no introdujo un desbalance adicional.
 
 ---
 
@@ -165,276 +182,260 @@ que la partición temporal no introdujo un desbalance adicional.
 
 ### 3.1. Arquitectura: tres capas
 
-La recomendación **no** se produce con un único modelo extremo a extremo. Un ingeniero de carrera
-no actúa sobre una recomendación que no puede interrogar, y —como se demuestra en la sección 6—
-un clasificador puramente estadístico puede además emitir una estrategia **ilegal**.
+La recomendación **no** se producirá con un único modelo extremo a extremo. Un ingeniero de
+carrera no actúa sobre una recomendación que no puede interrogar, y —como se argumenta en la
+sección 6— un clasificador puramente estadístico puede además emitir una estrategia **ilegal**.
 
 | Capa | Técnica | Rol |
 |---|---|---|
 | **1. Estimación de degradación** | Regresión — *gradient boosting* sobre datos tabulares | Cuantifica cuánto tiempo por vuelta pierde cada compuesto |
-| **2. Motor de reglas** | Reglas de producción y tablas de decisión (R1–R14) | Toma la decisión. Es la capa auditable y la que garantiza legalidad |
-| **3. Simulación Monte Carlo** | Sorteo de eventos de pista + ejecución del motor de reglas | Produce una **distribución** de estrategias |
+| **2. Motor de reglas** | Reglas de producción y tablas de decisión (R1–R14) | Toma la decisión. Capa auditable y garante de la legalidad |
+| **3. Simulación Monte Carlo** | Sorteo de eventos de pista + ejecución del motor de reglas | Produce la **distribución** de estrategias |
 
-La capa 2 consume los números de la capa 1. Toda recomendación se emite acompañada de las reglas
-que se dispararon.
+La capa 2 consumirá los números de la capa 1. Toda recomendación se emitirá acompañada de las
+reglas que se dispararon.
 
-### 3.2. Restricciones reglamentarias como filtro duro
+**Funcionamiento previsto de la capa 3:** para cada carrera se estimará la degradación por
+compuesto en ese circuito, se sortearán realizaciones de Safety Car, VSC y bandera roja a partir
+de tasas empíricas, se ejecutará el motor de reglas vuelta a vuelta sobre la carrera simulada, y
+se repetirá algunos miles de veces. La salida será la distribución de estrategias resultante.
 
-La elección de compuesto se modela en **dos etapas**, porque el reglamento restringe el conjunto
-de opciones *antes* de que la estrategia elija dentro de él:
+### 3.2. Las restricciones reglamentarias como filtro duro
+
+La elección de compuesto se modelará en **dos etapas**, porque el reglamento restringe el
+conjunto de opciones *antes* de que la estrategia elija dentro de él:
 
 1. **Filtro reglamentario** → construye `compuestos_admisibles`.
 2. **Elección estratégica** → toma la preferencia de mayor prioridad dentro de ese conjunto.
 
 El artículo **B6.3.8** exige al menos **dos especificaciones distintas** de neumático de seco, de
-las cuales **al menos una debe ser una especificación obligatoria de carrera** anunciada por la
-FIA dos semanas antes de cada competición (artículo **B6.1.2 b ii**, hasta un máximo de dos). En
-**Mónaco** se exige además un mínimo de **tres juegos**, es decir una doble parada obligatoria. El
+las cuales **al menos una debe ser una especificación obligatoria de carrera** que la FIA anuncia
+dos semanas antes de cada competición (artículo **B6.1.2 b ii**, hasta un máximo de dos). En
+**Mónaco** se exige además un mínimo de **tres juegos**: una doble parada obligatoria. El
 incumplimiento se sanciona con **descalificación**.
 
-El módulo de selección de compuesto tiene por invariante que **no puede** devolver un compuesto
-fuera del conjunto admisible: una recomendación ilegal es un defecto, no una estrategia agresiva.
+El módulo de selección tendrá por invariante que **no puede** devolver un compuesto fuera del
+conjunto admisible: una recomendación ilegal será tratada como defecto, no como estrategia
+agresiva.
 
-### 3.3. Tecnología y herramientas
+### 3.3. Tecnología, topología y herramientas
 
-| Componente | Herramienta | Motivo |
+| Componente | Herramienta | Motivo de la elección |
 |---|---|---|
 | Lenguaje | Python 3.13 | Ecosistema de datos y compatibilidad con `fastf1` |
 | Adquisición | `fastf1` 3.8.3 | Única fuente pública de timing por vuelta con datos de neumático |
-| Manipulación | `pandas` 2.x, `numpy` 2.x, `pyarrow` | Estándar; `pyarrow` para persistencia en Parquet |
+| Manipulación | `pandas` 2.x, `numpy` 2.x, `pyarrow` | Estándar; Parquet para persistencia |
 | Modelos | `LightGBM` 4.x | Desempeño en datos tabulares e importancias interpretables |
 | Métricas y partición | `scikit-learn` 1.5 | `GroupKFold`, curvas precisión-exhaustividad |
 | Estadística | `scipy` | Ajuste por máxima verosimilitud del *prior* Beta-Binomial |
-| Gestión de entorno | `uv` | Reproducibilidad de dependencias |
+| Entorno | `uv` | Reproducibilidad de dependencias |
 | Calidad | `ruff`, `pytest` | Linting y pruebas |
 | Backend | FastAPI + PostgreSQL | Exposición del sistema como servicio |
 | Frontend | React 19 + Vite + TypeScript | Interfaz de demostración |
 
-**Topología del regresor:** LightGBM, 400 árboles, tasa de aprendizaje 0,05, 31 hojas.
-**Topología del clasificador:** LightGBM, 300 árboles, tasa de aprendizaje 0,05, 31 hojas, con
-`scale_pos_weight` igual a la razón entre clases para compensar el desbalance de 28:1.
+**Topología prevista del regresor:** LightGBM, 400 árboles, tasa de aprendizaje 0,05, 31 hojas.
+**Topología prevista del clasificador de contraste:** LightGBM, 300 árboles, tasa 0,05, 31 hojas,
+con `scale_pos_weight` igual a la razón entre clases para compensar el desbalance de 28:1.
 
-No se eligió una red neuronal profunda extremo a extremo: la estrategia exige justificación, y el
-volumen de datos (12 carreras) no la sostendría.
+**Alternativas descartadas:** una red neuronal profunda extremo a extremo, porque la estrategia
+exige justificación y 12 carreras no sostienen esa complejidad; y aprendizaje por refuerzo sobre
+un simulador de carrera, que sería el abordaje ideal pero exige construir primero un simulador
+fiel, lo que excede el cuatrimestre. Se propone como línea futura.
 
 ---
 
 ## 4. Desarrollo
 
-### 4.1. Lo construido
+Esta sección describe **el plan de trabajo**. El prototipo aún no está construido; lo que sí está
+hecho es el estudio de factibilidad que se resume en 4.2 y que sustenta el plan.
 
-El repositorio es un monorepo con tres aplicaciones: `apps/api` (backend FastAPI generado desde
-plantilla, 33 pruebas en verde), `apps/ml` (el pipeline y los modelos) y `apps/web` (interfaz).
-El paquete `boxbox_ml` contiene seis módulos: `cache`, `ingest`, `track_status`, `features`,
-`practice` y `neutralisation`.
+### 4.1. Plan de construcción
 
-### 4.2. Problemas encontrados y cómo se resolvieron
+| Etapa | Contenido | Estado |
+|---|---|---|
+| Infraestructura | Monorepo con backend, workspace de ML y frontend | **Hecho** |
+| Adquisición y preparación | Pipeline `ingest → features` con las seis transformaciones de 2.3 | **Hecho** |
+| Estudio de factibilidad | Verificación de que los datos sostienen el planteo | **Hecho** |
+| **Capa 1** — regresor de degradación | Entrenamiento y ajuste sobre el conjunto de 2026 | Pendiente |
+| **Capa 2** — motor de reglas | Implementación de R1–R14 y las tablas de decisión | Pendiente |
+| **Capa 3** — simulador Monte Carlo | Sorteo de eventos y ejecución del motor | **Pendiente — es el entregable central** |
+| Modelo de contraste | Clasificador supervisado como línea base declarada | Pendiente |
+| Validación prospectiva | Pronósticos fechados sobre las carreras restantes | Pendiente |
 
-**a. Fuga por patrón de faltantes.** Descrita en 2.3.f. Detectada al comparar la presencia de
-`degradation_s` entre vueltas con y sin parada: 87,2% contra 0,0%. Resuelta desfasando una vuelta
-todas las variables de ritmo.
+### 4.2. Estudio de factibilidad: seis problemas ya detectados
 
-**b. Paradas gratuitas bajo bandera roja.** En el GP de Países Bajos 2026 se observó que **21 de
-22 pilotos "boxearon" en la vuelta 2**. La carrera estaba con bandera roja y todos cambiaron
-neumáticos gratis. Resuelto separando `free_stop` de `strategic_stop`.
+Antes de comprometerse con un diseño se construyó el pipeline y se midió. Se hallaron seis
+problemas que habrían corrompido silenciosamente los resultados:
 
-**c. Nombres de circuito inestables entre temporadas.** `fastf1` reporta Mónaco como
-`Monte Carlo` y Miami como `Miami Gardens` en 2026, pero `Monaco` y `Miami` en temporadas
-anteriores, partiendo silenciosamente el historial de cada circuito en dos mitades sub-observadas.
-Resuelto con una tabla de alias.
+| # | Problema | Cómo se resolvió |
+|---|---|---|
+| 1 | Fuga por patrón de faltantes (87,2% contra 0,0%) | Desfase de una vuelta en las variables de ritmo |
+| 2 | Paradas gratuitas bajo bandera roja: 21 de 22 pilotos "boxearon" en la vuelta 2 en Zandvoort | Separación de `free_stop` y `strategic_stop` |
+| 3 | Nombres de circuito inestables entre temporadas (`Monaco` contra `Monte Carlo`) | Tabla de alias |
+| 4 | *Prior* estimado por método de momentos: fuerza de 0,79 pseudo-visitas, es decir ningún encogimiento | Máxima verosimilitud Beta-Binomial (24,1 pseudo-visitas) |
+| 5 | Objetivo del regresor mal planteado: predecía tiempo absoluto en circuitos nunca vistos | Reformulado a degradación relativa al stint |
+| 6 | Tope de 500 llamadas/hora de la API | Caché por tandas y modo *offline* |
 
-**d. Estimador de *prior* inadecuado.** El primer ajuste del *prior* Beta por método de momentos
-devolvió una fuerza de **0,79 pseudo-visitas**, es decir prácticamente ningún encogimiento: un
-circuito visto una vez con un Safety Car quedaba estimado en 0,83. Con 1 o 2 visitas por circuito
-la dispersión de las tasas observadas *es* ruido binomial, que el método de momentos interpreta
-como variación real. Se reemplazó por **máxima verosimilitud Beta-Binomial**, que devuelve 24,1
-pseudo-visitas.
+### 4.3. Hallazgos preliminares que determinan el diseño
 
-**e. Objetivo del regresor mal planteado.** El primer intento predecía el **tiempo de vuelta
-absoluto**. Cada circuito aparece exactamente una vez por temporada, de modo que el modelo debía
-predecir pistas que nunca había visto: MAE de prueba 13,050 s contra 9,385 s del ingenuo, con
-R² = −0,887. Se corrigió el objetivo a `degradation_s`, que es relativo al stint y por
-construcción transferible entre circuitos.
+**La predicción puntual no funciona.** Se ensayaron cuatro objetivos puntuales distintos y
+ninguno superó a un modelo ingenuo:
 
-**f. Límite de tasa de la API.** Descrito en 2.2.
+| Objetivo | Resultado | Ingenuo |
+|---|---|---|
+| Tiempo de vuelta absoluto | MAE 13,05 s | 9,39 s |
+| Degradación por vuelta | MAE 0,937 s | 0,716 s |
+| Duración del stint | MAE 8,13 vueltas | 8,02 |
+| Cantidad de paradas | 32,1% exacto | 32,0% |
 
-### 4.3. Mediciones realizadas
+**La medición agregada sí funciona.** Toda medición agregada dio resultados nítidos:
 
-Se produjeron siete documentos de investigación reproducibles: verificación de `fastf1`, impacto
-del reglamento 2026, factibilidad de modelado, pronóstico de estrategia, tasas de neutralización,
-costo de parada bajo neutralización y el caso de estudio de Zandvoort.
+- **La jerarquía de compuestos se invirtió en 2026.** El blando pasó de ser el que más se degrada
+  (0,0673 s/vuelta en 2024) al que menos (0,0142); el duro es ahora el que más. Esto es lo que
+  impide mezclar temporadas.
+- **Una parada bajo neutralización cuesta 0 posiciones**, contra 2 en verde — aunque en segundos
+  parezca más cara (32,6 s contra 22,2 s), porque bajo Safety Car el pelotón circula agrupado.
+- **Los equipos lo explotan:** el 9,6% de las vueltas están neutralizadas pero allí se toma el
+  **30,8%** de las paradas, una sobrerrepresentación de **3,20×**.
+- **El reglamento se cumple:** de los 177 pilotos que terminaron una carrera en seco, los 177
+  usaron dos o más compuestos. Cero violaciones.
+
+Este contraste —lo agregado se mide bien, lo puntual no— es la razón por la cual se propone un
+sistema que emita **distribuciones** y no valores puntuales.
 
 ---
 
 ## 5. Resultados
 
-Todos los resultados de esta sección corresponden al **conjunto de prueba** (rondas 10, 11 y 12),
-nunca visto durante el entrenamiento.
+El prototipo aún no ha sido probado. Esta sección define **qué resultados se producirán y cómo se
+medirán**, de modo que el criterio de éxito quede fijado antes de construir.
 
-### 5.1. Regresor de degradación
+### 5.1. Métricas que se calcularán
 
-| Métrica | Valor |
-|---|---|
-| Vueltas de entrenamiento / prueba | 8.692 / 3.080 |
-| MAE de validación (`GroupKFold` de 4) | 1,014 s |
-| **MAE de prueba** | **0,937 s** |
-| MAE de prueba, modelo ingenuo (mediana) | **0,716 s** |
-| R² de prueba | **−0,690** |
-
-**El modelo no supera al ingenuo.** Un R² negativo significa que predecir siempre la mediana del
-entrenamiento habría sido mejor.
-
-### 5.2. Clasificador de parada
-
-| Métrica | Valor |
-|---|---|
-| **PR-AUC de prueba** | **0,1430** |
-| Azar (tasa positiva de prueba) | 0,0337 |
-| **Mejora sobre el azar** | **4,24×** |
-| F1 (mejor umbral, 0,206) | 0,2428 |
-| Precisión | 0,1842 |
-| Exhaustividad | 0,3559 |
-
-**Matriz de confusión (prueba):**
-
-| | Predicho: SEGUIR | Predicho: BOX |
+| Componente | Métrica | Criterio de éxito |
 |---|---|---|
-| **Real: SEGUIR** | VN = 3.197 | FP = 186 |
-| **Real: BOX** | FN = 76 | VP = 42 |
+| Regresor de degradación | MAE en s/vuelta sobre el conjunto de prueba | Superar al modelo ingenuo de la mediana |
+| Clasificador de contraste | PR-AUC, F1, precisión, exhaustividad, matriz de confusión | Reportar siempre la **mejora sobre el azar**, no la métrica sola |
+| **Sistema completo** | **Cobertura del intervalo** | ¿La estrategia real cayó dentro del intervalo pronosticado? |
+| **Sistema completo** | **Calibración** | De las carreras a las que se asigne 70% de probabilidad de una parada, ¿ocurre en ~70%? |
+| Sistema completo | Delta de posiciones contrafáctico | Posiciones ganadas o perdidas simulando la estrategia recomendada |
+| Motor de reglas | Cobertura y legalidad | Porcentaje resuelto por regla explícita; **cero** recomendaciones ilegales |
 
-**La exactitud no se reporta como métrica de desempeño.** "Nunca boxear" acierta el **96,63%** de
-las vueltas de prueba — y es una estrategia **ilegal** que termina en descalificación
-(artículo B6.3.8).
+### 5.2. La exactitud queda excluida del informe
 
-### 5.3. Casos resueltos por carrera
+"Nunca boxear" acierta el **96,6%** de las vueltas del conjunto de prueba. Pero además de
+inútil, **esa estrategia es ilegal**: el artículo B6.3.8 la sanciona con **descalificación**.
 
-| Ronda | Circuito | Vueltas | Paradas reales | Predichas | Aciertos |
-|---|---|---|---|---|---|
-| 10 | Spa-Francorchamps | 790 | 25 | 13 | 4 |
-| 11 | Budapest | 1.409 | 47 | 151 | 30 |
-| 12 | Zandvoort | 1.302 | 46 | 64 | 8 |
+Un clasificador que maximice exactitud converge por lo tanto a una estrategia que termina en
+exclusión de los resultados. La métrica no premia algo poco informativo, premia algo prohibido.
 
-**Caso exitoso — Budapest.** El modelo captura 30 de 47 paradas (64% de exhaustividad), aunque a
-costa de predecir 151, con lo que la precisión cae a 20%.
+### 5.3. Ejemplos de casos que se documentarán
 
-**Caso fallido — Zandvoort.** Sólo 8 de 46. La carrera tuvo bandera roja en la vuelta 2, dos
-períodos de VSC y estrategias de tres paradas. Ninguna variable previa a la carrera podía
-anticiparlo.
+Se reportarán casos resueltos con éxito y casos fallidos. El estudio de factibilidad ya
+identificó un caso fallido paradigmático que servirá de referencia:
 
-### 5.4. Mediciones agregadas (donde sí hay señal)
+**GP de Países Bajos 2026 (Zandvoort).** Bandera roja en la vuelta 2, dos períodos de VSC, y
+estrategias modales de tres paradas. El 40% de las paradas cayó en vueltas neutralizadas contra
+un 15% de vueltas neutralizadas. Ninguna variable previa a la carrera podía anticiparlo. Un
+pronóstico puntual de "tres paradas" habría acertado por casualidad y por la razón equivocada: la
+moda de tres incluye un cambio gratuito que nadie eligió.
 
-**Degradación mediana por compuesto (s/vuelta):**
+Un pronóstico distribucional, en cambio, habría dicho algo honesto y puntuable: *"lo más probable
+son dos paradas estratégicas; entre 15% y 20% de probabilidad de una carrera de tres o más
+dirigida por neutralizaciones"*.
 
-| Temporada | DURO | MEDIO | BLANDO | El que más se degrada |
-|---|---|---|---|---|
-| 2024 | 0,0388 | 0,0376 | **0,0673** | BLANDO |
-| 2026 | **0,0436** | 0,0239 | 0,0142 | DURO |
+### 5.4. Validación prospectiva
 
-**Costo de una parada según el estado de pista** (413 paradas estratégicas):
+Se propone **publicar un pronóstico fechado y congelado antes de cada carrera restante** y
+puntuarlo después. Restan 11 carreras:
 
-| Estado | Segundos perdidos | **Posiciones perdidas** |
-|---|---|---|
-| Verde | 22,21 s | **+2,0** |
-| VSC | 23,23 s | **0,0** |
-| Safety Car | 32,62 s | **0,0** |
+| Ronda | Circuito | Fecha | Formato |
+|---|---|---|---|
+| 13 | Monza | 2026-09-06 | Convencional |
+| 14 | Barcelona | 2026-09-13 | Convencional |
+| 15 | Bakú | 2026-09-26 | Convencional |
+| 16 | Sakhir | 2026-10-04 | Convencional |
+| 17 | Marina Bay | 2026-10-11 | Sprint |
+| 18–23 | Austin → Abu Dhabi | oct–dic | Convencional |
 
-**Comportamiento de los equipos:** el 9,6% de las vueltas están neutralizadas pero se toma bajo
-neutralización el **30,8%** de las paradas — una sobrerrepresentación de **3,20×**.
-
-**Verificación reglamentaria:** de los 177 pilotos que terminaron una carrera en seco, **los 177
-usaron dos o más compuestos**. Cero violaciones.
+Diez de las once son fines de semana convencionales con FP1, FP2 y FP3 completos. Este
+mecanismo **no admite fuga de datos ni ajuste a posteriori**, y el calendario coincide con el
+cuatrimestre.
 
 ---
 
 ## 6. Análisis de los Resultados
 
-### 6.1. La predicción puntual falla; la medición agregada funciona
+Esta sección define **cómo se analizarán** los resultados una vez obtenidos.
 
-Este es el hallazgo central, y se sostiene en cuatro experimentos independientes:
+### 6.1. Comparación contra líneas base
 
-| Objetivo puntual | Resultado | Comparación |
-|---|---|---|
-| Tiempo de vuelta absoluto | MAE 13,05 s | Ingenuo 9,39 s — **peor** |
-| Degradación por vuelta | MAE 0,937 s | Ingenuo 0,716 s — **peor** |
-| Duración del stint | MAE 8,13 vueltas | Ingenuo 8,02 — **empate** |
-| Cantidad de paradas | 32,1% exacto | Ingenuo 32,0% — **empate** |
+Todo resultado se reportará contra dos referencias obligatorias: el **modelo ingenuo**
+correspondiente (mediana para regresión, tasa positiva para clasificación) y el **azar**. Una
+métrica sin su línea base no se considerará informativa.
 
-Frente a esto, toda medición **agregada** dio resultados nítidos y reproducibles: la inversión de
-la jerarquía de compuestos, el costo de parada en posiciones, la sobrerrepresentación de 3,20× y
-el cumplimiento del reglamento.
+### 6.2. Comparación con el estado del arte
 
-La interpretación no es que el problema sea imposible, sino que **la variable objetivo elegida es
-la equivocada**. La estrategia de carrera está gobernada por **eventos**, no por física del
-neumático: en Zandvoort el 40% de las paradas cayó en vueltas neutralizadas contra un 15% de
-vueltas neutralizadas.
+El trabajo de referencia (Chaudhary et al., 2025) reporta **F1 = 0,81** con Bi-LSTM sobre datos
+de 2020–2024. Se comparará contra esa cifra explicando las diferencias metodológicas: ellos
+modelan el stint como **secuencia** y no como instantáneas tabulares por vuelta, entrenan con
+unas 100 carreras contra nuestras 12, y su definición de ventana puede ser más amplia.
 
-### 6.2. El clasificador supera al azar; el regresor no
+**La novedad de este trabajo no es el problema sino la temporada.** El problema está trabajado;
+ningún trabajo publicado puede haber usado datos de 2026, porque el reglamento cambió este año.
+Citar el antecedente y explicar por qué su modelo **no transfiere** es un aporte concreto.
 
-Resultado contraintuitivo. El clasificador —presentado como línea base débil— alcanza **4,24× el
-azar** sobre datos no vistos, mientras el regresor de degradación, que se esperaba fuerte por
-disponer de 22.378 pendientes ajustadas, **no supera a la mediana**.
-
-La explicación es la varianza: la degradación por vuelta está dominada por tráfico, combustible y
-estilo de pilotaje, y su mediana es difícil de batir punto a punto. La **degradación agregada por
-compuesto** sí es medible con nitidez. Son preguntas distintas.
-
-### 6.3. La curva de aprendizaje decreciente
-
-Al entrenar con 3, 6, 9 y 12 carreras, el PR-AUC bajó de 0,3163 a 0,1028. Esto **no** es que los
-datos perjudiquen: con tres carreras cada pliegue de validación es una sola carrera y el modelo se
-aferra a particularidades de circuito que se repiten. El 0,3163 es optimismo de muestra pequeña.
-**Esperar las rondas 13 a 23 no rescatará este planteo.**
-
-### 6.4. Comparación con el estado del arte
-
-El paper de referencia (Chaudhary et al., 2025) reporta **F1 = 0,81** con Bi-LSTM sobre
-2020–2024. Nuestro 0,2428 está muy por debajo. Tres diferencias plausibles: modelan el stint como
-**secuencia** y no como instantáneas tabulares por vuelta; entrenan con unas 100 carreras contra
-nuestras 12; y su definición de ventana puede ser más amplia. No fue posible verificar su montaje
-de forma independiente.
-
-**La novedad de este trabajo no es el problema sino la temporada.** Ningún trabajo publicado puede
-haber usado datos de 2026.
-
-### 6.5. Discrepancia con análisis publicado
+### 6.3. Discrepancia ya detectada con análisis publicado
 
 Un análisis público sostiene que la dispersión de degradación entre compuestos en 2026 es de
-0,008 s/vuelta, la más baja de la era. **No se reproduce:** medimos 0,0293 s/vuelta en 2026 contra
-0,0297 en 2024. La inversión de la jerarquía sí se reproduce; el colapso de la dispersión no. La
-causa probable es el estimador. Queda como punto abierto y **no se cita ninguna de las dos cifras
-como establecida**.
+0,008 s/vuelta, la más baja de la era. **No se reproduce:** medimos 0,0293 s/vuelta en 2026
+contra 0,0297 en 2024. La inversión de la jerarquía sí se reproduce; el colapso de la dispersión
+no. La causa probable es el estimador. Se resolverá agregando un estimador por stint y **no se
+citará ninguna de las dos cifras como establecida** hasta entonces.
+
+### 6.4. Análisis de la curva de aprendizaje
+
+Al entrenar con 3, 6, 9 y 12 carreras, el PR-AUC bajó de 0,3163 a 0,1028. Se analizará
+explícitamente: **no** es que los datos perjudiquen, sino que con tres carreras cada pliegue de
+validación es una sola carrera y el modelo se aferra a particularidades de circuito que se
+repiten. Es optimismo de muestra pequeña. La consecuencia práctica es que **esperar más carreras
+no rescatará el planteo puntual** — otro argumento a favor del enfoque distribucional.
 
 ---
 
 ## 7. Conclusiones
 
-1. **La predicción puntual de estrategia no es alcanzable con estos datos.** Cuatro objetivos
-   distintos empataron o perdieron contra modelos ingenuos. Afirmar "el piloto para en la vuelta
-   22" sería lo más fácil de refutar: la carrera siguiente simplemente no coincide.
+Esta propuesta plantea un Sistema Inteligente de estrategia de neumáticos para la temporada 2026
+de Fórmula 1, con una arquitectura híbrida de tres capas y salida distribucional.
 
-2. **La medición agregada sí funciona**, y sostiene un sistema útil: se conoce la jerarquía de
-   degradación 2026, el costo de parada en posiciones y las tasas de neutralización.
+Las decisiones de diseño no son preferencias: cada una responde a una medición del estudio de
+factibilidad.
 
-3. **El costo de una parada debe medirse en posiciones, no en segundos.** Bajo neutralización una
-   parada cuesta 0 posiciones contra 2 en verde, aunque en segundos parezca más cara. Los equipos
-   lo explotan 3,20× por encima del azar. Esto obliga a reformular las reglas R2 y R3.
+1. **Salida distribucional en lugar de puntual**, porque cuatro objetivos puntuales distintos
+   empataron o perdieron contra modelos ingenuos, mientras que toda medición agregada dio
+   resultados nítidos.
+2. **Costo medido en posiciones y no en segundos**, porque bajo neutralización una parada cuesta
+   0 posiciones contra 2 en verde, y los equipos lo explotan 3,20× por encima del azar.
+3. **Motor de reglas como capa decisoria**, porque un clasificador que maximice exactitud
+   converge a "nunca boxear", que es descalificación. El motor de reglas hace esa salida
+   **irrepresentable**.
+4. **Temporada 2026 exclusivamente**, porque la jerarquía de compuestos se invirtió.
+5. **La mitad energética declarada fuera de alcance**, porque el dato no existe públicamente.
 
-4. **Las reglas duras del reglamento son un activo, no una molestia.** Un clasificador que
-   maximice exactitud converge a "nunca boxear", que es descalificación. El motor de reglas hace
-   esa salida **irrepresentable**. Es el argumento más fuerte a favor de la arquitectura híbrida.
-
-5. **No se pueden mezclar temporadas.** La jerarquía de compuestos se invirtió en 2026.
-
-### 7.1. Cursos de acción propuestos
+### 7.1. Cursos de acción y viabilidad
 
 | Acción | Justificación | Viabilidad |
 |---|---|---|
-| **Simulador Monte Carlo sobre el motor de reglas** — emitir `P(1 parada)`, `P(2 paradas)`, secuencia modal e intervalo creíble para la primera parada | Es el único planteo compatible con la evidencia: lo agregado se mide bien, lo puntual no | **Alta.** Los tres insumos ya están medidos |
-| **Pronóstico prospectivo fechado** antes de cada una de las 11 carreras restantes, puntuado después | No admite fuga de datos ni ajuste a posteriori. La ronda 13 (Monza) se corre el 2026-09-06 | **Alta.** El calendario coincide con el cuatrimestre |
-| Modelo de secuencia sobre el historial del stint | Única diferencia metodológica clara contra el estado del arte | Media |
+| **Construir el simulador Monte Carlo** | Único planteo compatible con la evidencia | **Alta.** Los tres insumos —degradación, tasas de neutralización, costo en posiciones— ya están medidos |
+| **Emitir pronósticos prospectivos fechados** | No admite fuga ni ajuste a posteriori | **Alta.** Restan 11 carreras dentro del cuatrimestre |
 | Reajustar el coeficiente de combustible con datos 2026 | Está fijo en 0,035 s/vuelta, calibrado en la era anterior; hoy es el supuesto más débil | **Alta** |
-| Modelo de supervivencia con censura | Se descartan 178 stints que terminaron en bandera a cuadros; un modelo de supervivencia los aprovecha | Media |
 | Completar el caché de 2022 a 2025 | Elevaría de 4 a 8 visitas por circuito y permitiría decidir si los efectos por circuito existen | **Alta**, limitada por el tope de 500 llamadas/hora |
+| Modelo de secuencia sobre el historial del stint | Única diferencia metodológica clara contra el estado del arte | Media |
+| Modelo de supervivencia con censura | Se descartan 178 stints que terminaron en bandera a cuadros | Media |
+| Aprendizaje por refuerzo sobre el simulador | Abordaje ideal una vez que exista el simulador | Baja para este cuatrimestre |
+
+**Riesgo principal asumido:** un pronóstico congelado puede fallar en público. Es deliberado. Se
+puntuará la **calibración**, no el acierto puntual.
 
 ---
 
@@ -464,8 +465,8 @@ Jolpica (2026). *jolpica-f1 — Ergast-compatible Formula 1 API*.
 https://github.com/jolpica/jolpica-f1
 
 **Repositorio del código fuente:** _(completar con la URL del repositorio)_
-Contiene el paquete `boxbox_ml`, los scripts de reproducción de cada medición
-(`scripts/holdout_eval.py`, `scripts/era_compare.py`, `scripts/pit_loss.py`,
-`scripts/safety_car_rates.py`, entre otros) y los siete documentos de investigación en
+Contiene el paquete `boxbox_ml`, los scripts que reproducen cada medición del estudio de
+factibilidad (`scripts/holdout_eval.py`, `scripts/era_compare.py`, `scripts/pit_loss.py`,
+`scripts/safety_car_rates.py`, entre otros) y los documentos de investigación en
 `docs/research/`. Los datos no se versionan: se reconstruyen ejecutando
 `uv run boxbox-ingest --seasons 2026`.
