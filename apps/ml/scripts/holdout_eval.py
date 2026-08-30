@@ -116,7 +116,8 @@ naive = np.full(len(reg_test), reg_train[TARGET].median())
 
 print(f"  train laps {len(reg_train):,}   test laps {len(reg_test):,}")
 print(f"  validation MAE (GroupKFold mean)  {np.mean(cv_scores):8.3f} s")
-print(f"  TEST MAE                          {mean_absolute_error(reg_test[TARGET], test_pred):8.3f} s")
+mae_model = mean_absolute_error(reg_test[TARGET], test_pred)
+print(f"  TEST MAE                          {mae_model:8.3f} s")
 print(f"  TEST MAE, naive (train median)    {mean_absolute_error(reg_test[TARGET], naive):8.3f} s")
 print(f"  TEST R²                           {r2_score(reg_test[TARGET], test_pred):8.3f}")
 
@@ -163,6 +164,9 @@ per_race = test_out.groupby(["round", "circuit"], observed=True).agg(
     laps=("proba", "count"),
     actual_stops=("strategic_stop", "sum"),
     predicted_stops=("predicted", "sum"),
-    caught=("strategic_stop", lambda s: int(((s == 1) & (test_out.loc[s.index, "predicted"] == 1)).sum())),
+    caught=(
+        "strategic_stop",
+        lambda s: int(((s == 1) & (test_out.loc[s.index, "predicted"] == 1)).sum()),
+    ),
 )
 print(per_race.to_string())
