@@ -15,6 +15,11 @@ dependencies = [
     "scikit-learn>=1.5",
     "lightgbm>=4.5",
     "matplotlib>=3.9",
+    # Cátedra-recommended stacks: DEAP for evolutionary computation (Unit 3),
+    # gymnasium for the RL environment API (Unit 5), pgmpy for Bayesian
+    # networks (Unit 4). See docs/tp/herramientas-catedra.md.
+    "deap>=1.4",
+    "gymnasium>=1.0",
 ]
 
 [project.optional-dependencies]
@@ -23,6 +28,9 @@ notebooks = [
     "ipykernel>=6.29",
     "seaborn>=0.13",
 ]
+# Bayesian networks (Unit 4) — optional because it is a declared future line,
+# not a commitment. pgmpy is what the cátedra's demo uses, not GeNIe.
+bayes = ["pgmpy>=0.1.25"]
 
 [project.scripts]
 boxbox-ingest = "boxbox_ml.ingest:main"
