@@ -21,7 +21,7 @@ Este trabajo propone un sistema que **arma el plan de neumáticos de una carrera
 paradas hacer, en qué vueltas y con qué compuesto. No predice quién gana.
 
 El foco está en la temporada **2026**, la primera del nuevo reglamento. Para entrenar se usan
-además las temporadas anteriores: se midió que agregarlas mejora el modelo un 34%, aunque el
+además las temporadas anteriores: se midió que agregarlas mejora el modelo un 56%, aunque el
 orden de desgaste de los compuestos se haya invertido este año.
 
 La idea central es un **simulador de carrera** y, sobre él, un **Algoritmo Genético** que busca
@@ -60,21 +60,38 @@ neumáticos y posición, y esto se aclara desde el principio.
 
 Se usa la librería **`fastf1`** de Python, que da los datos oficiales de cronometraje.
 
-Hay datos descargados de cuatro temporadas:
-
-| Temporada | Carreras | Vueltas |
-|---|---|---|
-| 2022 | 22 | ~20.000 |
-| 2023 | 10 | ~9.000 |
-| 2024 | 12 | ~11.000 |
-| **2026** | **12** | **14.095** |
-| **Total** | **56** | **~54.000** |
-
-De 2026 salen además 756 stints (tandas con un juego de gomas) y 527 paradas.
-
 Las columnas que importan (compuesto, edad del neumático, número de stint, estado de pista)
-están completas al 100%. Quedan 11 carreras de 2026 hasta diciembre, así que el conjunto va a
-crecer durante el cuatrimestre.
+están completas al 100%. De 2026 salen 14.095 vueltas, 756 stints (tandas con un juego de gomas)
+y 527 paradas.
+
+### Cómo quedó armado el conjunto de datos
+
+`fastf1` tiene un tope de **500 llamadas por hora**. Al bajar varias temporadas de una vez, el
+tope se alcanza a mitad de camino y las carreras restantes se descartan **sin aviso**. Nos pasó:
+durante un tiempo el caché tenía 2023 y 2024 cortadas por la mitad y **2025 no estaba en
+absoluto**, no por criterio sino por accidente.
+
+Se descargó lo que faltaba por tandas. Estado actual:
+
+| Temporada | Calendario | Descargadas | Estado |
+|---|---|---|---|
+| 2022 | 22 | 22 | Completa |
+| 2023 | 22 | 22 | Completa |
+| 2024 | 24 | 24 | Completa |
+| 2025 | 24 | 24 | Completa |
+| 2026 | 23 | 12 | Al día — la temporada está en curso |
+| **Total** | | **104 carreras** | ~112.000 vueltas |
+
+Vale la pena dejar constancia de dos cosas que aprendimos ahí:
+
+**El caché incompleto sesgaba las estimaciones sin que se notara.** De 2023 y 2024 teníamos sólo
+la primera mitad del año, así que los circuitos de fin de temporada —Austin, México, Brasil, Las
+Vegas, Qatar— estaban sub-representados. Al completar los datos, la degradación medida del
+compuesto blando en 2023 pasó de 0,0664 a **0,0403 s/vuelta**. Era un 60% de error, invisible
+hasta que se comparó.
+
+**Un tope de API que descarta en silencio es un riesgo de datos, no una molestia técnica.** Por
+eso el proceso de descarga ahora informa cuántas carreras trajo y cuántas falló.
 
 ### Qué datos se usan para qué
 
@@ -88,17 +105,21 @@ de 2026:
 | Entrenamiento | Vueltas | PR-AUC | Sobre el azar |
 |---|---|---|---|
 | Sólo 2026 | 10.143 | 0,1430 | 4,24× |
-| **Con 2022–2024 sumadas** | **57.200** | **0,1922** | **5,70×** |
+| **Con 2022–2025 sumadas** | **107.308** | **0,2238** | **6,64×** |
 
-Mezclar mejora un **34%**. El error de razonamiento fue este: la inversión afecta **una** de las
+Mezclar mejora un **56%**. El error de razonamiento fue este: la inversión afecta **una** de las
 diecinueve variables. Las otras —diferencias con los rivales, vuelta del stint, vueltas
 restantes, estado de pista— sirven igual en cualquier temporada.
+
+Probamos también agregar la temporada como variable, para que el modelo pudiera distinguir las
+eras. **Empeora** (0,1896 contra 0,2238). Aprende mejor los patrones generales si no se lo invita
+a separar por año.
 
 Así que la regla no es global, **depende del componente**:
 
 | Para qué | Qué datos | Por qué |
 |---|---|---|
-| Entrenar los modelos | Todas las temporadas | Medido: 34% mejor |
+| Entrenar los modelos | Todas las temporadas | Medido: 56% mejor |
 | Tasas de Safety Car por circuito | Todas las temporadas | Con 12 carreras hay **una sola visita** por circuito; con una temporada es imposible estimarlo |
 | Costo de parar en boxes | Todas las temporadas | Depende del largo del pit lane, no del auto |
 | **Desgaste por compuesto** | **Sólo 2026** | Acá sí cambió el comportamiento |
@@ -147,7 +168,7 @@ predecir carreras que todavía no pasaron.
 |---|---|---|---|
 | **Prueba** — 2026 R10–12 | **3 de 12 de 2026 (25%)** | **3.501** | **118** |
 | Entrenamiento — 2026 R1–9 | 9 | 10.143 | 350 |
-| Entrenamiento — más 2022–2024 | 44 | 47.057 | ~1.400 |
+| Entrenamiento — más 2022–2025 | 92 | 97.165 | ~3.000 |
 
 O sea: el 25% de prueba se cumple sobre las carreras de 2026, que es el universo que importa. Las
 temporadas anteriores **sólo entran en entrenamiento**, nunca en prueba.
@@ -211,14 +232,20 @@ para entregar una es peor que proponer dos y cumplirlas.
 Hicimos pruebas antes de decidir el diseño. **El resultado más importante es negativo:**
 predecir un valor exacto no funciona.
 
-| Lo que intentamos predecir | Nuestro modelo | Predecir siempre la mediana |
-|---|---|---|
-| Tiempo de vuelta | 13,05 s de error | 9,39 s |
-| Degradación por vuelta | 0,937 s | 0,716 s |
-| Duración de una tanda | 8,13 vueltas | 8,02 |
-| Cantidad de paradas | 32,1% de acierto | 32,0% |
+| Lo que intentamos predecir | Nuestro modelo | Predecir siempre la mediana | |
+|---|---|---|---|
+| Tiempo de vuelta | 13,05 s de error | 9,39 s | pierde |
+| Degradación por vuelta, sólo 2026 | 0,937 s | 0,716 s | pierde |
+| **Degradación por vuelta, con todas las temporadas** | **0,698 s** | 0,726 s | **gana** |
+| Duración de una tanda | 8,13 vueltas | 8,02 | empata |
+| Cantidad de paradas | 32,1% de acierto | 32,0% | empata |
 
-En los cuatro casos, empatamos o perdimos contra un modelo tonto.
+**Acá hay que matizar lo que dijimos antes.** Con sólo 2026 los cuatro intentos perdían o
+empataban. Al completar los datos, el modelo de degradación **pasa a ganarle al modelo tonto**.
+O sea que «no se puede predecir» era en parte falta de datos, no una propiedad del problema.
+
+Las otras dos pruebas —duración de tanda y cantidad de paradas— todavía no se repitieron con el
+conjunto completo. Hay que hacerlo antes de afirmar nada sobre ellas.
 
 **En cambio, medir promedios sí funciona bien:**
 
@@ -229,10 +256,13 @@ En los cuatro casos, empatamos o perdimos contra un modelo tonto.
   de las paradas.
 
 **También cambiamos de idea sobre los datos.** La primera versión de esta propuesta decía que no
-se podían mezclar temporadas. Al medirlo resultó lo contrario: mezclar mejora un 34% (sección 2).
+se podían mezclar temporadas. Al medirlo resultó lo contrario: mezclar mejora un 56% (sección 2).
 Se deja asentado porque una propuesta que esconde en qué se equivocó no sirve de nada.
 
-**Conclusión:** la estrategia depende más de lo que pasa en la carrera que de la física del
+**Conclusión:** el argumento a favor de dar un rango en vez de un número **no es** que los
+modelos no den. Es que buena parte de lo que decide una estrategia —una bandera roja en la vuelta
+2, un Safety Car a mitad de carrera— es **imposible de saber de antemano**, por más datos que se
+tengan. La estrategia depende más de lo que pasa en la carrera que de la física del
 neumático. Por eso el sistema tiene que dar **un rango de posibilidades, no un número exacto**.
 
 ---
@@ -296,14 +326,15 @@ la red neuronal: era una pregunta mal planteada.
 
 ## 7. Conclusiones
 
-1. **Predecir un valor exacto no se puede con estos datos.** Cuatro intentos distintos empataron
-   o perdieron contra modelos tontos.
+1. **Predecir un valor exacto es difícil, pero no imposible.** Con sólo 2026 los cuatro intentos
+   perdían. Con las cinco temporadas, el modelo de degradación ya gana. Lo que sigue sin poder
+   anticiparse son los **eventos de carrera**, y eso no se arregla con más datos.
 2. **Medir promedios sí se puede**, y alcanza para armar un sistema útil.
 3. **El costo de parar se mide en posiciones, no en segundos.** Bajo Safety Car son 0 posiciones
    contra 2 en carrera normal.
 4. **El reglamento es una ventaja, no una molestia.** Impide que el sistema proponga algo ilegal.
 5. **Las temporadas anteriores sí sirven, pero no para todo.** Mezclarlas mejora el clasificador
-   un 34% (de 4,24× a 5,70× sobre el azar). Pero las magnitudes de degradación por compuesto y el
+   un 56% (de 4,24× a 6,64× sobre el azar). Pero las magnitudes de degradación por compuesto y el
    efecto del combustible se toman sólo de 2026, porque ahí sí cambió el comportamiento.
 
 ### Qué sigue

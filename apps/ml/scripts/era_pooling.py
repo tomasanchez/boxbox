@@ -30,7 +30,7 @@ warnings.filterwarnings("ignore")
 pd.set_option("display.width", 200)
 
 TEST_ROUNDS = [10, 11, 12]  # held-out 2026 races, 25%
-POOL_SEASONS = [2022, 2023, 2024]
+POOL_SEASONS = [2022, 2023, 2024, 2025]
 
 LAGGED = [
     "degradation_s",
@@ -58,7 +58,7 @@ print(f"2026: {len(frames)} carreras")
 pooled = []
 for season in POOL_SEASONS:
     got = 0
-    for round_number in range(1, 25):
+    for round_number in range(1, 26):
         try:
             pooled.append(ingest.load_race(season, round_number))
             got += 1
@@ -92,7 +92,7 @@ print(f"\n{'=' * 84}")
 print("### CONJUNTOS")
 print(f"  test          2026 R{TEST_ROUNDS}      {len(test):>7,} vueltas")
 print(f"  train 2026    2026 R1-9              {len(train_2026):>7,} vueltas")
-print(f"  train pooled  2022-2024 + 2026 R1-9  {len(train_pooled):>7,} vueltas")
+print(f"  train pooled  2022-2025 + 2026 R1-9  {len(train_pooled):>7,} vueltas")
 print(f"  factor de datos: {len(train_pooled) / max(len(train_2026), 1):.1f}x")
 
 
