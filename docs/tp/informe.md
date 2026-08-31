@@ -60,18 +60,54 @@ neumáticos y posición, y esto se aclara desde el principio.
 
 Se usa la librería **`fastf1`** de Python, que da los datos oficiales de cronometraje.
 
-De la temporada 2026 hay hoy 12 carreras corridas, y se suman temporadas anteriores para
-entrenar (2022–2024 en caché, 57.200 vueltas en total):
+Hay datos descargados de cuatro temporadas:
 
-| | |
-|---|---|
-| Vueltas | 14.095 |
-| Stints (tandas con un juego de gomas) | 756 |
-| Paradas | 527 |
+| Temporada | Carreras | Vueltas |
+|---|---|---|
+| 2022 | 22 | ~20.000 |
+| 2023 | 10 | ~9.000 |
+| 2024 | 12 | ~11.000 |
+| **2026** | **12** | **14.095** |
+| **Total** | **56** | **~54.000** |
+
+De 2026 salen además 756 stints (tandas con un juego de gomas) y 527 paradas.
 
 Las columnas que importan (compuesto, edad del neumático, número de stint, estado de pista)
-están completas al 100%. Quedan 11 carreras hasta diciembre, así que el conjunto de datos va a
+están completas al 100%. Quedan 11 carreras de 2026 hasta diciembre, así que el conjunto va a
 crecer durante el cuatrimestre.
+
+### Qué datos se usan para qué
+
+Al principio decidimos usar **sólo 2026**, porque este año se invirtió el orden de desgaste de
+los compuestos: el blando pasó de ser el que más se gastaba al que menos. La idea era que
+entrenar con años anteriores le enseñaría al modelo lo contrario de lo que pasa hoy.
+
+**Lo medimos y la decisión estaba mal.** Entrenando y probando siempre sobre las mismas carreras
+de 2026:
+
+| Entrenamiento | Vueltas | PR-AUC | Sobre el azar |
+|---|---|---|---|
+| Sólo 2026 | 10.143 | 0,1430 | 4,24× |
+| **Con 2022–2024 sumadas** | **57.200** | **0,1922** | **5,70×** |
+
+Mezclar mejora un **34%**. El error de razonamiento fue este: la inversión afecta **una** de las
+diecinueve variables. Las otras —diferencias con los rivales, vuelta del stint, vueltas
+restantes, estado de pista— sirven igual en cualquier temporada.
+
+Así que la regla no es global, **depende del componente**:
+
+| Para qué | Qué datos | Por qué |
+|---|---|---|
+| Entrenar los modelos | Todas las temporadas | Medido: 34% mejor |
+| Tasas de Safety Car por circuito | Todas las temporadas | Con 12 carreras hay **una sola visita** por circuito; con una temporada es imposible estimarlo |
+| Costo de parar en boxes | Todas las temporadas | Depende del largo del pit lane, no del auto |
+| **Desgaste por compuesto** | **Sólo 2026** | Acá sí cambió el comportamiento |
+| **Efecto del combustible** | **Sólo 2026** | Los autos son ~32 kg más livianos |
+| Reglamento | **Sólo 2026** | El artículo B6.3.8 es de este año |
+
+Conviene aclarar que el trabajo **sigue siendo sobre 2026**. Lo nuevo es la temporada que se
+analiza y se pronostica, no la cantidad de datos con la que se entrena. Usar menos datos para
+poder decir "sólo 2026" habría sido perder precisión a cambio de una frase.
 
 También se usa el **Reglamento Deportivo 2026 de la FIA**, que obliga a usar al menos dos
 compuestos distintos de seco por carrera. Si no se cumple, el piloto queda descalificado.
@@ -100,16 +136,24 @@ gratis. Se separan en dos etiquetas distintas.
 **Se separa por carrera, no por vuelta.** Dos vueltas seguidas de la misma tanda son casi
 iguales; si quedan una en entrenamiento y otra en prueba, el modelo hace trampa sin querer.
 
-Se reservan **las últimas 3 carreras de las 12 (el 25%)** para prueba. Se eligen las más
-recientes, no tres al azar, porque eso se parece a lo que el sistema tiene que hacer: predecir
-carreras que todavía no pasaron.
+**La prueba se hace siempre sobre 2026.** No tendría sentido medir en 2024 un sistema pensado
+para el reglamento de este año.
+
+Se reservan **las últimas 3 carreras de 2026 de las 12 disponibles: el 25%**. Se eligen las más
+recientes y no tres al azar, porque eso se parece a lo que el sistema tiene que hacer realmente:
+predecir carreras que todavía no pasaron.
 
 | | Carreras | Vueltas | Paradas |
 |---|---|---|---|
-| Entrenamiento | 9 (75%) | 10.143 | 350 |
-| **Prueba** | **3 (25%)** | **3.501** | **118** |
+| **Prueba** — 2026 R10–12 | **3 de 12 de 2026 (25%)** | **3.501** | **118** |
+| Entrenamiento — 2026 R1–9 | 9 | 10.143 | 350 |
+| Entrenamiento — más 2022–2024 | 44 | 47.057 | ~1.400 |
 
-Dentro del entrenamiento se valida con `GroupKFold` agrupando por carrera.
+O sea: el 25% de prueba se cumple sobre las carreras de 2026, que es el universo que importa. Las
+temporadas anteriores **sólo entran en entrenamiento**, nunca en prueba.
+
+Dentro del entrenamiento se valida con `GroupKFold` agrupando por carrera, así ninguna carrera
+aparece a la vez en entrenamiento y validación.
 
 ---
 
@@ -183,6 +227,10 @@ En los cuatro casos, empatamos o perdimos contra un modelo tonto.
 - Parar bajo Safety Car **cuesta 0 posiciones**, contra 2 posiciones en carrera normal.
 - Los equipos lo saben: el 9,6% de las vueltas están neutralizadas, pero ahí se toma el **30,8%**
   de las paradas.
+
+**También cambiamos de idea sobre los datos.** La primera versión de esta propuesta decía que no
+se podían mezclar temporadas. Al medirlo resultó lo contrario: mezclar mejora un 34% (sección 2).
+Se deja asentado porque una propuesta que esconde en qué se equivocó no sirve de nada.
 
 **Conclusión:** la estrategia depende más de lo que pasa en la carrera que de la física del
 neumático. Por eso el sistema tiene que dar **un rango de posibilidades, no un número exacto**.
