@@ -15,6 +15,7 @@ both on the same held-out 2026 races.
 
 from __future__ import annotations
 
+import contextlib
 import warnings
 
 import fastf1
@@ -49,10 +50,9 @@ print("mode:  OFFLINE — cached races only\n")
 
 frames = []
 for round_number in range(1, 13):
-    try:
+    # A missing race is normal: the cache is built up in batches.
+    with contextlib.suppress(Exception):
         frames.append(ingest.load_race(2026, round_number))
-    except Exception:  # noqa: BLE001
-        pass
 print(f"2026: {len(frames)} carreras")
 
 pooled = []
