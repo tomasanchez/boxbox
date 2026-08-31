@@ -188,15 +188,34 @@ los escenarios posibles. No es una técnica de IA: es el banco de pruebas de las
 
 **2. Algoritmo Genético (la técnica principal — Unidad 3).**
 
-| | |
-|---|---|
-| **Cromosoma** | El plan de carrera. Ejemplo: `[(18, Medio), (25, Duro), (14, Blando)]` |
-| **Aptitud** | La posición final que da el simulador |
-| **Restricción** | El reglamento decide qué planes son válidos |
-| **Operadores** | Cruza de un punto; mutación que alarga, acorta o cambia una tanda |
+Un algoritmo genético busca la mejor solución imitando la evolución: prueba muchas opciones, se
+queda con las mejores, las combina entre sí y repite el proceso muchas veces.
 
-Se usa **DEAP**, la librería que recomienda la cátedra. Se van a comparar distintos operadores de
-selección y cruza, no elegir uno solo.
+Acá cada "individuo" es **un plan de carrera completo**. Por ejemplo:
+
+> *Arrancar con neumático Medio y parar en la vuelta 18. Poner Duro y parar en la vuelta 43.
+> Terminar con Blando.*
+
+El procedimiento es:
+
+1. **Se generan 100 planes al azar.**
+2. **Se le pone una nota a cada uno.** Se simula la carrera con ese plan y se mira en qué
+   posición termina el auto. Cuanto más adelante, mejor la nota. A eso se lo llama **función de
+   aptitud**.
+3. **Se eligen los mejores y se combinan.** De dos planes buenos sale uno nuevo que toma el
+   principio de uno y el final del otro. Eso es el **cruce**.
+4. **De vez en cuando se cambia algo al azar:** alargar un stint dos vueltas, acortarlo, o
+   cambiar el compuesto. Eso es la **mutación**, y sirve para que la búsqueda no se quede
+   siempre dando vueltas alrededor de las mismas ideas.
+5. **Se repite 200 veces.** Los planes malos se descartan, los buenos se mezclan entre sí, y al
+   final queda el mejor que se encontró.
+
+**El reglamento actúa como filtro.** Un plan que use un solo compuesto de seco queda descartado
+de entrada, porque en la carrera real sería descalificación. Nunca llega a competir.
+
+Se usa **DEAP**, la librería que recomienda la cátedra. Hay varias formas de elegir los mejores
+y de combinarlos —por torneo, por ruleta, tomando directamente los mejores— y se van a comparar
+en lugar de elegir una sola.
 
 **3. Agente de Aprendizaje por Refuerzo (comparación — Unidad 5).** Un agente que decide "paro o
 sigo" vuelta a vuelta dentro del mismo simulador. Sirve para comparar dos formas de pensar:

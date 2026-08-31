@@ -159,15 +159,30 @@ semanas anteriores importa, y el orden importa.
 
 Con la demanda predicha, hay que repartir un número fijo de cuadrillas entre las 15 comunas.
 
-| | |
-|---|---|
-| **Cromosoma** | Cuántas cuadrillas van a cada comuna. Ejemplo: `[3, 5, 2, 4, ...]` con 15 posiciones |
-| **Aptitud** | Demora total estimada: reclamos predichos dividido capacidad asignada, sumado sobre las comunas |
-| **Restricción** | La suma de cuadrillas no puede pasar el total disponible, y cada comuna necesita un mínimo |
-| **Operadores** | Cruza de un punto; mutación que mueve una cuadrilla de una comuna a otra |
+Un algoritmo genético busca la mejor solución imitando la evolución: prueba muchos repartos
+distintos, se queda con los mejores, los combina entre sí y repite.
 
-Se usa **DEAP**, la librería que recomienda la cátedra, y se comparan distintos operadores de
-selección.
+Acá cada "individuo" es **un reparto completo de cuadrillas**, una lista de 15 números, uno por
+comuna. Por ejemplo `[3, 5, 2, 4, ...]` quiere decir tres cuadrillas a la Comuna 1, cinco a la 2,
+dos a la 3, y así.
+
+El procedimiento es:
+
+1. **Se generan 100 repartos al azar.**
+2. **Se le pone una nota a cada uno.** Se calcula la demora total: en cada comuna, los reclamos
+   predichos divididos por la capacidad que se le asignó, sumado sobre las 15. Cuanto menor la
+   demora, mejor la nota. A eso se lo llama **función de aptitud**.
+3. **Se eligen los mejores y se combinan.** De dos repartos buenos sale uno nuevo que toma las
+   primeras comunas de uno y las últimas del otro. Eso es el **cruce**.
+4. **De vez en cuando se cambia algo al azar:** mover una cuadrilla de una comuna a otra. Eso es
+   la **mutación**, y evita que la búsqueda se estanque.
+5. **Se repite 200 veces**, y queda el mejor reparto encontrado.
+
+**Las restricciones actúan como filtro:** un reparto que use más cuadrillas de las disponibles, o
+que deje una comuna sin ninguna, se descarta antes de competir.
+
+Se usa **DEAP**, la librería que recomienda la cátedra. Hay varias formas de elegir los mejores y
+de combinarlos, y se van a comparar en lugar de elegir una sola.
 
 **Herramientas:** Python, `pandas`, `Keras`/`TensorFlow`, `DEAP`, `matplotlib`, Google Colab.
 
