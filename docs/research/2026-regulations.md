@@ -5,9 +5,14 @@ this repo's own feature pipeline. Reproduce with `uv run python scripts/era_comp
 
 ## Verdict
 
-2026 data is available and complete, but **the two eras cannot be pooled into one training
-set**. The compound hierarchy has inverted. A model trained on 2018–2025 would learn that soft
-wears fastest — exactly backwards for 2026.
+2026 data is available and complete. The compound hierarchy has inverted, so a model trained on
+2018–2025 would learn that soft wears fastest — backwards for 2026.
+
+> **Correction, 2026-08-31.** This section originally concluded that the eras "cannot be pooled".
+> That was wrong, and [`era-pooling.md`](era-pooling.md) measures it: pooling 2022–2024 with 2026
+> improves the classifier's PR-AUC by 34%. The inversion affects one feature out of nineteen; the
+> rest transfer. Pool for training, and take compound degradation magnitudes and the fuel
+> coefficient from 2026 only.
 
 Separately, the headline strategic story of 2026 — energy deployment — is **not observable**.
 F1 does not publish it. That is a hard limitation on what this system can be, and it has to be

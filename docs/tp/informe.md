@@ -20,8 +20,9 @@ sale un Safety Car.
 Este trabajo propone un sistema que **arma el plan de neumáticos de una carrera**: cuántas
 paradas hacer, en qué vueltas y con qué compuesto. No predice quién gana.
 
-Se usa sólo la temporada **2026**, porque cambió el reglamento y los datos de años anteriores ya
-no sirven para explicar lo que pasa ahora.
+El foco está en la temporada **2026**, la primera del nuevo reglamento. Para entrenar se usan
+además las temporadas anteriores: se midió que agregarlas mejora el modelo un 34%, aunque el
+orden de desgaste de los compuestos se haya invertido este año.
 
 La idea central es un **simulador de carrera** y, sobre él, un **Algoritmo Genético** que busca
 el mejor plan. Como comparación se usa un **agente de Aprendizaje por Refuerzo** que decide
@@ -59,7 +60,8 @@ neumáticos y posición, y esto se aclara desde el principio.
 
 Se usa la librería **`fastf1`** de Python, que da los datos oficiales de cronometraje.
 
-De la temporada 2026 hay hoy 12 carreras corridas:
+De la temporada 2026 hay hoy 12 carreras corridas, y se suman temporadas anteriores para
+entrenar (2022–2024 en caché, 57.200 vueltas en total):
 
 | | |
 |---|---|
@@ -177,7 +179,7 @@ En los cuatro casos, empatamos o perdimos contra un modelo tonto.
 **En cambio, medir promedios sí funciona bien:**
 
 - En 2026 **se invirtió el orden de desgaste**: el blando pasó de ser el que más se gastaba
-  (0,0673 s/vuelta en 2024) al que menos (0,0142). Por eso no se pueden mezclar temporadas.
+  (0,0673 s/vuelta en 2024) al que menos (0,0142). Es un cambio real y grande.
 - Parar bajo Safety Car **cuesta 0 posiciones**, contra 2 posiciones en carrera normal.
 - Los equipos lo saben: el 9,6% de las vueltas están neutralizadas, pero ahí se toma el **30,8%**
   de las paradas.
@@ -252,7 +254,9 @@ la red neuronal: era una pregunta mal planteada.
 3. **El costo de parar se mide en posiciones, no en segundos.** Bajo Safety Car son 0 posiciones
    contra 2 en carrera normal.
 4. **El reglamento es una ventaja, no una molestia.** Impide que el sistema proponga algo ilegal.
-5. **No se pueden mezclar temporadas**, porque en 2026 se invirtió el orden de desgaste.
+5. **Las temporadas anteriores sí sirven, pero no para todo.** Mezclarlas mejora el clasificador
+   un 34% (de 4,24× a 5,70× sobre el azar). Pero las magnitudes de degradación por compuesto y el
+   efecto del combustible se toman sólo de 2026, porque ahí sí cambió el comportamiento.
 
 ### Qué sigue
 
