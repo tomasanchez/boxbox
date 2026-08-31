@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install db migrate api ml web dev ingest smoke test lint
+.PHONY: help install db migrate api ml web dev ingest smoke test lint pdf
 
 API := apps/api
 ML  := apps/ml
@@ -36,6 +36,9 @@ smoke:  ## Verify the ingest -> features pipeline on two known races
 
 dev:  ## Reminder: api and web need separate terminals
 	@echo "Run 'make api' and 'make web' in separate terminals."
+
+pdf:  ## Render the TP proposal to PDF (DOC=path/to.md to pick another)
+	cd $(ML) && uv run --with markdown python scripts/md2pdf.py 		../../$(or $(DOC),docs/tp/informe.md) 		-o ../../docs/tp/BoxBox-Propuesta-TP-IAA.pdf
 
 test:  ## Run every test suite
 	cd $(API) && uv run pytest
