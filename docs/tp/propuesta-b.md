@@ -142,18 +142,27 @@ Dos piezas, una por unidad del programa.
 
 ### Pieza 1 — Predicción de demanda (Unidad 2: Redes Recurrentes)
 
-Una **red neuronal recurrente** que, dadas las últimas N semanas de reclamos de una comuna y
-categoría, predice las próximas.
+Una red neuronal común mira cada caso por separado, sin acordarse de lo anterior. Una **red
+recurrente** guarda memoria de lo que vio antes, y por eso sirve para series de tiempo: para
+saber cuántos reclamos va a haber la semana que viene hay que mirar cómo vinieron las semanas
+anteriores, y en qué orden.
 
-| | |
-|---|---|
-| Entrada | Serie de reclamos por semana, más día del año, feriados y comuna |
-| Salida | Cantidad esperada de reclamos las próximas 1 a 4 semanas |
-| Modelo | RNN / LSTM en Keras |
-| Comparación | Contra un modelo ingenuo ("la semana que viene igual que esta") y contra el promedio histórico de esa semana |
+El funcionamiento sería:
 
-Se elige una red recurrente y no un MLP porque la demanda tiene **memoria**: lo que pasó las
-semanas anteriores importa, y el orden importa.
+1. **Se arma una serie por cada comuna y categoría.** Por ejemplo, "reclamos de arbolado en la
+   Comuna 12, semana por semana".
+2. **Se le muestran a la red las últimas 12 semanas** de esa serie, más el día del año y si hubo
+   feriados.
+3. **La red predice cuántos reclamos va a haber** en las próximas 1 a 4 semanas.
+4. **Se compara con lo que pasó de verdad** y se ajusta. Repitiendo eso miles de veces, la red
+   aprende los patrones: que el arbolado sube en otoño, que la higiene baja los feriados, que
+   cada comuna tiene su nivel base.
+
+Se usa **Keras**, y la cátedra tiene una demo de redes recurrentes sobre datos tabulares
+(`datos-RNN.ipynb`) que sirve de molde.
+
+**Contra qué se compara:** un modelo ingenuo que dice "la semana que viene igual que esta", y el
+promedio histórico de esa semana en años anteriores. Si la red no le gana a los dos, no sirve.
 
 ### Pieza 2 — Asignación de cuadrillas (Unidad 3: Algoritmo Genético)
 

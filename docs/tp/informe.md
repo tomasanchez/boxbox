@@ -217,13 +217,33 @@ Se usa **DEAP**, la librería que recomienda la cátedra. Hay varias formas de e
 y de combinarlos —por torneo, por ruleta, tomando directamente los mejores— y se van a comparar
 en lugar de elegir una sola.
 
-**3. Agente de Aprendizaje por Refuerzo (comparación — Unidad 5).** Un agente que decide "paro o
-sigo" vuelta a vuelta dentro del mismo simulador. Sirve para comparar dos formas de pensar:
-planificar toda la carrera de antemano (el algoritmo genético) contra reaccionar a lo que va
-pasando (el agente).
+**3. Agente de Aprendizaje por Refuerzo (comparación — Unidad 5).**
 
-El simulador se programa con la interfaz **`gymnasium`**, así sirve para las dos cosas sin
-escribirlo dos veces.
+El algoritmo genético arma el plan **antes de largar**. Pero en una carrera real las cosas
+cambian: sale un Safety Car, empieza a llover, un rival para antes de lo previsto. Un agente de
+aprendizaje por refuerzo decide **sobre la marcha**.
+
+La idea es la de enseñarle a jugar a alguien que no sabe las reglas, sólo si le fue bien o mal:
+
+1. **El agente ve el estado de la carrera** en cada vuelta: en qué posición está, cuánto se
+   degradó su goma, a cuánto tiene al de adelante y al de atrás, si hay Safety Car.
+2. **Elige una acción:** seguir en pista, o boxear y con qué compuesto.
+3. **Se simula la carrera hasta el final** y se le da un **premio**: las posiciones que ganó o
+   perdió.
+4. **Se repite miles de carreras.** Al principio decide cualquier cosa. Con el tiempo aprende
+   solo que boxear con Safety Car sale barato y que quedarse demasiado con la goma gastada sale
+   caro. Nadie se lo programó: lo dedujo de los premios.
+
+La demo de la cátedra sobre Blackjack (`Q-Blackjack.ipynb`) es el mismo problema con otra ropa:
+decidir "pido carta o me planto" bajo incertidumbre, donde seguir conviene hasta cierto punto y
+después arruina la mano. Cambiar eso por "sigo o boxeo" es casi cambiarle el nombre.
+
+**Lo interesante es la comparación:** planificar todo de antemano (el genético) contra reaccionar
+a lo que va pasando (el agente). Cuál gana, y en qué tipo de carreras gana cada uno, es en sí un
+resultado del trabajo.
+
+El simulador se programa con la interfaz **`gymnasium`**, que es la que usa la demo de la
+cátedra, así sirve para las dos técnicas sin escribirlo dos veces.
 
 **Herramientas:** Python, `fastf1`, `pandas`, `DEAP`, `gymnasium`, `LightGBM`, Google Colab.
 
