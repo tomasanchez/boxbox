@@ -15,6 +15,10 @@
  * medida que el perseguidor se acerca. No es una animación decorativa: es el
  * mismo número que marca la tabla de tiempos.
  *
+ * La tarjeta aparece y desaparece sola: `battle.ts` sólo arma duelos de autos
+ * que están en ventana de parada. La ventana se muestra en la cabecera, para
+ * que se vea por qué es **este** duelo y no otro.
+ *
  * Diferencia deliberada con la televisión: ahí el recuadro es siempre naranja y
  * la probabilidad es un dato más. Acá **manda**, y le da el color a la tarjeta,
  * porque un gap proyectado de −0,1 s al 47% es un volado y anunciarlo como
@@ -103,6 +107,13 @@ export function BattleStrip({
         <span className="battle__title">Duelo de estrategia</span>
         <span className="battle__sub">
           si {battle.chaser} para ahora
+          {/*
+           * La ventana es el motivo por el que este duelo está en pantalla y no
+           * otro: se muestra al lado, así se ve de dónde salió.
+           */}
+          {battle.chaserWindow
+            ? ` · ventana ${battle.chaserWindow.opensLap}–${battle.chaserWindow.closesLap}`
+            : null}
           {open ? null : ` · ${pct(battle.probability)}`}
         </span>
         <button

@@ -44,6 +44,11 @@ export interface DriverState {
 export interface StrategyBattle {
   chaser: string
   leader: string
+  /**
+   * Ventana de parada del perseguidor, que es el motivo por el que el duelo se
+   * muestra. `null` sólo en un duelo armado a mano, fuera de la simulación.
+   */
+  chaserWindow?: { opensLap: number; closesLap: number } | null
   gapNow: number
   responseLaps: number
   perLapGain: number

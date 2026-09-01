@@ -123,14 +123,41 @@ const MAX_BATTLES = 3
 export const IN_RANGE_S = 2.5
 
 /**
+ * Vueltas de anticipación con las que se empieza a mirar un duelo.
+ *
+ * La ventana no se abre de golpe: conviene ver venir la decisión unas vueltas
+ * antes de que el cruce se dé, que es cuando el muro la discute.
+ */
+export const WINDOW_LEAD = 3
+
+/** ¿Este auto está en ventana de parada, o entrando? */
+export function nearPitWindow(driver: DriverState, lap: number): boolean {
+  const w = driver.pitWindow
+  if (!w) return false
+  return lap >= w.opensLap - WINDOW_LEAD && lap <= w.closesLap
+}
+
+/** Por qué no hay ningún duelo para mostrar. `null` cuando sí lo hay. */
+export type NoBattleReason = 'formation' | 'no-window' | 'no-one-close'
+
+/**
  * Duelos vivos, tomados del orden en pista de la simulación.
  *
  * Se miran los pares **contiguos** —el que va justo detrás contra el que va
  * justo adelante—, que son los que la transmisión levanta, y se ordenan por
- * cercanía. Con el pelotón formado no se devuelve nada: parados en la parrilla
- * los intervalos son el largo de los cajones, no una diferencia de ritmo.
+ * cercanía.
+ *
+ * Hacen falta **dos** condiciones, no una. Que estén cerca no alcanza: el
+ * undercut es adelantar parando antes, así que sólo tiene sentido preguntarlo
+ * cuando el perseguidor está en su ventana de parada o entrando. Un auto que
+ * recién cambió gomas, o que no tiene ventana proyectable porque su desgaste
+ * está plano, no va a parar por más pegado que vaya; mostrar el duelo ahí es
+ * ofrecer una jugada que nadie va a hacer.
+ *
+ * Con el pelotón formado no se devuelve nada: parados en la parrilla los
+ * intervalos son el largo de los cajones, no una diferencia de ritmo.
  */
-export function liveBattles(cars: DriverState[], timing: Timing): StrategyBattle[] {
+export function liveBattles(cars: DriverState[], timing: Timing, lap: number): StrategyBattle[] {
   if (timing.formation) return []
 
   const found: StrategyBattle[] = []
@@ -138,14 +165,25 @@ export function liveBattles(cars: DriverState[], timing: Timing): StrategyBattle
     const chaser = cars[timing.order[place]]
     const leader = cars[timing.order[place - 1]]
     if (!chaser || !leader) continue
+    if (!nearPitWindow(chaser, lap)) continue
 
     const gapNow = timing.gapAhead[timing.order[place]]
     if (gapNow == null || gapNow > IN_RANGE_S) continue
 
-    found.push(solveBattle(chaser, leader, gapNow))
+    found.push({ ...solveBattle(chaser, leader, gapNow), chaserWindow: chaser.pitWindow })
   }
 
   return found.sort((a, b) => a.gapNow - b.gapNow).slice(0, MAX_BATTLES)
+}
+
+/**
+ * Cuál de las dos condiciones falló, para poder decirlo en vez de dejar el
+ * hueco mudo. Sin esto no se distingue «nadie va a parar» de «nadie alcanza».
+ */
+export function noBattleReason(cars: DriverState[], timing: Timing, lap: number): NoBattleReason {
+  if (timing.formation) return 'formation'
+  const anyWindow = timing.order.some((i) => cars[i] && nearPitWindow(cars[i], lap))
+  return anyWindow ? 'no-one-close' : 'no-window'
 }
 
 /** Identidad de un duelo, estable mientras el par siga existiendo. */
