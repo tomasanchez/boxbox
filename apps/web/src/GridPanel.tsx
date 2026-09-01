@@ -116,7 +116,7 @@ export function GridPanel({ lap }: { lap: number }) {
         <div className="tower__h tower__h--num">{active.label}</div>
         {showWindow ? (
           <>
-            <div className="tower__h">Vent.</div>
+            <div className="tower__h tower__h--win">Vent.</div>
             <div className="tower__h">1–{totalLaps}</div>
           </>
         ) : null}
@@ -138,7 +138,7 @@ export function GridPanel({ lap }: { lap: number }) {
               <div className={`num tower__v${cell.tone}`}>
                 {out ? (
                   <>
-                    <span className="tag-out">OUT</span>{' '}
+                    <span className="tag-out">DNF</span>{' '}
                     <span className="tower__outlap">v{d.retiredOnLap}</span>
                   </>
                 ) : (
@@ -172,7 +172,7 @@ export function GridPanel({ lap }: { lap: number }) {
 
       <p className="footnote">
         La marca roja es la vuelta actual. <strong>—</strong> en la ventana significa que la goma
-        está plana o mejorando, así que no hay cruce que anticipar. Los <strong>OUT</strong>{' '}
+        está plana o mejorando, así que no hay cruce que anticipar. Los <strong>DNF</strong>{' '}
         quedan listados con la vuelta en la que abandonaron.
       </p>
     </Panel>

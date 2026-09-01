@@ -407,11 +407,11 @@ body {
 /* Torre de tiempos: veinte filas repartiéndose el alto disponible. */
 .tower {
   display: grid;
-  /* pos · piloto · goma · métrica · ventana · barra */
-  grid-template-columns:
-    1.6em minmax(3em, auto) 1.4em minmax(3.4em, auto)
-    minmax(3.2em, auto) minmax(70px, 1fr);
-  gap: 0 calc(var(--gap) * 0.5);
+  /* pos · piloto · goma · métrica · ventana · barra.
+     Anchos fijos, no `auto`: con `auto` las columnas numéricas se encogían
+     hasta tocarse y «+0,69 42-50» se leía como un solo número. */
+  grid-template-columns: 2em 3.8em 1.6em 4.6em 4.2em minmax(64px, 1fr);
+  gap: 0 calc(var(--gap) * 0.9);
   align-content: stretch;
   grid-auto-rows: minmax(0, 1fr);
   font-size: var(--fs-tiny);
@@ -430,6 +430,10 @@ body {
 }
 
 .tower__h--num {
+  text-align: right;
+}
+
+.tower__h--win {
   text-align: right;
 }
 
@@ -492,6 +496,7 @@ body {
 
 .grid-row__win {
   color: var(--txt-1);
+  text-align: right;
 }
 
 .grid-row__deg--losing {
@@ -1424,15 +1429,10 @@ body {
 
 /* Sin la ventana, la metrica se lleva el ancho que sobra. */
 .tower--nowindow {
-  grid-template-columns: 1.6em minmax(3em, auto) 1.4em minmax(0, 1fr);
+  grid-template-columns: 2em 3.8em 1.6em 4.6em minmax(0, 1fr);
 }
 
-/* La columna de datos aloja también la marca OUT: necesita algo más de aire. */
-.tower {
-  grid-template-columns:
-    1.6em minmax(3em, auto) 1.4em minmax(4.6em, auto)
-    minmax(3.2em, auto) minmax(70px, 1fr);
-}
+
 
 /* El que abandono sigue en la tabla, apagado pero legible. */
 .grid-row--out > * {
