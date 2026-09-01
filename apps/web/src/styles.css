@@ -1592,6 +1592,7 @@ body {
 
 .tower-table {
   width: 100%;
+  height: 100%;
   /* `auto` es el punto de usar una tabla: el navegador mide el contenido y
      reparte el ancho, que es lo que fallaba con anchos calculados a mano. */
   table-layout: auto;
@@ -1629,4 +1630,16 @@ body {
 /* CssBaseline pinta el body; el fondo lo maneja nuestra hoja. */
 body {
   background: var(--bg-0) !important;
+}
+
+/* El sector amarillo late suave para que se distinga del asfalto. */
+.circuit__sector {
+  opacity: 0.5;
+  animation: vscpulse 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .circuit__sector {
+    animation: none;
+  }
 }

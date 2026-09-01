@@ -25,6 +25,18 @@ export interface StatusSpec {
   width: number
   /** Separación objetivo entre autos, como fracción de vuelta. */
   spacing: number
+  /**
+   * Qué hace el pelotón:
+   *  `race`   corre normal
+   *  `freeze` mantiene distancias, todos más lentos (ritmo delta del VSC)
+   *  `bunch`  se reagrupa detrás del safety car
+   *  `grid`   forma en la parrilla esperando el relanzamiento
+   */
+  field: 'race' | 'freeze' | 'bunch' | 'grid'
+  /** Multiplicador de velocidad de avance de vuelta. */
+  pace: number
+  /** Sector de pista afectado, como fracción [desde, hasta] de la vuelta. */
+  sector?: [number, number]
 }
 
 export const STATUS: Record<TrackStatus, StatusSpec> = {
@@ -39,6 +51,8 @@ export const STATUS: Record<TrackStatus, StatusSpec> = {
     stroke: '#4a4644',
     width: 22,
     spacing: 0.055,
+    field: 'race',
+    pace: 1,
   },
   YELLOW: {
     id: 'YELLOW',
@@ -50,7 +64,11 @@ export const STATUS: Record<TrackStatus, StatusSpec> = {
     costNote: 'la parada sigue costando lo mismo',
     stroke: '#f5c518',
     width: 23,
-    spacing: 0.05,
+    spacing: 0.055,
+    // Amarilla es por sector: sólo ahí levantan el pie.
+    field: 'race',
+    pace: 0.8,
+    sector: [0.28, 0.46],
   },
   VSC: {
     id: 'VSC',
@@ -62,8 +80,10 @@ export const STATUS: Record<TrackStatus, StatusSpec> = {
     costNote: 'parar ahora no cuesta posiciones',
     stroke: '#f5c518',
     width: 24,
-    // Los gaps quedan congelados: el pelotón no se estira ni se junta.
-    spacing: 0.05,
+    // Ritmo delta: las distancias quedan congeladas tal como estaban.
+    spacing: 0.055,
+    field: 'freeze',
+    pace: 0.45,
   },
   SC: {
     id: 'SC',
@@ -75,7 +95,9 @@ export const STATUS: Record<TrackStatus, StatusSpec> = {
     costNote: 'parar ahora no cuesta posiciones',
     stroke: '#f5c518',
     width: 28,
-    spacing: 0.018,
+    spacing: 0.015,
+    field: 'bunch',
+    pace: 0.4,
   },
   RED: {
     id: 'RED',
@@ -87,7 +109,10 @@ export const STATUS: Record<TrackStatus, StatusSpec> = {
     costNote: 'goma libre, la ventana se reinicia',
     stroke: '#ec3013',
     width: 26,
-    spacing: 0.012,
+    spacing: 0.006,
+    // Carrera detenida: forman en la parrilla, no giran.
+    field: 'grid',
+    pace: 0,
   },
 }
 

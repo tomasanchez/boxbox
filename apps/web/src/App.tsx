@@ -5,7 +5,7 @@
  * última en `minmax(0,1fr)`, y ningún contenedor scrollea. Ver `styles.css`.
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ForecastView } from './ForecastView'
 import { PlaybackControls } from './Playback'
 import { SPEEDS, usePlayback } from './playback-clock'
@@ -45,7 +45,14 @@ export default function App() {
     })
   }, [])
 
-  usePlayback({ playing, speed, onTick: advance })
+  // `pace` refleja lo que pasa en pista: ritmo delta bajo VSC, más lento aún
+  // detrás del safety car, y detenido con bandera roja.
+  const paced = useMemo(
+    () => ({ ...speed, msPerLap: spec.pace > 0 ? speed.msPerLap / spec.pace : Infinity }),
+    [speed, spec.pace],
+  )
+
+  usePlayback({ playing: playing && spec.pace > 0, speed: paced, onTick: advance })
 
   // Giro continuo sobre la pista mientras reproduce, independiente del tick de
   // vuelta: sin esto los autos saltarían de golpe una vez por vuelta. Al frenar
@@ -54,10 +61,10 @@ export default function App() {
     if (!playing) return
     const step = 40
     const id = window.setInterval(() => {
-      setFraction((f) => (f + step / speed.msPerLap) % 1)
+      setFraction((f) => (f + (step / speed.msPerLap) * spec.pace) % 1)
     }, step)
     return () => window.clearInterval(id)
-  }, [playing, speed.msPerLap])
+  }, [playing, speed.msPerLap, spec.pace])
 
   const togglePlay = useCallback(() => {
     setPlaying((current) => {
@@ -155,7 +162,7 @@ export default function App() {
 
       <div
         className={`statusbar statusbar--${status}`}
-        style={{ background: spec.color, color: spec.fg }}
+        style={{ backgroundColor: spec.color, color: spec.fg }}
         role="status"
       >
         <span className="statusbar__dot" style={{ background: spec.fg }} />

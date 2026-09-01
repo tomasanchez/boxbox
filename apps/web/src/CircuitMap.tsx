@@ -1,19 +1,19 @@
 /**
  * Trazado del circuito, replicando el render del concepto.
  *
- * La pista se dibuja con **tres paths apilados sobre la misma `d`**:
+ * La pista se dibuja con **tres paths apilados sobre la misma `d`**: dos trazos
+ * gruesos en el color del estado y uno más fino del color del fondo. El tercero
+ * vacía el centro, así que lo que queda a la vista son los dos bordes finos y
+ * paralelos del asfalto.
  *
- *   1. trazo grueso en gris  (#4a4644, ancho 14)
- *   2. el mismo trazo otra vez, para densificar las esquinas
- *   3. trazo más fino del color del fondo (#131211, ancho 9)
+ * El estado de pista no sólo repinta: cambia **dónde y cómo** se ubican los
+ * autos, que es lo que pasa en la realidad.
  *
- * El tercero vacía el centro, así que lo que queda a la vista son los dos
- * bordes finos y paralelos del asfalto. Es el truco que hace que se lea como
- * un circuito y no como una línea gruesa.
- *
- * Los autos son un halo oscuro, el disco del color del equipo, y el código del
- * piloto **por fuera** del disco — nunca encima, que es lo que lo volvía
- * ilegible.
+ *   verde     el pelotón estirado, cada uno a su intervalo
+ *   amarilla  igual, pero con el sector del incidente marcado
+ *   VSC       distancias congeladas — nadie gana ni pierde terreno
+ *   SC        se reagrupan detrás del coche de seguridad
+ *   roja      forman en la parrilla, detenidos, esperando el relanzamiento
  */
 
 import { type ReactNode, useLayoutEffect, useRef, useState } from 'react'
@@ -24,6 +24,13 @@ import type { DriverState, TrackStatus } from './types'
 const INNER_COLOR = '#131211'
 /** Cuánto más fino es el trazo interior que vacía el centro del asfalto. */
 const INNER_INSET = 13
+
+/**
+ * Separación en verde, como fracción de vuelta por segundo de intervalo. El
+ * valor físico sería ~0,012 (la vuelta ronda los 80 s); se exagera para que los
+ * códigos se lean. Por eso el panel declara el reparto como esquemático.
+ */
+const SPREAD_GREEN = 0.045
 
 interface Placed {
   driver: DriverState
@@ -44,7 +51,7 @@ export function CircuitMap({
   drivers: DriverState[]
   /** Avance dentro de la vuelta actual, 0 a 1. */
   lapFraction: number
-  /** El estado de pista pinta el trazado y agrupa al pelotón. */
+  /** El estado de pista pinta el trazado y reordena el pelotón. */
   status: TrackStatus
   /** Contenido superpuesto sobre el mapa. */
   children?: ReactNode
@@ -52,28 +59,35 @@ export function CircuitMap({
   const spec = STATUS[status]
   const pathRef = useRef<SVGPathElement>(null)
   const [placed, setPlaced] = useState<Placed[]>([])
+  const [total, setTotal] = useState(0)
 
   useLayoutEffect(() => {
     const node = pathRef.current
     if (!node) return
 
-    const total = node.getTotalLength()
+    const length = node.getTotalLength()
+    setTotal(length)
+
     const box = node.getBBox()
     const midX = box.x + box.width / 2
 
-    // Separación entre autos. En verde el pelotón está estirado; bajo Safety
-    // Car se agrupa y con bandera roja va casi pegado, como en la realidad.
-    // El valor de verde está exagerado respecto de la física (~0,012 por
-    // segundo de intervalo) para que los códigos se lean.
-    const perSecond = (STATUS[status].spacing / 0.055) * 0.045
+    // La separación entre autos sale del estado, no sólo del intervalo.
+    const spread = (spec.spacing / STATUS.GREEN.spacing) * SPREAD_GREEN
+
+    // Con bandera roja el pelotón no gira: forma detrás de la línea de meta.
+    const anchor = spec.field === 'grid' ? 0 : lapFraction
 
     let cumulative = 0
     setPlaced(
-      drivers.map((driver) => {
-        cumulative += (driver.gapAheadS ?? 0) * perSecond
-        const at = (((lapFraction - cumulative) % 1) + 1) % 1
-        const point = node.getPointAtLength(at * total)
-        // La etiqueta se va hacia afuera del circuito para no taparlo.
+      drivers.map((driver, index) => {
+        // En parrilla el orden es por posición, no por intervalo: fila india.
+        cumulative =
+          spec.field === 'grid'
+            ? spread * index
+            : cumulative + (driver.gapAheadS ?? 0) * spread
+
+        const at = (((anchor - cumulative) % 1) + 1) % 1
+        const point = node.getPointAtLength(at * length)
         const outward = point.x < midX ? -1 : 1
         return {
           driver,
@@ -84,7 +98,17 @@ export function CircuitMap({
         }
       }),
     )
-  }, [track.path, drivers, lapFraction, status])
+  }, [track.path, drivers, lapFraction, spec.spacing, spec.field])
+
+  // El sector afectado se dibuja encima con un guion del largo justo.
+  const sector = spec.sector
+  const sectorDash =
+    sector && total
+      ? {
+          dashArray: `${(sector[1] - sector[0]) * total} ${total}`,
+          dashOffset: -sector[0] * total,
+        }
+      : null
 
   return (
     <div className="circuit panel__grow">
@@ -116,6 +140,20 @@ export function CircuitMap({
           strokeWidth={Math.max(spec.width - INNER_INSET, 4)}
           strokeLinejoin="round"
         />
+
+        {/* Amarilla es por sector: se marca sólo el tramo afectado. */}
+        {sectorDash ? (
+          <path
+            className="circuit__sector"
+            d={track.path}
+            fill="none"
+            stroke="#f5c518"
+            strokeWidth={spec.width + 8}
+            strokeLinecap="butt"
+            strokeDasharray={sectorDash.dashArray}
+            strokeDashoffset={sectorDash.dashOffset}
+          />
+        ) : null}
 
         <g stroke="#f4f3f2" strokeWidth={4}>
           <line
