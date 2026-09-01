@@ -55,15 +55,18 @@ function isOut(driver: DriverState, lap: number): boolean {
 function metricValue(
   d: DriverState,
   metric: Metric,
-  live: { gapAhead: number | null; gapLeader: number; place: number },
+  live: { gapAhead: number | null; gapLeader: number; place: number; formation: boolean },
 ): { text: string; tone: 'normal' | 'gaining' | 'muted' } {
   switch (metric) {
     case 'interval':
+      // Detenidos en formación no hay intervalo que medir.
+      if (live.formation) return { text: '—', tone: 'muted' }
       return {
         text: live.gapAhead === null ? '—' : `+${fmt(live.gapAhead)}`,
         tone: 'normal',
       }
     case 'leader':
+      if (live.formation) return { text: live.place === 1 ? 'pole' : '—', tone: 'muted' }
       return live.place === 1
         ? { text: 'líder', tone: 'muted' }
         : { text: `+${fmt(live.gapLeader)}`, tone: 'normal' }
@@ -179,7 +182,12 @@ export function GridPanel({
           <TableBody>
             {rows.map(({ driver: d, out, place, gapAhead, gapLeader }) => {
               const w = d.pitWindow
-              const cell = metricValue(d, metric, { gapAhead, gapLeader, place })
+              const cell = metricValue(d, metric, {
+                gapAhead,
+                gapLeader,
+                place,
+                formation: timing.formation,
+              })
               return (
                 <TableRow key={d.code} className={out ? 'row--out' : undefined}>
                   <TableCell>{out ? '—' : place}</TableCell>

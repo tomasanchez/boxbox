@@ -29,8 +29,6 @@ const INNER_INSET = 13
 
 interface Placed {
   driver: DriverState
-  /** Posición en pista ahora mismo, no la de la tabla. */
-  place: number
   x: number
   y: number
   labelX: number
@@ -73,10 +71,6 @@ export function CircuitMap({
 
     // Las posiciones llegan resueltas desde `useField`: acá sólo se traducen a
     // coordenadas sobre el path. Toda la física vive en el hook.
-    // Posición actual en pista: sale del orden que calculó la simulación, así
-    // que un adelantamiento se refleja en el número que se muestra.
-    const rank = new Map(field.order.map((carIndex, place) => [carIndex, place + 1]))
-
     setPlaced(
       drivers.map((driver, index) => {
         const at = field.positions[index] ?? 0
@@ -99,7 +93,6 @@ export function CircuitMap({
         const outward = x < midX ? -1 : 1
         return {
           driver,
-          place: rank.get(index) ?? driver.position,
           x,
           y,
           labelX: x + outward * 20,
@@ -107,7 +100,7 @@ export function CircuitMap({
         }
       }),
     )
-  }, [track.path, drivers, field.positions, field.order, field.gridded])
+  }, [track.path, drivers, field.positions, field.gridded])
 
   // El sector afectado se dibuja encima con un guion del largo justo.
   const sector = spec.sector

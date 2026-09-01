@@ -53,6 +53,8 @@ const RATE = {
   toGrid: 1.1,
   /** Pasar de orden por intervalo a formación pareja. */
   uniform: 1.1,
+  /** Igualar el ritmo de todos al neutralizarse. */
+  frozen: 1.6,
   /** Con cuánta insistencia cada auto persigue su hueco. */
   catchup: 1.3,
 }
@@ -119,6 +121,14 @@ const TIMING_INTERVAL_MS = 170
 
 /** Datos de cronometraje, publicados a menor frecuencia que la animación. */
 export interface Timing {
+  /**
+   * El pelotón está formado y detenido —parrilla de salida o bandera roja—.
+   *
+   * Los intervalos no significan nada ahí: los autos están parados, así que la
+   * distancia entre ellos es la de los cajones de la grilla, no una diferencia
+   * de tiempo. La tabla los oculta en lugar de mostrar números inventados.
+   */
+  formation: boolean
   /** Índices de piloto ordenados por posición en pista. */
   order: number[]
   /** Intervalo en segundos al de adelante; `null` para el líder. */
@@ -136,6 +146,16 @@ export interface FieldState {
   gridded: number
   /** 0 = ordenado por intervalo, 1 = formación pareja tras el safety car. */
   uniform: number
+  /**
+   * 0 = carrera libre, 1 = neutralizada.
+   *
+   * Distinto de `uniform`, y la diferencia importa. Bajo VSC el pelotón **no**
+   * se reagrupa —las distancias quedan como estaban— pero tampoco corre: todos
+   * van al mismo ritmo delta y está prohibido adelantar (B5.12). Con un solo
+   * término, el VSC dejaba activa la diferencia de ritmo por degradación y los
+   * autos se pasaban entre sí, que es exactamente lo que el reglamento impide.
+   */
+  frozen: number
   /**
    * Posición de cada auto dentro de la vuelta, 0 a 1, en el mismo orden que los
    * pilotos recibidos. Derivada de una posición absoluta que sólo crece.
@@ -189,6 +209,7 @@ export function useField(
     pace: 0,
     gridded: onGrid ? 1 : 0,
     uniform: onGrid ? 1 : 0,
+    frozen: onGrid ? 1 : 0,
     /** Vueltas recorridas por cada auto. Monótona creciente. */
     travelled: onGrid ? gridTravelled(drivers) : initialTravelled(drivers),
   })
@@ -197,11 +218,13 @@ export function useField(
     pace: 0,
     gridded: 0,
     uniform: 0,
+    frozen: 0,
     positions: drivers.map(() => 0),
     order: drivers.map((_, i) => i),
   }))
 
   const [timing, setTiming] = useState<Timing>(() => ({
+    formation: onGrid,
     order: drivers.map((_, i) => i),
     gapAhead: drivers.map((d) => d.gapAheadS ?? null),
     gapLeader: drivers.map((d) => d.gapLeaderS ?? 0),
@@ -287,6 +310,8 @@ export function useField(
         RATE.uniform,
         dt,
       )
+      // Neutralizada incluye el VSC, que no reagrupa pero sí congela.
+      s.frozen = approach(s.frozen, t.field === 'race' ? 0 : 1, RATE.frozen, dt)
 
       // El intervalo acumulado del último auto fija la escala: se reparte el
       // pelotón dentro de FIELD_SPAN y después el estado lo comprime o estira.
@@ -295,9 +320,9 @@ export function useField(
         (totalGap > 0 ? FIELD_SPAN / totalGap : 0.02) * (s.spacing / STATUS.GREEN.spacing)
       const base = s.pace * lps
 
-      // `held` es cuánto manda la formación sobre el ritmo propio: en verde
-      // cada uno corre a lo suyo, neutralizado todos van en fila.
-      const held = Math.max(s.uniform, s.gridded)
+      // Neutralizada, el ritmo propio se apaga y manda la corrección: nadie
+      // gana ni pierde terreno, así que no hay adelantamientos.
+      const held = s.frozen
 
       if (t.field === 'grid') {
         // Se elige la próxima línea de meta y la cabeza rueda hasta ahí, cada
@@ -328,7 +353,7 @@ export function useField(
         // `roll` es lo que puede avanzar aunque el ritmo de carrera sea cero.
         // Sin esto, con bandera roja el pelotón quedaba desparramado por el
         // circuito porque nadie tenía con qué llegar hasta la parrilla.
-        const roll = lps * 0.75 * held
+        const roll = lps * 0.75 * Math.max(s.uniform, s.gridded)
         const correction = clamp(
           (goal - s.travelled[i]) * RATE.catchup,
           -base * 0.6,
@@ -337,7 +362,12 @@ export function useField(
         // En verde manda el ritmo propio y la corrección casi no interviene;
         // neutralizado es al revés y el pelotón se acomoda en formación.
         const own = base * carPace(cars[i], held)
-        s.travelled[i] += Math.max(0, dt * (own + correction * held))
+        // La corrección sólo actúa cuando el pelotón tiene que *reordenarse*
+        // —safety car o parrilla—. Bajo VSC no: ahí las distancias se congelan
+        // como estaban, y aplicar la corrección las devolvía a los valores del
+        // dato original en vez de dejarlas quietas.
+        const reforming = Math.max(s.uniform, s.gridded)
+        s.travelled[i] += Math.max(0, dt * (own + correction * reforming))
       }
 
       // El orden en pista sale de la distancia recorrida, así que un
@@ -367,6 +397,7 @@ export function useField(
         pace: s.pace,
         gridded: s.gridded,
         uniform: s.uniform,
+        frozen: s.frozen,
         positions: s.travelled.map((v) => ((v % 1) + 1) % 1),
         order,
       })
@@ -374,7 +405,7 @@ export function useField(
       // La tabla se refresca aparte, más lento: ver TIMING_INTERVAL_MS.
       if (now - lastTiming.current >= TIMING_INTERVAL_MS) {
         lastTiming.current = now
-        setTiming({ order, gapAhead, gapLeader })
+        setTiming({ formation: s.gridded > 0.5, order, gapAhead, gapLeader })
       }
       frame = requestAnimationFrame(tick)
     }
