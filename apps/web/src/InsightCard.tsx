@@ -19,7 +19,15 @@ const SHORT: Record<Compound, string> = {
   WET: 'WET',
 }
 
-export function InsightOverlay({ lap }: { lap: number }) {
+export function InsightOverlay({
+  lap,
+  open,
+  onToggle,
+}: {
+  lap: number
+  open: boolean
+  onToggle: () => void
+}) {
   const plan = PLAN_DISTRIBUTION
   const stops = plan.modalPlan.length - 1
   const modalProbability = plan.stopDistribution[String(stops)] ?? 0
@@ -53,8 +61,18 @@ export function InsightOverlay({ lap }: { lap: number }) {
         <div className="insight__head">
           <span className="insight__title">Insight de estrategia</span>
           <span className="insight__lap">V{lap}</span>
+          <button
+            type="button"
+            className="card__toggle card__toggle--invert"
+            onClick={onToggle}
+            aria-expanded={open}
+            title={open ? 'Minimizar' : 'Mostrar'}
+          >
+            {open ? '–' : '+'}
+          </button>
         </div>
 
+        {open ? (
         <div className="insight__body">
           <div className="insight__kicker">Plan más probable · {plan.driver}</div>
 
@@ -92,6 +110,7 @@ export function InsightOverlay({ lap }: { lap: number }) {
             <span className="insight__altv">{alternatives}</span>
           </div>
         </div>
+        ) : null}
       </div>
     </div>
   )

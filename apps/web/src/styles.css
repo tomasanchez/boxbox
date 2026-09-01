@@ -93,7 +93,7 @@ body {
 }
 
 .view--race {
-  grid-template-columns: minmax(210px, 1fr) minmax(340px, 2.1fr) minmax(260px, 1.35fr);
+  grid-template-columns: minmax(420px, 1fr) minmax(390px, 500px);
 }
 
 .view--forecast {
@@ -371,12 +371,30 @@ body {
 
 .grid-table {
   display: grid;
-  /* pos · piloto · goma · edad · degradación · ventana */
-  grid-template-columns: 1.5em minmax(3.4em, auto) 1.5em 1.6em minmax(3.2em, auto) 1fr;
-  gap: 0 calc(var(--gap) * 0.6);
-  align-content: start;
+  /* pos · piloto · goma · edad · degradación · ventana (texto) · barra */
+  grid-template-columns:
+    1.5em minmax(3.2em, auto) 1.5em 1.5em minmax(3em, auto)
+    minmax(3.4em, auto) minmax(80px, 1fr);
+  gap: 0 calc(var(--gap) * 0.55);
+  align-content: stretch;
+  grid-auto-rows: minmax(0, 1fr);
   font-size: var(--fs-tiny);
   min-height: 0;
+}
+
+/* La cabecera no debe estirarse con el resto de las filas. */
+.grid-table__h {
+  align-self: end;
+}
+
+/* La barra de ventana vive dentro de la fila del piloto. */
+.grid-row__bar {
+  position: relative;
+  height: clamp(8px, 1.1em, 18px);
+  background: var(--bg-4);
+  border-radius: 1px;
+  overflow: hidden;
+  align-self: center;
 }
 
 .grid-table__h {
@@ -1293,4 +1311,50 @@ body {
 .battle__other:focus-visible {
   outline: 2px solid var(--txt-0);
   outline-offset: 1px;
+}
+
+/* --------------------------------------------- minimizar tarjetas del mapa */
+
+.card__toggle {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  color: var(--txt-2);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.card__toggle:hover {
+  color: var(--txt-0);
+  border-color: var(--txt-3);
+}
+
+.card__toggle:focus-visible {
+  outline: 2px solid var(--txt-0);
+  outline-offset: 1px;
+}
+
+/* Sobre la cabecera blanca de la tarjeta de insight se invierte. */
+.card__toggle--invert {
+  border-color: rgba(32, 30, 29, 0.35);
+  color: var(--bg-4);
+}
+
+.card__toggle--invert:hover {
+  border-color: var(--bg-4);
+  color: #000;
+}
+
+/* Minimizada, la tarjeta se encoge a su cabecera. */
+.insight:has(.card__toggle[aria-expanded='false']) {
+  width: auto;
 }

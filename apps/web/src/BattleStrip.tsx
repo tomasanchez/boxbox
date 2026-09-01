@@ -29,19 +29,37 @@ export function BattleStrip({
   battle,
   others,
   onPick,
+  open,
+  onToggle,
 }: {
   battle: StrategyBattle
   /** Otros duelos activos, para poder alternar sin abandonar el mapa. */
   others: StrategyBattle[]
   onPick: (b: StrategyBattle) => void
+  open: boolean
+  onToggle: () => void
 }) {
   return (
     <div className={`battle battle--${battle.verdict}`}>
       <div className="battle__head">
         <span className="battle__title">Duelo de estrategia</span>
-        <span className="battle__sub">si {battle.chaser} para ahora</span>
+        <span className="battle__sub">
+          si {battle.chaser} para ahora
+          {open ? null : ` · ${pct(battle.probability)}`}
+        </span>
+        <button
+          type="button"
+          className="card__toggle"
+          onClick={onToggle}
+          aria-expanded={open}
+          title={open ? 'Minimizar' : 'Mostrar'}
+        >
+          {open ? '–' : '+'}
+        </button>
       </div>
 
+      {open ? (
+      <>
       <div className="battle__main">
         <div className="battle__gap">
           <span className="battle__gapv num">{fmt(Math.abs(battle.gapAfter))}</span>
@@ -83,6 +101,8 @@ export function BattleStrip({
             </button>
           ))}
         </div>
+      ) : null}
+      </>
       ) : null}
     </div>
   )
