@@ -37,8 +37,8 @@
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
   /* Tipografía fluida: el panel debe seguir siendo legible en 13" y en 27". */
-  --fs-micro: clamp(7.5px, 0.62vw, 10px);
-  --fs-tiny: clamp(8.5px, 0.7vw, 11px);
+  --fs-micro: clamp(8.5px, 0.68vw, 11px);
+  --fs-tiny: clamp(10px, 0.82vw, 13px);
   --fs-sm: clamp(10px, 0.82vw, 13px);
   --fs-md: clamp(12px, 1vw, 16px);
   --fs-lg: clamp(15px, 1.35vw, 22px);
@@ -517,11 +517,12 @@ body {
 .tyre {
   display: inline-grid;
   place-items: center;
-  width: 1.2em;
-  height: 1.2em;
+  width: 1.55em;
+  height: 1.55em;
   border-radius: 50%;
-  font-size: 0.78em;
+  font-size: 0.82em;
   font-weight: 800;
+  line-height: 1;
   color: #0f0e0d;
 }
 
