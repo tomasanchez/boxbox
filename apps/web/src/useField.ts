@@ -32,6 +32,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { STATUS } from './status'
+import { STARTING_GRID } from './startingGrid'
 import type { DriverState, TrackStatus } from './types'
 
 /**
@@ -74,9 +75,17 @@ const MAX_CATCHUP = 0.9
  */
 const FIELD_SPAN = 0.82
 
-/** Formación en parrilla: fila india sobre la línea, en orden de posición. */
+/**
+ * Formación en parrilla, en el **orden de largada real**, no en el de carrera.
+ *
+ * Son cosas distintas: en Zandvoort largó NOR primero y para la vuelta 30
+ * lideraba ANT. Los autos que no figuran en la grilla cargada van al fondo.
+ */
 function gridTravelled(drivers: DriverState[]): number[] {
-  return drivers.map((_, i) => -0.0075 * i)
+  return drivers.map((d) => {
+    const slot = STARTING_GRID.indexOf(d.code)
+    return -0.0075 * (slot >= 0 ? slot : STARTING_GRID.length)
+  })
 }
 
 /** Posiciones iniciales, a partir de los intervalos medidos. */
@@ -136,9 +145,10 @@ export function useField(
   lap: number,
 ): FieldState {
   const spec = STATUS[status]
-  // En la vuelta 1 todavía no largaron: forman en la grilla, en orden de
-  // clasificación y sobre la línea, sin importar el estado de bandera.
-  const onGrid = lap <= 1
+  // En la vuelta 1 forman en la grilla — pero sólo mientras esté en pausa. Al
+  // apretar reproducir se largan: si `onGrid` siguiera valiendo, el ritmo
+  // quedaría clavado en cero y los autos no arrancarían nunca.
+  const onGrid = lap <= 1 && !playing
 
   // Todo el estado mutable vive acá: se toca una vez por cuadro y recién
   // entonces se publica una instantánea, así el render nunca lee la ref.
@@ -170,7 +180,8 @@ export function useField(
   const grid = useRef(drivers)
 
   useEffect(() => {
-    // La parrilla de salida se comporta como la formación de bandera roja.
+    // Detenidos en la vuelta 1 la parrilla se comporta como la formación de
+    // bandera roja; al largar vuelve a mandar el estado de pista.
     target.current = onGrid ? { ...spec, field: 'grid', pace: 0 } : spec
   }, [spec, onGrid])
 
