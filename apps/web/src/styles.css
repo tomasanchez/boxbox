@@ -93,7 +93,7 @@ body {
 }
 
 .view--race {
-  grid-template-columns: minmax(420px, 1fr) minmax(390px, 500px);
+  grid-template-columns: minmax(390px, 500px) minmax(420px, 1fr);
 }
 
 .view--forecast {

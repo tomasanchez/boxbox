@@ -31,6 +31,8 @@ export function RaceView({
 
   return (
     <div className="view view--race">
+      <GridPanel lap={scenarioLap} />
+
       <Panel
         title={`Trazado · ${track.name}`}
         note={`${track.lengthM.toLocaleString('es-AR')} m · geometría real (OSM · f1-circuits)`}
@@ -54,8 +56,6 @@ export function RaceView({
           />
         </CircuitMap>
       </Panel>
-
-      <GridPanel lap={scenarioLap} />
     </div>
   )
 }
