@@ -466,13 +466,15 @@ body {
 .window-list {
   display: grid;
   gap: calc(var(--gap) * 0.45);
-  align-content: start;
+  grid-auto-rows: minmax(0, 1fr);
+  align-content: stretch;
   min-height: 0;
 }
 
 .window-track {
   position: relative;
-  height: 0.85em;
+  height: clamp(9px, 100%, 22px);
+  min-height: 9px;
   background: var(--bg-4);
   border-radius: 1px;
   overflow: hidden;
@@ -801,6 +803,7 @@ body {
 .panel__body--fill {
   align-content: stretch;
   grid-template-rows: minmax(0, 1fr);
+  grid-auto-rows: auto;
 }
 
 .circuit {
@@ -1092,4 +1095,202 @@ body {
 .insight__altv {
   color: var(--txt-1);
   text-align: right;
+}
+
+/* ---------------------------------------------- duelo sobre el mapa (AWS-like) */
+
+/* La franja va arriba del mapa; el resto de la superposición queda abajo. */
+.overlay--top {
+  bottom: auto;
+  top: calc(var(--pad) * 0.8);
+  justify-content: stretch;
+}
+
+.battle {
+  pointer-events: auto;
+  width: 100%;
+  background: #0b0a0a;
+  border: 2px solid var(--line-strong);
+  box-shadow: 0 0 0 4px rgba(11, 10, 10, 0.6);
+}
+
+/* El borde superior lleva el color del veredicto: se lee antes que el texto. */
+.battle--SALE_ADELANTE {
+  border-top-color: var(--green);
+}
+
+.battle--CARA_O_CRUZ {
+  border-top-color: var(--yellow);
+}
+
+.battle--SIGUE_ATRAS {
+  border-top-color: var(--red);
+}
+
+.battle__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap);
+  padding: 4px 9px;
+  background: var(--bg-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.battle__title {
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--txt-1);
+}
+
+.battle__sub {
+  font-size: var(--fs-micro);
+  color: var(--txt-3);
+}
+
+.battle__main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--gap);
+  padding: calc(var(--pad) * 0.6) var(--pad);
+}
+
+.battle__gap {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.battle__gapv {
+  font-size: clamp(24px, 2.6vw, 44px);
+  font-weight: 800;
+  line-height: 0.9;
+}
+
+.battle--SALE_ADELANTE .battle__gapv {
+  color: var(--green);
+}
+
+.battle--CARA_O_CRUZ .battle__gapv {
+  color: var(--yellow);
+}
+
+.battle--SIGUE_ATRAS .battle__gapv {
+  color: var(--red);
+}
+
+.battle__gapl {
+  font-size: var(--fs-micro);
+  line-height: 1.25;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--txt-3);
+}
+
+.battle__cars {
+  display: flex;
+  gap: var(--gap);
+  justify-content: center;
+  min-width: 0;
+}
+
+.battle__car {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.battle__bar {
+  width: 3px;
+  height: 1.05em;
+  flex: none;
+}
+
+.battle__code {
+  font-size: var(--fs-md);
+  font-weight: 800;
+}
+
+.battle__role {
+  font-size: var(--fs-micro);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--txt-3);
+}
+
+.battle__odds {
+  display: grid;
+  justify-items: end;
+  gap: 1px;
+  padding: 3px 9px;
+  border-left: 2px solid var(--line);
+}
+
+.battle__pct {
+  font-size: clamp(18px, 1.9vw, 30px);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.battle--SALE_ADELANTE .battle__pct {
+  color: var(--green);
+}
+
+.battle--CARA_O_CRUZ .battle__pct {
+  color: var(--yellow);
+}
+
+.battle--SIGUE_ATRAS .battle__pct {
+  color: var(--red);
+}
+
+.battle__verdict {
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--txt-2);
+  white-space: nowrap;
+}
+
+.battle__others {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border-top: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.battle__otherslabel {
+  font-size: var(--fs-micro);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--txt-4);
+}
+
+.battle__other {
+  padding: 2px 7px;
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  color: var(--txt-2);
+  font-family: inherit;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.battle__other:hover {
+  color: var(--txt-0);
+  border-color: var(--txt-4);
+}
+
+.battle__other:focus-visible {
+  outline: 2px solid var(--txt-0);
+  outline-offset: 1px;
 }

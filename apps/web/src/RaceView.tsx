@@ -1,59 +1,18 @@
 /** Panel de carrera: parrilla, trazado, duelo y ventanas de boxes. */
 
+import { useState } from 'react'
+import { BattleStrip } from './BattleStrip'
 import { CircuitMap } from './CircuitMap'
 import { InsightOverlay } from './InsightCard'
 import { BATTLE, BATTLE_ALT, GRID, RACE } from './data'
 import { TRACKS } from './tracks'
-import type { DriverState, StrategyBattle } from './types'
-import { fmt, pct } from './format'
+import { fmt } from './format'
+import type { DriverState } from './types'
 import { Panel, Tyre } from './ui'
-
-const VERDICT_TEXT: Record<StrategyBattle['verdict'], string> = {
-  SALE_ADELANTE: 'Sale adelante',
-  CARA_O_CRUZ: 'A cara o cruz',
-  SIGUE_ATRAS: 'Sigue atrás',
-}
-
 
 function windowText(driver: DriverState): string {
   if (!driver.pitWindow) return 'sin proyectar'
   return `${driver.pitWindow.opensLap}–${driver.pitWindow.closesLap}`
-}
-
-function Duel({ battle }: { battle: StrategyBattle }) {
-  return (
-    <div className="duel">
-      <div className="duel__head">
-        <span className="duel__who">{battle.chaser}</span>
-        <span className="duel__vs">para ahora · persigue a</span>
-        <span className="duel__who">{battle.leader}</span>
-      </div>
-
-      <div className={`verdict verdict--${battle.verdict}`}>
-        <span className="verdict__text">{VERDICT_TEXT[battle.verdict]}</span>
-        <span className="verdict__prob num">{pct(battle.probability)}</span>
-      </div>
-
-      <div className="facts">
-        <div className="fact">
-          <div className="fact__k">Gap ahora</div>
-          <div className="fact__v num">{fmt(battle.gapNow, 2, true)} s</div>
-        </div>
-        <div className="fact">
-          <div className="fact__k">Ganancia / vuelta</div>
-          <div className="fact__v num">{fmt(battle.perLapGain)} s</div>
-        </div>
-        <div className="fact">
-          <div className="fact__k">Respuesta de {battle.leader}</div>
-          <div className="fact__v num">{battle.responseLaps} vueltas</div>
-        </div>
-        <div className="fact">
-          <div className="fact__k">Gap proyectado</div>
-          <div className="fact__v num">{fmt(battle.gapAfter, 2, true)} s</div>
-        </div>
-      </div>
-    </div>
-  )
 }
 
 export function RaceView({
@@ -65,6 +24,8 @@ export function RaceView({
 }) {
   const { totalLaps } = RACE
   const track = TRACKS[RACE.trackKey]
+  const duels = [BATTLE, BATTLE_ALT]
+  const [duel, setDuel] = useState(BATTLE)
   const nowPct = (scenarioLap / totalLaps) * 100
 
   return (
@@ -117,6 +78,13 @@ export function RaceView({
           fill
         >
           <CircuitMap track={track} drivers={GRID.slice(0, 8)} lapFraction={lapFraction}>
+            <div className="overlay overlay--top">
+              <BattleStrip
+                battle={duel}
+                others={duels.filter((b) => b !== duel)}
+                onPick={setDuel}
+              />
+            </div>
             <InsightOverlay lap={scenarioLap} />
           </CircuitMap>
         </Panel>
@@ -125,17 +93,9 @@ export function RaceView({
 
       {/* --------------------------------------------------- duelo + ventanas */}
       <div className="stack">
-        <Panel title="Si para ahora" note={`duelo medido · v${scenarioLap}`}>
-          <Duel battle={BATTLE} />
-        </Panel>
-
-        <Panel title="Segundo duelo" note="banda de incertidumbre">
-          <Duel battle={BATTLE_ALT} />
-        </Panel>
-
-        <Panel title="Ventanas de boxes" note="rangos, no vueltas exactas">
+        <Panel title="Ventanas de boxes" note="rangos, no vueltas exactas" fill>
           <div className="window-list">
-          {GRID.slice(0, 8).map((d) => {
+          {GRID.map((d) => {
             const w = d.pitWindow
             return (
               <div className="window-row" key={d.code}>
