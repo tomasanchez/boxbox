@@ -1557,3 +1557,41 @@ body {
     animation: none;
   }
 }
+
+/* ------------------------------------------------------- MUI, aplanado */
+
+/*
+ * MUI trae padding y tipografía de Material. Acá los botones viven en una
+ * barra densa, así que se los lleva al tamaño del resto del panel.
+ */
+.panel .MuiToggleButton-root {
+  padding: 3px 8px;
+  border-color: var(--line);
+  color: var(--txt-3);
+  font-family: inherit;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  line-height: 1.2;
+}
+
+.panel .MuiToggleButton-root.Mui-selected {
+  background: var(--bg-5);
+  border-color: var(--txt-4);
+  color: var(--txt-0);
+}
+
+.panel .MuiToggleButton-root.Mui-selected:hover {
+  background: var(--bg-5);
+}
+
+/* Dentro de una celda de DataGrid el disco no debe estirarse. */
+.MuiDataGrid-cell .tyre {
+  flex: none;
+  line-height: 1;
+}
+
+/* CssBaseline pinta el body; el fondo lo maneja nuestra hoja. */
+body {
+  background: var(--bg-0) !important;
+}
