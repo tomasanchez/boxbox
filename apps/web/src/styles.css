@@ -1331,23 +1331,79 @@ body {
   letter-spacing: 0.04em;
 }
 
-.battle__track {
-  height: 2px;
+/*
+ * La distancia entre los dos, en vivo.
+ *
+ * El carril es el rango completo de undercut; la parte llena es lo que el
+ * perseguidor ya recortó. La transición hace que el cambio se lea como un
+ * acercamiento y no como un salto: el cronometraje llega a 6 Hz, y sin ella la
+ * barra parpadearía en escalones.
+ */
+.battle__lane {
+  position: relative;
+  height: 15px;
+  display: grid;
+  place-items: center;
   background-image: linear-gradient(to right, currentColor 0 5px, transparent 5px 10px);
+  background-position: left center;
+  background-repeat: repeat-x;
   background-size: 10px 2px;
-  opacity: 0.55;
+  color: var(--txt-4);
 }
 
-.battle--SALE_ADELANTE .battle__track {
+.battle__closed {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: currentColor;
+  opacity: 0.28;
+  transition: width 200ms linear;
+}
+
+.battle--SALE_ADELANTE .battle__lane {
   color: var(--green);
 }
 
-.battle--CARA_O_CRUZ .battle__track {
+.battle--CARA_O_CRUZ .battle__lane {
   color: var(--yellow);
 }
 
-.battle--SIGUE_ATRAS .battle__track {
+.battle--SIGUE_ATRAS .battle__lane {
   color: var(--red);
+}
+
+/* El intervalo real va sobre el carril, como el reloj de la transmisión. */
+.battle__live {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 5px;
+  background: #0b0a0a;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  color: var(--txt-1);
+}
+
+.battle__arrow {
+  font-size: 0.85em;
+  line-height: 1;
+}
+
+.battle__lane--closing .battle__arrow {
+  color: var(--green);
+}
+
+.battle__lane--opening .battle__arrow {
+  color: var(--red);
+}
+
+.battle__lane--steady .battle__arrow {
+  color: var(--txt-4);
+}
+
+/* Sin nadie en rango: se ocupa el hueco con el motivo, no con un duelo falso. */
+.battle--idle {
+  opacity: 0.72;
 }
 
 /* Recuadro destacado a la derecha, el equivalente al naranja de la gráfica. */

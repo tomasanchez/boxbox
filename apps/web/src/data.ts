@@ -1,8 +1,9 @@
 /**
  * Datos medidos, no inventados.
  *
- * La parrilla y el duelo salen de 2026 R11 Budapest vuelta 30; el pronóstico
- * congelado, de 2026 R12 Zandvoort. Reproducibles con
+ * La parrilla sale de 2026 R11 Budapest vuelta 30; el pronóstico congelado, de
+ * 2026 R12 Zandvoort. Los duelos de estrategia ya no se listan acá: los arma
+ * `battle.ts` con el orden en pista de cada instante. Reproducibles con
  * `apps/ml/scripts/broadcast_demo.py --round 11 --lap 30`.
  */
 
@@ -11,7 +12,6 @@ import type {
   DriverState,
   RaceContext,
   StintPlan,
-  StrategyBattle,
   StrategyForecast,
 } from './types'
 
@@ -230,30 +230,6 @@ export const GRID: DriverState[] = [
     retiredOnLap: 1,
   },
 ]
-
-/** Duelo medido en la vuelta 30. El veredicto sale de la probabilidad. */
-export const BATTLE: StrategyBattle = {
-  chaser: 'NOR',
-  leader: 'PIA',
-  gapNow: 0.98,
-  responseLaps: 2,
-  perLapGain: 1.41,
-  gapAfter: -1.85,
-  probability: 0.83,
-  verdict: 'SALE_ADELANTE',
-}
-
-/** Segundo duelo del mismo instante, en la banda de incertidumbre. */
-export const BATTLE_ALT: StrategyBattle = {
-  chaser: 'BEA',
-  leader: 'SAI',
-  gapNow: 0.62,
-  responseLaps: 2,
-  perLapGain: 0.54,
-  gapAfter: -0.47,
-  probability: 0.57,
-  verdict: 'CARA_O_CRUZ',
-}
 
 /** Salida del algoritmo genético para LEC en la carrera actual. */
 export const PLAN_DISTRIBUTION: {

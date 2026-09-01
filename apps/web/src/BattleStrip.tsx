@@ -3,11 +3,17 @@
  *
  * Sigue el reparto de la transmisión: cabecera con el título, el **gap
  * proyectado grande y centrado** arriba, los dos pilotos enfrentados abajo con
- * su barra de equipo y una línea punteada entre ellos que representa la
- * distancia, y la probabilidad en un recuadro destacado a la derecha.
+ * su barra de equipo y la distancia dibujada entre ellos, y la probabilidad en
+ * un recuadro destacado a la derecha.
  *
  * Es una tarjeta compacta, no una banda a todo el ancho: en la transmisión
  * ocupa poco más de un tercio de la pantalla.
+ *
+ * **Todo se recalcula con la simulación corriendo.** El duelo sale del orden en
+ * pista de ese instante, así que el intervalo, el gap proyectado y la
+ * probabilidad se mueven solos, y la barra entre los dos autos se llena a
+ * medida que el perseguidor se acerca. No es una animación decorativa: es el
+ * mismo número que marca la tabla de tiempos.
  *
  * Diferencia deliberada con la televisión: ahí el recuadro es siempre naranja y
  * la probabilidad es un dato más. Acá **manda**, y le da el color a la tarjeta,
@@ -15,6 +21,8 @@
  * adelantamiento sería engañoso.
  */
 
+import { useEffect, useRef, useState } from 'react'
+import { IN_RANGE_S, battleKey } from './battle'
 import { GRID } from './data'
 import { fmt, pct } from './format'
 import type { StrategyBattle } from './types'
@@ -25,8 +33,47 @@ const VERDICT_TEXT: Record<StrategyBattle['verdict'], string> = {
   SIGUE_ATRAS: 'sigue atrás',
 }
 
+/** Cuánto pesa cada lectura nueva en la tendencia suavizada. */
+const TREND_SMOOTH = 0.3
+
+/** Debajo de esto el intervalo se considera estable, en segundos por segundo. */
+const TREND_DEAD_ZONE = 0.015
+
 function teamColor(code: string): string {
   return GRID.find((d) => d.code === code)?.teamColor ?? '#8f8b88'
+}
+
+/**
+ * Velocidad a la que cambia el intervalo, en segundos de gap por segundo.
+ *
+ * El cronometraje llega a saltos, así que la derivada cruda salta con él: se
+ * suaviza para que la flecha no titile entre «se acerca» y «se aleja» cuando en
+ * realidad el intervalo está quieto.
+ */
+function useGapTrend(key: string, gap: number): number {
+  const [rate, setRate] = useState(0)
+  const prev = useRef({ key, gap, at: 0 })
+
+  useEffect(() => {
+    const at = performance.now()
+    const last = prev.current
+
+    // Duelo nuevo: no hay historia con la que comparar.
+    if (last.key !== key) {
+      prev.current = { key, gap, at }
+      setRate(0)
+      return
+    }
+
+    const dt = (at - last.at) / 1000
+    if (dt <= 0.05) return
+
+    const instant = (gap - last.gap) / dt
+    prev.current = { key, gap, at }
+    setRate((r) => r + (instant - r) * TREND_SMOOTH)
+  }, [key, gap])
+
+  return rate
 }
 
 export function BattleStrip({
@@ -43,6 +90,13 @@ export function BattleStrip({
   open: boolean
   onToggle: () => void
 }) {
+  const rate = useGapTrend(battleKey(battle), battle.gapNow)
+  const trend = rate < -TREND_DEAD_ZONE ? 'closing' : rate > TREND_DEAD_ZONE ? 'opening' : 'steady'
+
+  // Cuánto del camino tiene recorrido el perseguidor: 0 a rango completo, 1
+  // pegado al escape. Es lo que llena la barra entre los dos autos.
+  const closed = 1 - Math.min(Math.max(battle.gapNow, 0) / IN_RANGE_S, 1)
+
   return (
     <div className={`battle battle--${battle.verdict}`}>
       <div className="battle__head">
@@ -81,8 +135,24 @@ export function BattleStrip({
                   <span className="battle__code">{battle.chaser}</span>
                 </span>
 
-                {/* La línea punteada representa la distancia entre los dos. */}
-                <span className="battle__track" aria-hidden="true" />
+                {/*
+                 * La distancia real entre los dos, ahora mismo. La parte llena
+                 * crece cuando el perseguidor recorta y se achica cuando lo
+                 * dejan atrás.
+                 */}
+                <span className={`battle__lane battle__lane--${trend}`}>
+                  <span
+                    className="battle__closed"
+                    style={{ width: `${closed * 100}%` }}
+                    aria-hidden="true"
+                  />
+                  <span className="battle__live num">
+                    <span className="battle__arrow" aria-hidden="true">
+                      {trend === 'closing' ? '▼' : trend === 'opening' ? '▲' : '='}
+                    </span>
+                    {fmt(battle.gapNow)}
+                  </span>
+                </span>
 
                 <span className="battle__car">
                   <span className="battle__bar" style={{ background: teamColor(battle.leader) }} />
@@ -108,7 +178,7 @@ export function BattleStrip({
                 <button
                   type="button"
                   className="battle__other"
-                  key={`${b.chaser}-${b.leader}`}
+                  key={battleKey(b)}
                   onClick={() => onPick(b)}
                 >
                   {b.chaser} vs {b.leader}
