@@ -50,6 +50,7 @@ export function RaceView({
           drivers={cars}
           status={status}
           field={field}
+          lap={scenarioLap}
         >
           <div className="overlay overlay--top">
             <BattleStrip

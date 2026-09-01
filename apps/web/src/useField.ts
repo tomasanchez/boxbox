@@ -75,6 +75,9 @@ const MAX_CATCHUP = 0.9
  */
 const FIELD_SPAN = 0.82
 
+/** Separación entre filas de la parrilla, como fracción de vuelta. */
+const GRID_ROW_GAP = 0.016
+
 /**
  * Formación en parrilla, en el **orden de largada real**, no en el de carrera.
  *
@@ -84,7 +87,12 @@ const FIELD_SPAN = 0.82
 function gridTravelled(drivers: DriverState[]): number[] {
   return drivers.map((d) => {
     const slot = STARTING_GRID.indexOf(d.code)
-    return -0.0075 * (slot >= 0 ? slot : STARTING_GRID.length)
+    const place = slot >= 0 ? slot : STARTING_GRID.length
+    // Filas de a dos: los dos autos de una fila están casi a la par, y el de
+    // la pole está apenas adelantado respecto de su compañero de fila.
+    const row = Math.floor(place / 2)
+    const withinRow = place % 2 === 0 ? 0 : 0.18
+    return -GRID_ROW_GAP * (row + withinRow)
   })
 }
 

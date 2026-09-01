@@ -18,6 +18,7 @@
 
 import { type ReactNode, useLayoutEffect, useRef, useState } from 'react'
 import { STATUS } from './status'
+import { STARTING_GRID } from './startingGrid'
 import type { Track } from './tracks'
 import type { DriverState, TrackStatus } from './types'
 import type { FieldState } from './useField'
@@ -41,10 +42,13 @@ export function CircuitMap({
   drivers,
   status,
   field,
+  lap,
   children,
 }: {
   track: Track
   drivers: DriverState[]
+  /** Vuelta actual: los que ya abandonaron dejan de dibujarse. */
+  lap: number
   /** El estado de pista pinta el trazado. */
   status: TrackStatus
   /** Posición interpolada del pelotón; ver `useField`. */
@@ -78,16 +82,17 @@ export function CircuitMap({
         const at = field.positions[index] ?? 0
         const point = node.getPointAtLength(at * length)
 
-        // En parrilla los autos van escalonados a los costados de la línea,
-        // como una grilla real. Además separa los códigos, que apilados sobre
-        // la recta quedaban ilegibles.
-        const stagger = index % 2 === 0 ? -1 : 1
+        // Filas de a dos, una a cada lado de la línea de carrera: los puestos
+        // impares de un lado y los pares del otro, como una grilla real. El
+        // lado sale del puesto de largada, no del orden del arreglo.
+        const slot = STARTING_GRID.indexOf(driver.code)
+        const stagger = (slot >= 0 ? slot : 0) % 2 === 0 ? -1 : 1
         const ahead = node.getPointAtLength(Math.min(at * length + 6, length))
         const dx = ahead.x - point.x
         const dy = ahead.y - point.y
         const norm = Math.hypot(dx, dy) || 1
         // Normal a la dirección de marcha.
-        const offset = 13 * stagger * field.gridded
+        const offset = 22 * stagger * field.gridded
         const x = point.x + (-dy / norm) * offset
         const y = point.y + (dx / norm) * offset
 
@@ -97,7 +102,7 @@ export function CircuitMap({
           place: rank.get(index) ?? driver.position,
           x,
           y,
-          labelX: x + outward * 24,
+          labelX: x + outward * 20,
           anchor: outward < 0 ? ('end' as const) : ('start' as const),
         }
       }),
@@ -168,7 +173,9 @@ export function CircuitMap({
           />
         </g>
 
-        {placed.map(({ driver, x, y, labelX, anchor }) => (
+        {placed
+          .filter(({ driver }) => driver.retiredOnLap == null || lap <= driver.retiredOnLap)
+          .map(({ driver, x, y, labelX, anchor }) => (
           <g key={driver.code}>
             <circle cx={x} cy={y} r={15} fill={INNER_COLOR} />
             <circle cx={x} cy={y} r={12} fill={driver.teamColor} />
@@ -177,7 +184,7 @@ export function CircuitMap({
               y={y + 8}
               fill="#f4f3f2"
               fontFamily="Archivo, sans-serif"
-              fontSize={24}
+              fontSize={24 - 7 * field.gridded}
               fontWeight={800}
               textAnchor={anchor}
             >

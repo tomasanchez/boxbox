@@ -23,9 +23,20 @@ const TABS: { id: View; label: string }[] = [
   { id: 'forecast', label: 'Pronóstico' },
 ]
 
-/** Los autos que se dibujan en el mapa. Se fija fuera del componente para que
- *  la identidad del arreglo no cambie en cada render y reinicie la simulación. */
-const FIELD_CARS = GRID.slice(0, 8)
+/**
+ * Los autos que se dibujan en el mapa: **todos los que están en pista**.
+ *
+ * Antes eran sólo los ocho primeros, y eso rompía la parrilla: ALO largó P18,
+ * así que su lugar en la grilla quedaba a diecisiete puestos del resto y se
+ * veía descolgado. Con la parrilla completa los huecos desaparecen.
+ *
+ * Van los veintidós: quién está en pista depende de la vuelta que se mire, y
+ * eso lo resuelve el mapa. En la largada VER todavía corría.
+ *
+ * Se fija fuera del componente para que la identidad del arreglo no cambie en
+ * cada render y reinicie la simulación.
+ */
+const FIELD_CARS = GRID
 
 export default function App() {
   // El hash permite abrir una vista directo (y sacarle captura sin interactuar).
