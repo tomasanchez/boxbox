@@ -1,9 +1,27 @@
 /**
- * Estados de pista, tomados del concepto de diseño.
+ * Estados de pista, tomados del concepto de diseño y del reglamento.
  *
  * El estado no es una etiqueta decorativa: cambia el color y el grosor del
- * trazado, el costo de parar, y cómo se comporta el pelotón. Bajo Safety Car
- * los autos se agrupan; con bandera roja van a la parrilla.
+ * trazado, el costo de parar, y cómo se comporta el pelotón.
+ *
+ * El **artículo B5.12** del Reglamento Deportivo 2026 define el VSC y explica
+ * por qué se comporta distinto del safety car:
+ *
+ *  - se usa cuando hacen falta dobles banderas amarillas pero la situación no
+ *    amerita sacar el coche de seguridad;
+ *  - cada auto debe mantenerse **por encima de un tiempo mínimo fijado por la
+ *    ECU de la FIA en cada sector de comisarios**. Es un sistema de delta por
+ *    sector, no un ritmo único: por eso **las distancias se conservan** y el
+ *    pelotón no se agrupa;
+ *  - está prohibido adelantar, salvo entrada y salida de boxes o un auto con un
+ *    problema evidente;
+ *  - **sólo se puede entrar a boxes para cambiar neumáticos** — que es
+ *    justamente lo que este sistema recomienda;
+ *  - al terminar se envía «VSC ENDING» y entre 10 y 15 segundos después la
+ *    pista vuelve a verde.
+ *
+ * Detrás del safety car, en cambio, el pelotón sí se forma parejo, y con
+ * bandera roja va a la parrilla.
  */
 
 import type { TrackStatus } from './types'
@@ -57,7 +75,7 @@ export const STATUS: Record<TrackStatus, StatusSpec> = {
   YELLOW: {
     id: 'YELLOW',
     label: 'Bandera amarilla',
-    note: 'incidente en pista — prohibido adelantar',
+    note: 'incidente en un sector — prohibido adelantar ahí',
     color: '#f5c518',
     fg: '#201e1d',
     cost: '+2,0',
@@ -73,7 +91,7 @@ export const STATUS: Record<TrackStatus, StatusSpec> = {
   VSC: {
     id: 'VSC',
     label: 'VSC',
-    note: 'virtual safety car — ritmo delta',
+    note: 'delta por sector — distancias congeladas · boxes sólo para gomas',
     color: '#f5c518',
     fg: '#201e1d',
     cost: '0,0',
@@ -130,7 +148,7 @@ export function fieldNote(status: TrackStatus, bunched: boolean): string | null 
         ? 'Pelotón agrupado · rezagados recuperan su vuelta'
         : 'Pelotón agrupándose detrás del safety car'
     case 'VSC':
-      return 'Gaps congelados · ritmo delta'
+      return 'Gaps congelados · delta por sector (B5.12)'
     case 'YELLOW':
       return 'Incidente en pista · prohibido adelantar'
     default:

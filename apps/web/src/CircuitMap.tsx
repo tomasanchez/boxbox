@@ -84,9 +84,10 @@ export function CircuitMap({
     setPlaced(
       drivers.map((driver, index) => {
         byGap += (driver.gapAheadS ?? 0) * spread
-        // En parrilla el orden es por posición; en pista, por intervalo. Se
-        // mezclan los dos según cuánto se avanzó hacia la formación.
-        const cumulative = byGap * (1 - field.gridded) + spread * index * field.gridded
+        // Neutralizado el orden es parejo por posición; corriendo, por
+        // intervalo. `uniform` mezcla los dos mientras dura la maniobra — sin
+        // él un rezagado a 16 s se quedaba solo aunque la separación bajara.
+        const cumulative = byGap * (1 - field.uniform) + spread * index * field.uniform
 
         const at = (((anchor - cumulative) % 1) + 1) % 1
         const point = node.getPointAtLength(at * length)
@@ -100,7 +101,7 @@ export function CircuitMap({
         }
       }),
     )
-  }, [track.path, drivers, field.spacing, field.anchor, field.gridded])
+  }, [track.path, drivers, field.spacing, field.anchor, field.gridded, field.uniform])
 
   // El sector afectado se dibuja encima con un guion del largo justo.
   const sector = spec.sector

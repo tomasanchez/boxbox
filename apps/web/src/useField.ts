@@ -19,11 +19,13 @@ import type { TrackStatus } from './types'
 /** Qué tan rápido converge cada magnitud, en unidades por segundo. */
 const RATE = {
   /** La separación es lo más lento: juntar al pelotón lleva su tiempo. */
-  spacing: 0.9,
+  spacing: 1.2,
   /** Levantar o bajar el pie es más inmediato. */
   pace: 1.8,
   /** Rodar hasta la parrilla, con bandera roja. */
   toGrid: 0.7,
+  /** Pasar de orden por intervalo a formación pareja. */
+  uniform: 1.1,
 }
 
 
@@ -37,6 +39,16 @@ export interface FieldState {
   anchor: number
   /** 0 = corriendo en pista, 1 = formado en la parrilla. */
   gridded: number
+  /**
+   * Cuánto se ordena el pelotón por posición en lugar de por intervalo.
+   *
+   * Es la diferencia entre correr y estar neutralizado. En carrera cada auto
+   * está donde lo pone su intervalo, y un rezagado a 16 s queda lejos. Detrás
+   * del safety car el pelotón se forma **parejo**, a pocos metros uno del otro,
+   * sin importar la diferencia que traían. Sin este término los rezagados nunca
+   * terminaban de agruparse.
+   */
+  uniform: number
 }
 
 /** Interpolación exponencial estable ante saltos de cuadro. */
@@ -55,7 +67,13 @@ export function useField(
   // El acumulador muta en la ref —una asignación por cuadro, sin renders— y se
   // publica como instantánea inmutable al final del cuadro. Así el render nunca
   // lee la ref y el componente se entera del cambio por la vía normal.
-  const initial: FieldState = { spacing: spec.spacing, pace: spec.pace, anchor: 0, gridded: 0 }
+  const initial: FieldState = {
+    spacing: spec.spacing,
+    pace: spec.pace,
+    anchor: 0,
+    gridded: 0,
+    uniform: 0,
+  }
   const acc = useRef<FieldState>(initial)
   const [snapshot, setSnapshot] = useState<FieldState>(initial)
 
@@ -89,6 +107,10 @@ export function useField(
       state.spacing = approach(state.spacing, t.spacing, RATE.spacing, dt)
       state.pace = approach(state.pace, playing ? t.pace : 0, RATE.pace, dt)
       state.gridded = approach(state.gridded, t.field === 'grid' ? 1 : 0, RATE.toGrid, dt)
+      // Detrás del safety car y en parrilla la formación es pareja; corriendo
+      // y bajo VSC cada uno conserva su intervalo.
+      const uniformTarget = t.field === 'bunch' || t.field === 'grid' ? 1 : 0
+      state.uniform = approach(state.uniform, uniformTarget, RATE.uniform, dt)
 
       // La cabeza del pelotón avanza al ritmo actual. Con bandera roja el ritmo
       // cae a cero, así que se frena sola en lugar de cortarse de golpe.
