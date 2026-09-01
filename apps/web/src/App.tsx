@@ -10,7 +10,7 @@ import { ForecastView } from './ForecastView'
 import { PlaybackControls } from './Playback'
 import { SPEEDS } from './playback-clock'
 import { RaceView } from './RaceView'
-import { RACE } from './data'
+import { GRID, RACE } from './data'
 import { STATUS, STATUS_ORDER, fieldNote } from './status'
 import { useField } from './useField'
 import { Kpi } from './ui'
@@ -22,6 +22,10 @@ const TABS: { id: View; label: string }[] = [
   { id: 'race', label: 'Panel de carrera' },
   { id: 'forecast', label: 'Pronóstico' },
 ]
+
+/** Los autos que se dibujan en el mapa. Se fija fuera del componente para que
+ *  la identidad del arreglo no cambie en cada render y reinicie la simulación. */
+const FIELD_CARS = GRID.slice(0, 8)
 
 export default function App() {
   // El hash permite abrir una vista directo (y sacarle captura sin interactuar).
@@ -46,14 +50,15 @@ export default function App() {
 
   // El pelotón vive en useField: separación, ritmo y posición se interpolan
   // cuadro a cuadro, así que cambiar de estado es una maniobra y no un salto.
-  const field = useField(status, playing, speed.msPerLap)
+  const field = useField(FIELD_CARS, status, playing, speed.msPerLap)
 
   // La vuelta avanza cuando la cabeza del pelotón cruza la meta.
-  const crossed = useRef(field.anchor)
+  const crossed = useRef(field.positions[0] ?? 0)
   useEffect(() => {
-    if (crossed.current > 0.8 && field.anchor < 0.2) advance()
-    crossed.current = field.anchor
-  }, [field.anchor, advance])
+    const head = field.positions[0] ?? 0
+    if (crossed.current > 0.8 && head < 0.2) advance()
+    crossed.current = head
+  }, [field.positions, advance])
 
   const togglePlay = useCallback(() => setPlaying((current) => !current), [])
 
@@ -157,7 +162,7 @@ export default function App() {
       </div>
 
       {view === 'race' ? (
-        <RaceView scenarioLap={lap} status={status} field={field} />
+        <RaceView scenarioLap={lap} status={status} field={field} cars={FIELD_CARS} />
       ) : (
         <ForecastView />
       )}

@@ -1,24 +1,32 @@
 /**
- * Estado físico del pelotón, interpolado cuadro a cuadro.
+ * Física del pelotón, integrada cuadro a cuadro.
  *
- * Los cambios de estado de pista **no son instantáneos en la realidad**: cuando
- * sale el safety car los autos tardan una vuelta larga en juntarse, y con
- * bandera roja ruedan hasta la parrilla antes de detenerse. Si la UI salta de
- * un arreglo al otro, se pierde justamente lo que hace entendible la maniobra.
+ * La versión anterior recalculaba la posición de cada auto a partir de su
+ * separación deseada. Como esa separación se interpolaba, cada auto la veía
+ * cambiar en distinta medida y **algunos terminaban yendo para atrás** o
+ * saliendo disparados. Un auto de carrera no hace ninguna de las dos cosas.
  *
- * Acá cada magnitud —separación, ritmo, y el punto donde está la cabeza del
- * pelotón— persigue su objetivo con una interpolación exponencial: se acerca
- * una fracción de la distancia restante en cada cuadro. Es el mismo enfoque del
- * concepto: `valor += (objetivo - valor) * min(1, dt * tasa)`.
+ * Acá cada auto tiene su propia posición absoluta, en vueltas recorridas, y
+ * **sólo puede avanzar**. Se junta al de adelante porque levanta el pie, no
+ * porque lo teletransporten. La corrección de velocidad está acotada por arriba
+ * y por abajo, así que nadie retrocede ni pega un salto.
+ *
+ * Reglamento aplicable:
+ *
+ *  - **B5.12** VSC: cada auto debe superar un tiempo mínimo por sector, así que
+ *    las distancias se conservan y el pelotón no se agrupa.
+ *  - **B5.12.2** Reinicio tras safety car: nadie puede adelantar hasta cruzar
+ *    la línea, y el primero detrás del coche de seguridad dicta el ritmo. Por
+ *    eso acá la cabeza avanza sola y el resto se acomoda detrás.
  */
 
 import { useEffect, useRef, useState } from 'react'
 import { STATUS } from './status'
-import type { TrackStatus } from './types'
+import type { DriverState, TrackStatus } from './types'
 
 /** Qué tan rápido converge cada magnitud, en unidades por segundo. */
 const RATE = {
-  /** La separación es lo más lento: juntar al pelotón lleva su tiempo. */
+  /** Juntar o estirar el pelotón es lo más lento. */
   spacing: 1.2,
   /** Levantar o bajar el pie es más inmediato. */
   pace: 1.8,
@@ -26,37 +34,52 @@ const RATE = {
   toGrid: 0.7,
   /** Pasar de orden por intervalo a formación pareja. */
   uniform: 1.1,
+  /** Con cuánta insistencia cada auto persigue su hueco. */
+  catchup: 1.3,
 }
 
+/**
+ * Cuánto más rápido que el ritmo base puede ir un auto recuperando terreno.
+ * Acotado: sin esto un rezagado cruzaría medio circuito en un cuadro.
+ */
+const MAX_CATCHUP = 0.9
 
+/**
+ * Cuánto de la vuelta puede ocupar el pelotón entero, como máximo.
+ *
+ * Este tope no es estético, es de corrección. Con los intervalos reales de
+ * Zandvoort el último auto está a casi 48 s del líder; con un factor fijo eso
+ * daba más de **dos vueltas** de separación, así que los rezagados envolvían el
+ * circuito y reaparecían adelante — que era lo que se veía como autos yendo
+ * para atrás o saliendo disparados. Normalizando, el pelotón siempre entra en
+ * una vuelta y el orden en pantalla coincide con el de la carrera.
+ */
+const FIELD_SPAN = 0.82
 
 export interface FieldState {
-  /** Separación actual entre autos, como fracción de vuelta. */
-  spacing: number
   /** Ritmo actual, de 0 (detenido) a 1 (carrera). */
   pace: number
-  /** Dónde está la cabeza del pelotón dentro de la vuelta, 0 a 1. */
-  anchor: number
   /** 0 = corriendo en pista, 1 = formado en la parrilla. */
   gridded: number
-  /**
-   * Cuánto se ordena el pelotón por posición en lugar de por intervalo.
-   *
-   * Es la diferencia entre correr y estar neutralizado. En carrera cada auto
-   * está donde lo pone su intervalo, y un rezagado a 16 s queda lejos. Detrás
-   * del safety car el pelotón se forma **parejo**, a pocos metros uno del otro,
-   * sin importar la diferencia que traían. Sin este término los rezagados nunca
-   * terminaban de agruparse.
-   */
+  /** 0 = ordenado por intervalo, 1 = formación pareja tras el safety car. */
   uniform: number
+  /**
+   * Posición de cada auto dentro de la vuelta, 0 a 1, en el mismo orden que los
+   * pilotos recibidos. Derivada de una posición absoluta que sólo crece.
+   */
+  positions: number[]
 }
 
-/** Interpolación exponencial estable ante saltos de cuadro. */
 function approach(current: number, target: number, rate: number, dt: number): number {
   return current + (target - current) * Math.min(1, dt * rate)
 }
 
+function clamp(value: number, low: number, high: number): number {
+  return Math.min(high, Math.max(low, value))
+}
+
 export function useField(
+  drivers: DriverState[],
   status: TrackStatus,
   playing: boolean,
   /** Milisegundos de reloj por vuelta a ritmo pleno; sale del selector. */
@@ -64,24 +87,29 @@ export function useField(
 ): FieldState {
   const spec = STATUS[status]
 
-  // El acumulador muta en la ref —una asignación por cuadro, sin renders— y se
-  // publica como instantánea inmutable al final del cuadro. Así el render nunca
-  // lee la ref y el componente se entera del cambio por la vía normal.
-  const initial: FieldState = {
+  // Todo el estado mutable vive acá: se toca una vez por cuadro y recién
+  // entonces se publica una instantánea, así el render nunca lee la ref.
+  const sim = useRef({
     spacing: spec.spacing,
     pace: spec.pace,
-    anchor: 0,
     gridded: 0,
     uniform: 0,
-  }
-  const acc = useRef<FieldState>(initial)
-  const [snapshot, setSnapshot] = useState<FieldState>(initial)
+    /** Vueltas recorridas por cada auto. Monótona creciente. */
+    travelled: drivers.map((_, i) => -0.05 * i),
+  })
 
-  // El objetivo se lee de una ref para que cambiar de estado o de velocidad no
-  // reinicie el bucle de animación a mitad de una transición. La asignación va
-  // en un efecto, no en el render.
+  const [snapshot, setSnapshot] = useState<FieldState>(() => ({
+    pace: spec.pace,
+    gridded: 0,
+    uniform: 0,
+    positions: drivers.map(() => 0),
+  }))
+
+  // Los objetivos se leen de refs para que cambiar de estado, de velocidad o de
+  // parrilla no reinicie el bucle a mitad de una transición.
   const target = useRef(spec)
   const lapsPerSecond = useRef(1000 / msPerLap)
+  const grid = useRef(drivers)
 
   useEffect(() => {
     target.current = spec
@@ -92,31 +120,73 @@ export function useField(
   }, [msPerLap])
 
   useEffect(() => {
+    grid.current = drivers
+    // Si cambia la cantidad de autos, se reinicia el arreglo de posiciones.
+    if (sim.current.travelled.length !== drivers.length) {
+      sim.current.travelled = drivers.map((_, i) => -0.05 * i)
+    }
+  }, [drivers])
+
+  useEffect(() => {
     let frame = 0
     let last = performance.now()
 
     const tick = (now: number) => {
-      // Al volver de una pestaña en segundo plano el delta puede ser enorme;
-      // se acota para que el pelotón no pegue un salto.
+      // Volver de una pestaña en segundo plano entrega un delta enorme; se
+      // acota para que el pelotón no dé un salto.
       const dt = Math.min((now - last) / 1000, 0.1)
       last = now
 
       const t = target.current
-      const state = acc.current
+      const cars = grid.current
+      const s = sim.current
+      const lps = lapsPerSecond.current
 
-      state.spacing = approach(state.spacing, t.spacing, RATE.spacing, dt)
-      state.pace = approach(state.pace, playing ? t.pace : 0, RATE.pace, dt)
-      state.gridded = approach(state.gridded, t.field === 'grid' ? 1 : 0, RATE.toGrid, dt)
-      // Detrás del safety car y en parrilla la formación es pareja; corriendo
-      // y bajo VSC cada uno conserva su intervalo.
-      const uniformTarget = t.field === 'bunch' || t.field === 'grid' ? 1 : 0
-      state.uniform = approach(state.uniform, uniformTarget, RATE.uniform, dt)
+      s.spacing = approach(s.spacing, t.spacing, RATE.spacing, dt)
+      s.pace = approach(s.pace, playing ? t.pace : 0, RATE.pace, dt)
+      s.gridded = approach(s.gridded, t.field === 'grid' ? 1 : 0, RATE.toGrid, dt)
+      s.uniform = approach(
+        s.uniform,
+        t.field === 'bunch' || t.field === 'grid' ? 1 : 0,
+        RATE.uniform,
+        dt,
+      )
 
-      // La cabeza del pelotón avanza al ritmo actual. Con bandera roja el ritmo
-      // cae a cero, así que se frena sola en lugar de cortarse de golpe.
-      state.anchor = (state.anchor + dt * state.pace * lapsPerSecond.current) % 1
+      // El intervalo acumulado del último auto fija la escala: se reparte el
+      // pelotón dentro de FIELD_SPAN y después el estado lo comprime o estira.
+      const totalGap = cars.reduce((sum, c) => sum + (c.gapAheadS ?? 0), 0)
+      const spread =
+        (totalGap > 0 ? FIELD_SPAN / totalGap : 0.02) * (s.spacing / STATUS.GREEN.spacing)
+      const base = s.pace * lps
 
-      setSnapshot({ ...state })
+      // La cabeza dicta el ritmo (B5.12.2): avanza sola y el resto se acomoda
+      // detrás. Con bandera roja el ritmo llega a cero y se detiene.
+      s.travelled[0] += dt * base
+
+      let byGap = 0
+      for (let i = 1; i < cars.length; i += 1) {
+        byGap += (cars[i].gapAheadS ?? 0) * spread
+        const desired = byGap * (1 - s.uniform) + spread * i * s.uniform
+        const goal = s.travelled[0] - desired
+
+        // Acelera si quedó lejos y levanta si se pasó, pero la velocidad nunca
+        // baja de cero: acá está el arreglo del retroceso. El término extra
+        // permite acomodarse incluso con el pelotón detenido, para poder rodar
+        // a la parrilla bajo bandera roja.
+        const correction = clamp(
+          (goal - s.travelled[i]) * RATE.catchup,
+          -base * 0.6,
+          base * MAX_CATCHUP + lps * 0.04,
+        )
+        s.travelled[i] += Math.max(0, dt * (base + correction))
+      }
+
+      setSnapshot({
+        pace: s.pace,
+        gridded: s.gridded,
+        uniform: s.uniform,
+        positions: s.travelled.map((v) => ((v % 1) + 1) % 1),
+      })
       frame = requestAnimationFrame(tick)
     }
 

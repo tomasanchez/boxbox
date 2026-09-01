@@ -26,13 +26,6 @@ const INNER_COLOR = '#131211'
 /** Cuánto más fino es el trazo interior que vacía el centro del asfalto. */
 const INNER_INSET = 13
 
-/**
- * Separación en verde, como fracción de vuelta por segundo de intervalo. El
- * valor físico sería ~0,012 (la vuelta ronda los 80 s); se exagera para que los
- * códigos se lean. Por eso el panel declara el reparto como esquemático.
- */
-const SPREAD_GREEN = 0.045
-
 interface Placed {
   driver: DriverState
   x: number
@@ -72,24 +65,11 @@ export function CircuitMap({
     const box = node.getBBox()
     const midX = box.x + box.width / 2
 
-    // La separación viene interpolada, así que juntarse o estirarse ocurre de
-    // a poco en lugar de en un salto.
-    const spread = (field.spacing / STATUS.GREEN.spacing) * SPREAD_GREEN
-
-    // `gridded` va de 0 a 1 mientras los autos ruedan hacia la parrilla: la
-    // cabeza del pelotón se desliza desde donde estaba hasta la línea de meta.
-    const anchor = field.anchor * (1 - field.gridded)
-
-    let byGap = 0
+    // Las posiciones llegan resueltas desde `useField`: acá sólo se traducen a
+    // coordenadas sobre el path. Toda la física vive en el hook.
     setPlaced(
       drivers.map((driver, index) => {
-        byGap += (driver.gapAheadS ?? 0) * spread
-        // Neutralizado el orden es parejo por posición; corriendo, por
-        // intervalo. `uniform` mezcla los dos mientras dura la maniobra — sin
-        // él un rezagado a 16 s se quedaba solo aunque la separación bajara.
-        const cumulative = byGap * (1 - field.uniform) + spread * index * field.uniform
-
-        const at = (((anchor - cumulative) % 1) + 1) % 1
+        const at = field.positions[index] ?? 0
         const point = node.getPointAtLength(at * length)
         const outward = point.x < midX ? -1 : 1
         return {
@@ -101,7 +81,7 @@ export function CircuitMap({
         }
       }),
     )
-  }, [track.path, drivers, field.spacing, field.anchor, field.gridded, field.uniform])
+  }, [track.path, drivers, field.positions])
 
   // El sector afectado se dibuja encima con un guion del largo justo.
   const sector = spec.sector

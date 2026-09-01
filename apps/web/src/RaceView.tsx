@@ -11,9 +11,9 @@ import { BattleStrip } from './BattleStrip'
 import { CircuitMap } from './CircuitMap'
 import { GridPanel } from './GridPanel'
 import { InsightOverlay } from './InsightCard'
-import { BATTLE, BATTLE_ALT, GRID, RACE } from './data'
+import { BATTLE, BATTLE_ALT, RACE } from './data'
 import { TRACKS } from './tracks'
-import type { TrackStatus } from './types'
+import type { DriverState, TrackStatus } from './types'
 import type { FieldState } from './useField'
 import { Panel } from './ui'
 
@@ -21,10 +21,13 @@ export function RaceView({
   scenarioLap,
   status,
   field,
+  cars,
 }: {
   scenarioLap: number
   status: TrackStatus
   field: FieldState
+  /** Los mismos autos que alimentan la simulación. */
+  cars: DriverState[]
 }) {
   const track = TRACKS[RACE.trackKey]
   const duels = [BATTLE, BATTLE_ALT]
@@ -44,7 +47,7 @@ export function RaceView({
       >
         <CircuitMap
           track={track}
-          drivers={GRID.slice(0, 8)}
+          drivers={cars}
           status={status}
           field={field}
         >
