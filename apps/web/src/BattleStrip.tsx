@@ -121,7 +121,13 @@ export function BattleStrip({
           <div className="battle__body">
             <div className="battle__stage">
               <div className="battle__gap">
-                <span className="battle__gapv num">{fmt(Math.abs(battle.gapAfter))}</span>
+                {/*
+                 * Con signo, no en valor absoluto: negativo quiere decir que el
+                 * perseguidor salió adelante. Mostrando sólo la magnitud, un
+                 * −2,36 se leía «va a estar 2,36 s atrás» junto a un 90% de
+                 * adelantamiento, que es justo lo contrario de lo que pasa.
+                 */}
+                <span className="battle__gapv num">{fmt(battle.gapAfter, 2, true)}</span>
                 <span className="battle__gapl">
                   gap proyectado
                   <br />
