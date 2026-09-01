@@ -1561,8 +1561,8 @@ body {
 /* ------------------------------------------------------- MUI, aplanado */
 
 /*
- * MUI trae padding y tipografía de Material. Acá los botones viven en una
- * barra densa, así que se los lleva al tamaño del resto del panel.
+ * MUI trae padding y tipografía de Material. Acá los botones y la tabla viven
+ * en un panel denso, así que se los lleva al tamaño del resto.
  */
 .panel .MuiToggleButton-root {
   padding: 3px 8px;
@@ -1585,10 +1585,45 @@ body {
   background: var(--bg-5);
 }
 
-/* Dentro de una celda de DataGrid el disco no debe estirarse. */
-.MuiDataGrid-cell .tyre {
-  flex: none;
-  line-height: 1;
+/* La tabla se estira al alto del panel sin scrollear. */
+.tower-wrap {
+  overflow: hidden;
+}
+
+.tower-table {
+  width: 100%;
+  /* `auto` es el punto de usar una tabla: el navegador mide el contenido y
+     reparte el ancho, que es lo que fallaba con anchos calculados a mano. */
+  table-layout: auto;
+}
+
+.tower-table .MuiTableCell-root {
+  padding: 1px 6px;
+  border-bottom: 1px solid var(--line-soft);
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-tiny);
+  color: var(--txt-1);
+  white-space: nowrap;
+}
+
+.tower-table .MuiTableHead-root .MuiTableCell-root {
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--sans);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--txt-4);
+}
+
+.tower-table .MuiTableBody-root .MuiTableRow-root:hover {
+  background: var(--bg-2);
+}
+
+.tower-table .row--out .MuiTableCell-root {
+  color: var(--txt-4);
 }
 
 /* CssBaseline pinta el body; el fondo lo maneja nuestra hoja. */
