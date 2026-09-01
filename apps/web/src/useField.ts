@@ -50,7 +50,7 @@ const RATE = {
   /** Levantar o bajar el pie es más inmediato. */
   pace: 1.8,
   /** Rodar hasta la parrilla, con bandera roja. */
-  toGrid: 0.7,
+  toGrid: 1.1,
   /** Pasar de orden por intervalo a formación pareja. */
   uniform: 1.1,
   /** Con cuánta insistencia cada auto persigue su hueco. */
@@ -186,6 +186,13 @@ export function useField(
   const target = useRef(spec)
   const lapsPerSecond = useRef(1000 / msPerLap)
   const grid = useRef(drivers)
+  /**
+   * Dónde va a formar el pelotón: la próxima vez que la cabeza cruce la meta.
+   * Se fija al entrar en formación y se borra al salir, para que los autos
+   * **rueden hasta la línea y ahí se detengan**, en lugar de frenar en seco
+   * donde los agarró la bandera.
+   */
+  const gridLine = useRef<number | null>(null)
 
   useEffect(() => {
     // Detenidos en la vuelta 1 la parrilla se comporta como la formación de
@@ -265,9 +272,22 @@ export function useField(
       // cada uno corre a lo suyo, neutralizado todos van en fila.
       const held = Math.max(s.uniform, s.gridded)
 
-      // La cabeza dicta el ritmo (B5.12.2): avanza sola y el resto se acomoda
-      // detrás. Con bandera roja el ritmo llega a cero y se detiene.
-      s.travelled[0] += dt * base * carPace(cars[0], held)
+      if (t.field === 'grid') {
+        // Se elige la próxima línea de meta y la cabeza rueda hasta ahí, cada
+        // vez más despacio, hasta detenerse encima. El margen evita elegir una
+        // línea que ya está prácticamente debajo del auto.
+        if (gridLine.current === null) {
+          gridLine.current = Math.ceil(s.travelled[0] + 0.05)
+        }
+        const remaining = gridLine.current - s.travelled[0]
+        const roll = Math.min(lps * 0.75, Math.max(remaining * 2.2, 0))
+        s.travelled[0] = Math.min(s.travelled[0] + dt * roll, gridLine.current)
+      } else {
+        gridLine.current = null
+        // La cabeza dicta el ritmo (B5.12.2): avanza sola y el resto se acomoda
+        // detrás.
+        s.travelled[0] += dt * base * carPace(cars[0], held)
+      }
 
       let byGap = 0
       for (let i = 1; i < cars.length; i += 1) {
@@ -277,10 +297,15 @@ export function useField(
 
         // Acelera si quedó lejos y levanta si se pasó, pero la velocidad nunca
         // baja de cero: acá está el arreglo del retroceso.
+        //
+        // `roll` es lo que puede avanzar aunque el ritmo de carrera sea cero.
+        // Sin esto, con bandera roja el pelotón quedaba desparramado por el
+        // circuito porque nadie tenía con qué llegar hasta la parrilla.
+        const roll = lps * 0.75 * held
         const correction = clamp(
           (goal - s.travelled[i]) * RATE.catchup,
           -base * 0.6,
-          base * MAX_CATCHUP + lps * 0.04,
+          base * MAX_CATCHUP + roll + lps * 0.04,
         )
         // En verde manda el ritmo propio y la corrección casi no interviene;
         // neutralizado es al revés y el pelotón se acomoda en formación.
