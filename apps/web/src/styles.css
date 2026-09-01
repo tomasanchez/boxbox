@@ -369,28 +369,81 @@ body {
 
 /* ------------------------------------------------------------------ parrilla */
 
-.grid-table {
+.metrics {
+  display: flex;
+  gap: 2px;
+}
+
+.metric {
+  flex: 1 1 0;
+  padding: calc(var(--pad) * 0.3) 0;
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  color: var(--txt-3);
+  font-family: inherit;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.metric[aria-pressed='true'] {
+  background: var(--bg-5);
+  border-color: var(--txt-4);
+  color: var(--txt-0);
+}
+
+.metric:hover {
+  color: var(--txt-1);
+}
+
+.metric:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: 1px;
+}
+
+/* Torre de tiempos: veinte filas repartiéndose el alto disponible. */
+.tower {
   display: grid;
-  /* pos · piloto · goma · edad · degradación · ventana (texto) · barra */
+  /* pos · piloto · goma · métrica · ventana · barra */
   grid-template-columns:
-    1.5em minmax(3.2em, auto) 1.5em 1.5em minmax(3em, auto)
-    minmax(3.4em, auto) minmax(80px, 1fr);
-  gap: 0 calc(var(--gap) * 0.55);
+    1.6em minmax(3em, auto) 1.4em minmax(3.4em, auto)
+    minmax(3.2em, auto) minmax(70px, 1fr);
+  gap: 0 calc(var(--gap) * 0.5);
   align-content: stretch;
   grid-auto-rows: minmax(0, 1fr);
   font-size: var(--fs-tiny);
   min-height: 0;
 }
 
-/* La cabecera no debe estirarse con el resto de las filas. */
-.grid-table__h {
+.tower__h {
   align-self: end;
+  font-size: var(--fs-micro);
+  letter-spacing: 0.1em;
+  color: var(--txt-4);
+  text-transform: uppercase;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 2px;
 }
+
+.tower__h--num {
+  text-align: right;
+}
+
+.tower__v {
+  text-align: right;
+  color: var(--txt-1);
+}
+
+
 
 /* La barra de ventana vive dentro de la fila del piloto. */
 .grid-row__bar {
   position: relative;
-  height: clamp(8px, 1.1em, 18px);
+  height: clamp(6px, 0.95em, 14px);
   background: var(--bg-4);
   border-radius: 1px;
   overflow: hidden;
@@ -412,9 +465,11 @@ body {
 }
 
 .grid-row > * {
-  padding: calc(var(--pad) * 0.3) 0;
+  padding: 1px 0;
   border-bottom: 1px solid var(--line-soft);
   align-self: center;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .grid-row__pos {
@@ -457,8 +512,8 @@ body {
 .tyre {
   display: inline-grid;
   place-items: center;
-  width: 1.3em;
-  height: 1.3em;
+  width: 1.2em;
+  height: 1.2em;
   border-radius: 50%;
   font-size: 0.78em;
   font-weight: 800;
@@ -819,9 +874,15 @@ body {
 /* ------------------------------------------------------------------ circuito */
 
 .panel__body--fill {
-  align-content: stretch;
-  grid-template-rows: minmax(0, 1fr);
-  grid-auto-rows: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* El hijo que absorbe el alto sobrante del panel. */
+.panel__grow {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .circuit {

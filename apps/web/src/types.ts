@@ -23,8 +23,11 @@ export interface DriverState {
   degradationS: number
   /** Cuánto crece esa pérdida por vuelta. */
   degradationRate: number
+  /** Intervalo al auto de adelante, en segundos. */
   gapAheadS: number | null
-  gapBehindS: number | null
+  /** Distancia acumulada al líder, en segundos. */
+  gapLeaderS: number | null
+  gapBehindS?: number | null
   /**
    * Rango de vueltas donde conviene parar, o `null` cuando no hay cruce
    * proyectable. Cerca de la mitad de la parrilla está en ese estado a mitad

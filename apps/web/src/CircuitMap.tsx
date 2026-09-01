@@ -82,7 +82,7 @@ export function CircuitMap({
   }, [track.path, drivers, lapFraction])
 
   return (
-    <div className="circuit">
+    <div className="circuit panel__grow">
       <svg
         viewBox={track.viewBox}
         preserveAspectRatio="xMidYMid meet"

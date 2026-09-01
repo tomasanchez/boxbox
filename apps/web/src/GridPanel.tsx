@@ -1,49 +1,94 @@
 /**
- * Parrilla y ventanas de boxes en una sola tabla.
+ * Torre de tiempos: posiciones y ventanas de boxes.
  *
- * Antes eran dos paneles en columnas distintas que listaban los mismos diez
- * pilotos. Unificarlos libera la columna izquierda entera para el mapa y evita
- * que el ojo tenga que cruzar la pantalla para relacionar la degradación de un
- * auto con su ventana.
+ * Como en la transmisión, **no se muestra todo junto**. La columna de datos
+ * alterna entre intervalo al de adelante, distancia al líder, edad de la goma y
+ * degradación; lo que siempre queda es la posición, el compuesto y la ventana,
+ * que es lo que este sistema aporta.
  */
 
+import { useState } from 'react'
 import { GRID, RACE } from './data'
 import { fmt } from './format'
 import type { DriverState } from './types'
 import { Panel, Tyre } from './ui'
 
+type Metric = 'interval' | 'leader' | 'age' | 'deg'
+
+const METRICS: { id: Metric; label: string; title: string }[] = [
+  { id: 'interval', label: 'Int', title: 'Intervalo al auto de adelante' },
+  { id: 'leader', label: 'Líder', title: 'Distancia al líder' },
+  { id: 'age', label: 'Goma', title: 'Vueltas con el juego actual' },
+  { id: 'deg', label: 'Deg', title: 'Segundos por vuelta que pierde por desgaste' },
+]
+
 function windowText(driver: DriverState): string {
-  if (!driver.pitWindow) return 'sin proy.'
+  if (!driver.pitWindow) return '—'
   return `${driver.pitWindow.opensLap}–${driver.pitWindow.closesLap}`
+}
+
+/** Valor y clase de color de la métrica activa para un piloto. */
+function metricCell(driver: DriverState, metric: Metric): { text: string; tone: string } {
+  switch (metric) {
+    case 'interval':
+      return {
+        text: driver.gapAheadS === null ? '—' : `+${fmt(driver.gapAheadS)}`,
+        tone: '',
+      }
+    case 'leader':
+      return {
+        text: driver.gapLeaderS === null || driver.position === 1
+          ? 'líder'
+          : `+${fmt(driver.gapLeaderS)}`,
+        tone: driver.position === 1 ? ' grid-row__pos' : '',
+      }
+    case 'age':
+      return { text: `${driver.tyreAge}v`, tone: '' }
+    case 'deg':
+      return {
+        text: fmt(driver.degradationS, 2, true),
+        // Negativo = la goma todavía mejora; se marca en verde.
+        tone: driver.degradationS < 0 ? ' grid-row__deg--gaining' : '',
+      }
+  }
 }
 
 export function GridPanel({ lap }: { lap: number }) {
   const { totalLaps } = RACE
+  const [metric, setMetric] = useState<Metric>('interval')
   const nowPct = (lap / totalLaps) * 100
+  const active = METRICS.find((m) => m.id === metric) ?? METRICS[0]
 
   return (
-    <Panel
-      title="Parrilla y ventanas de boxes"
-      note={`V${lap} / ${totalLaps} · rangos, no vueltas exactas`}
-      fill
-    >
-      <div className="grid-table">
-        <div className="grid-table__h">P</div>
-        <div className="grid-table__h">Piloto</div>
-        <div className="grid-table__h" title="Compuesto">
+    <Panel title="Posiciones y ventanas" note={`V${lap} / ${totalLaps} · ${GRID.length} en pista`} fill>
+      <div className="metrics" role="group" aria-label="Dato a mostrar">
+        {METRICS.map((m) => (
+          <button
+            key={m.id}
+            type="button"
+            className="metric"
+            aria-pressed={m.id === metric}
+            title={m.title}
+            onClick={() => setMetric(m.id)}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="tower panel__grow">
+        <div className="tower__h">P</div>
+        <div className="tower__h">Piloto</div>
+        <div className="tower__h" title="Compuesto">
           G
         </div>
-        <div className="grid-table__h" title="Vueltas con esa goma">
-          V
-        </div>
-        <div className="grid-table__h" title="Segundos por vuelta">
-          Deg
-        </div>
-        <div className="grid-table__h">Vent.</div>
-        <div className="grid-table__h">Vueltas 1–{totalLaps}</div>
+        <div className="tower__h tower__h--num">{active.label}</div>
+        <div className="tower__h">Vent.</div>
+        <div className="tower__h">1–{totalLaps}</div>
 
         {GRID.map((d) => {
           const w = d.pitWindow
+          const cell = metricCell(d, metric)
           return (
             <div className="grid-row" key={d.code}>
               <div className="grid-row__pos num">{d.position}</div>
@@ -54,10 +99,7 @@ export function GridPanel({ lap }: { lap: number }) {
               <div>
                 <Tyre compound={d.compound} />
               </div>
-              <div className="grid-row__pos num">{d.tyreAge}</div>
-              <div className={`num grid-row__deg--${d.degradationS < 0 ? 'gaining' : 'losing'}`}>
-                {fmt(d.degradationS, 2, true)}
-              </div>
+              <div className={`num tower__v${cell.tone}`}>{cell.text}</div>
               <div className={`grid-row__win num${w ? '' : ' grid-row__win--none'}`}>
                 {windowText(d)}
               </div>
@@ -79,10 +121,8 @@ export function GridPanel({ lap }: { lap: number }) {
       </div>
 
       <p className="footnote">
-        <strong>Deg</strong> en segundos por vuelta; en verde los que todavía mejoran porque
-        queman combustible más rápido de lo que gastan la goma. La marca roja es la vuelta
-        actual. <strong>Sin proy.</strong> = la goma está plana o mejorando, así que no hay
-        cruce que anticipar.
+        La marca roja es la vuelta actual. <strong>—</strong> en la ventana significa que la goma
+        está plana o mejorando, así que no hay cruce que anticipar.
       </p>
     </Panel>
   )
