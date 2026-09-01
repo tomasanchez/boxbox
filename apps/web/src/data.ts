@@ -50,6 +50,7 @@ export const RACE: RaceContext = {
   season: 2026,
   round: 11,
   circuit: 'Budapest',
+  trackKey: 'hungaroring',
   totalLaps: 70,
   currentLap: 30,
   trackStatus: 'GREEN',

@@ -49,6 +49,8 @@ export interface RaceContext {
   season: number
   round: number
   circuit: string
+  /** Clave en `tracks.ts` para la geometría real. */
+  trackKey: string
   totalLaps: number
   currentLap: number
   trackStatus: TrackStatus

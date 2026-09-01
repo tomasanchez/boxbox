@@ -1,6 +1,8 @@
 /** Panel de carrera: parrilla, trazado, duelo y ventanas de boxes. */
 
+import { CircuitMap } from './CircuitMap'
 import { BATTLE, BATTLE_ALT, COMPOUND_COLOR, GRID, PLAN_DISTRIBUTION, RACE } from './data'
+import { TRACKS } from './tracks'
 import type { DriverState, StrategyBattle } from './types'
 import { fmt, pct } from './format'
 import { Panel, Tyre } from './ui'
@@ -11,11 +13,6 @@ const VERDICT_TEXT: Record<StrategyBattle['verdict'], string> = {
   SIGUE_ATRAS: 'Sigue atrás',
 }
 
-/** Trazado esquemático — no es la geometría real del circuito. */
-const TRACK_PATH =
-  'M 120 34 C 178 30 214 46 218 76 C 222 108 196 120 168 128 C 140 136 118 148 122 170 ' +
-  'C 126 190 152 194 176 190 C 200 186 222 190 224 210 C 226 232 200 242 172 240 ' +
-  'C 132 238 96 236 70 224 C 40 210 26 184 30 152 C 34 118 52 96 74 74 C 92 56 100 36 120 34 Z'
 
 function windowText(driver: DriverState): string {
   if (!driver.pitWindow) return 'sin proyectar'
@@ -58,8 +55,15 @@ function Duel({ battle }: { battle: StrategyBattle }) {
   )
 }
 
-export function RaceView({ scenarioLap }: { scenarioLap: number }) {
+export function RaceView({
+  scenarioLap,
+  lapFraction,
+}: {
+  scenarioLap: number
+  lapFraction: number
+}) {
   const { totalLaps } = RACE
+  const track = TRACKS[RACE.trackKey]
   const nowPct = (scenarioLap / totalLaps) * 100
 
   return (
@@ -106,32 +110,11 @@ export function RaceView({ scenarioLap }: { scenarioLap: number }) {
 
       {/* ------------------------------------------------- trazado + plan modal */}
       <div className="stack stack--centre">
-        <Panel title="Trazado" note="esquemático · posiciones ilustrativas">
-          <div className="circuit">
-            <svg viewBox="0 0 254 274" role="img" aria-label="Trazado esquemático del circuito">
-              <path className="circuit__path" d={TRACK_PATH} />
-              <path className="circuit__inner" d={TRACK_PATH} />
-              {GRID.slice(0, 6).map((d, i) => {
-                const angle = (i / 6) * Math.PI * 2 - Math.PI / 2
-                const cx = 127 + Math.cos(angle) * 88
-                const cy = 137 + Math.sin(angle) * 96
-                return (
-                  <g key={d.code}>
-                    <circle
-                      className="circuit__car"
-                      cx={cx}
-                      cy={cy}
-                      r={6.5}
-                      fill={d.teamColor}
-                    />
-                    <text className="circuit__label" x={cx} y={cy + 3} textAnchor="middle">
-                      {d.position}
-                    </text>
-                  </g>
-                )
-              })}
-            </svg>
-          </div>
+        <Panel
+          title={`Trazado · ${track.name}`}
+          note={`${track.lengthM.toLocaleString('es-AR')} m · geometría real (OSM)`}
+        >
+          <CircuitMap track={track} drivers={GRID.slice(0, 8)} lapFraction={lapFraction} />
         </Panel>
 
         <Panel

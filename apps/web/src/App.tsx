@@ -5,8 +5,10 @@
  * última en `minmax(0,1fr)`, y ningún contenedor scrollea. Ver `styles.css`.
  */
 
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ForecastView } from './ForecastView'
+import { PlaybackControls } from './Playback'
+import { SPEEDS, usePlayback } from './playback-clock'
 import { RaceView } from './RaceView'
 import { RACE, SCENARIOS } from './data'
 import { Kpi } from './ui'
@@ -25,8 +27,43 @@ export default function App() {
   const [view, setView] = useState<View>(initial)
   const [status, setStatus] = useState<TrackStatus>('GREEN')
   const [lap, setLap] = useState(RACE.currentLap)
+  const [playing, setPlaying] = useState(false)
+  const [speed, setSpeed] = useState(SPEEDS[0])
+  // Avance dentro de la vuelta: mueve los autos sobre el trazado entre vueltas.
+  const [fraction, setFraction] = useState(0)
 
   const scenario = SCENARIOS.find((s) => s.id === status) ?? SCENARIOS[0]
+
+  const advance = useCallback(() => {
+    setLap((current) => {
+      if (current >= RACE.totalLaps) {
+        setPlaying(false)
+        return current
+      }
+      return current + 1
+    })
+  }, [])
+
+  usePlayback({ playing, speed, onTick: advance })
+
+  // Giro continuo sobre la pista mientras reproduce, independiente del tick de
+  // vuelta: sin esto los autos saltarían de golpe una vez por vuelta. Al frenar
+  // se resetea desde el propio handler, no desde un efecto.
+  useEffect(() => {
+    if (!playing) return
+    const step = 40
+    const id = window.setInterval(() => {
+      setFraction((f) => (f + step / speed.msPerLap) % 1)
+    }, step)
+    return () => window.clearInterval(id)
+  }, [playing, speed.msPerLap])
+
+  const togglePlay = useCallback(() => {
+    setPlaying((current) => {
+      if (current) setFraction(0)
+      return !current
+    })
+  }, [])
 
   return (
     <div className="app">
@@ -96,21 +133,30 @@ export default function App() {
           value={RACE.mandatoryCompounds.length === 2 ? 'M + H' : '—'}
           note={`mínimo ${RACE.minSets} juegos · B6.3.8`}
         />
-        <div className="kpi">
-          <span className="kpi__label">Avanzar vuelta</span>
-          <input
-            type="range"
-            min={1}
-            max={RACE.totalLaps}
-            value={lap}
-            onChange={(e) => setLap(Number(e.target.value))}
-            aria-label="Vuelta de la carrera"
-            style={{ width: '100%', accentColor: 'var(--red)' }}
+        <div className="kpi kpi--wide">
+          <span className="kpi__label">Reproducción</span>
+          <PlaybackControls
+            playing={playing}
+            onTogglePlay={togglePlay}
+            speed={speed}
+            onSpeed={setSpeed}
+            lap={lap}
+            totalLaps={RACE.totalLaps}
+            onLap={(next) => {
+              setPlaying(false)
+              setFraction(0)
+              setLap(next)
+            }}
+            homeLap={RACE.currentLap}
           />
         </div>
       </div>
 
-      {view === 'race' ? <RaceView scenarioLap={lap} /> : <ForecastView />}
+      {view === 'race' ? (
+        <RaceView scenarioLap={lap} lapFraction={fraction} />
+      ) : (
+        <ForecastView />
+      )}
     </div>
   )
 }
