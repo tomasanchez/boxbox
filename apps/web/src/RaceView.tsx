@@ -14,16 +14,17 @@ import { InsightOverlay } from './InsightCard'
 import { BATTLE, BATTLE_ALT, GRID, RACE } from './data'
 import { TRACKS } from './tracks'
 import type { TrackStatus } from './types'
+import type { FieldState } from './useField'
 import { Panel } from './ui'
 
 export function RaceView({
   scenarioLap,
-  lapFraction,
   status,
+  field,
 }: {
   scenarioLap: number
-  lapFraction: number
   status: TrackStatus
+  field: FieldState
 }) {
   const track = TRACKS[RACE.trackKey]
   const duels = [BATTLE, BATTLE_ALT]
@@ -44,8 +45,8 @@ export function RaceView({
         <CircuitMap
           track={track}
           drivers={GRID.slice(0, 8)}
-          lapFraction={lapFraction}
           status={status}
+          field={field}
         >
           <div className="overlay overlay--top">
             <BattleStrip

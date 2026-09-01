@@ -5,13 +5,14 @@
  * última en `minmax(0,1fr)`, y ningún contenedor scrollea. Ver `styles.css`.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ForecastView } from './ForecastView'
 import { PlaybackControls } from './Playback'
-import { SPEEDS, usePlayback } from './playback-clock'
+import { SPEEDS } from './playback-clock'
 import { RaceView } from './RaceView'
 import { RACE } from './data'
 import { STATUS, STATUS_ORDER, fieldNote } from './status'
+import { useField } from './useField'
 import { Kpi } from './ui'
 import type { TrackStatus } from './types'
 
@@ -30,8 +31,6 @@ export default function App() {
   const [lap, setLap] = useState(RACE.currentLap)
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState(SPEEDS[1])
-  // Avance dentro de la vuelta: mueve los autos sobre el trazado entre vueltas.
-  const [fraction, setFraction] = useState(0)
 
   const spec = STATUS[status]
 
@@ -45,33 +44,18 @@ export default function App() {
     })
   }, [])
 
-  // `pace` refleja lo que pasa en pista: ritmo delta bajo VSC, más lento aún
-  // detrás del safety car, y detenido con bandera roja.
-  const paced = useMemo(
-    () => ({ ...speed, msPerLap: spec.pace > 0 ? speed.msPerLap / spec.pace : Infinity }),
-    [speed, spec.pace],
-  )
+  // El pelotón vive en useField: separación, ritmo y posición se interpolan
+  // cuadro a cuadro, así que cambiar de estado es una maniobra y no un salto.
+  const field = useField(status, playing, speed.msPerLap)
 
-  usePlayback({ playing: playing && spec.pace > 0, speed: paced, onTick: advance })
-
-  // Giro continuo sobre la pista mientras reproduce, independiente del tick de
-  // vuelta: sin esto los autos saltarían de golpe una vez por vuelta. Al frenar
-  // se resetea desde el propio handler, no desde un efecto.
+  // La vuelta avanza cuando la cabeza del pelotón cruza la meta.
+  const crossed = useRef(field.anchor)
   useEffect(() => {
-    if (!playing) return
-    const step = 40
-    const id = window.setInterval(() => {
-      setFraction((f) => (f + (step / speed.msPerLap) * spec.pace) % 1)
-    }, step)
-    return () => window.clearInterval(id)
-  }, [playing, speed.msPerLap, spec.pace])
+    if (crossed.current > 0.8 && field.anchor < 0.2) advance()
+    crossed.current = field.anchor
+  }, [field.anchor, advance])
 
-  const togglePlay = useCallback(() => {
-    setPlaying((current) => {
-      if (current) setFraction(0)
-      return !current
-    })
-  }, [])
+  const togglePlay = useCallback(() => setPlaying((current) => !current), [])
 
   return (
     <div className="app">
@@ -152,7 +136,6 @@ export default function App() {
             totalLaps={RACE.totalLaps}
             onLap={(next) => {
               setPlaying(false)
-              setFraction(0)
               setLap(next)
             }}
             homeLap={RACE.currentLap}
@@ -174,7 +157,7 @@ export default function App() {
       </div>
 
       {view === 'race' ? (
-        <RaceView scenarioLap={lap} lapFraction={fraction} status={status} />
+        <RaceView scenarioLap={lap} status={status} field={field} />
       ) : (
         <ForecastView />
       )}

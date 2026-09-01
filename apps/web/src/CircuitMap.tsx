@@ -20,6 +20,7 @@ import { type ReactNode, useLayoutEffect, useRef, useState } from 'react'
 import { STATUS } from './status'
 import type { Track } from './tracks'
 import type { DriverState, TrackStatus } from './types'
+import type { FieldState } from './useField'
 
 const INNER_COLOR = '#131211'
 /** Cuánto más fino es el trazo interior que vacía el centro del asfalto. */
@@ -43,16 +44,16 @@ interface Placed {
 export function CircuitMap({
   track,
   drivers,
-  lapFraction,
   status,
+  field,
   children,
 }: {
   track: Track
   drivers: DriverState[]
-  /** Avance dentro de la vuelta actual, 0 a 1. */
-  lapFraction: number
-  /** El estado de pista pinta el trazado y reordena el pelotón. */
+  /** El estado de pista pinta el trazado. */
   status: TrackStatus
+  /** Posición interpolada del pelotón; ver `useField`. */
+  field: FieldState
   /** Contenido superpuesto sobre el mapa. */
   children?: ReactNode
 }) {
@@ -71,20 +72,21 @@ export function CircuitMap({
     const box = node.getBBox()
     const midX = box.x + box.width / 2
 
-    // La separación entre autos sale del estado, no sólo del intervalo.
-    const spread = (spec.spacing / STATUS.GREEN.spacing) * SPREAD_GREEN
+    // La separación viene interpolada, así que juntarse o estirarse ocurre de
+    // a poco en lugar de en un salto.
+    const spread = (field.spacing / STATUS.GREEN.spacing) * SPREAD_GREEN
 
-    // Con bandera roja el pelotón no gira: forma detrás de la línea de meta.
-    const anchor = spec.field === 'grid' ? 0 : lapFraction
+    // `gridded` va de 0 a 1 mientras los autos ruedan hacia la parrilla: la
+    // cabeza del pelotón se desliza desde donde estaba hasta la línea de meta.
+    const anchor = field.anchor * (1 - field.gridded)
 
-    let cumulative = 0
+    let byGap = 0
     setPlaced(
       drivers.map((driver, index) => {
-        // En parrilla el orden es por posición, no por intervalo: fila india.
-        cumulative =
-          spec.field === 'grid'
-            ? spread * index
-            : cumulative + (driver.gapAheadS ?? 0) * spread
+        byGap += (driver.gapAheadS ?? 0) * spread
+        // En parrilla el orden es por posición; en pista, por intervalo. Se
+        // mezclan los dos según cuánto se avanzó hacia la formación.
+        const cumulative = byGap * (1 - field.gridded) + spread * index * field.gridded
 
         const at = (((anchor - cumulative) % 1) + 1) % 1
         const point = node.getPointAtLength(at * length)
@@ -98,7 +100,7 @@ export function CircuitMap({
         }
       }),
     )
-  }, [track.path, drivers, lapFraction, spec.spacing, spec.field])
+  }, [track.path, drivers, field.spacing, field.anchor, field.gridded])
 
   // El sector afectado se dibuja encima con un guion del largo justo.
   const sector = spec.sector
