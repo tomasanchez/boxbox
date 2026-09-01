@@ -1,7 +1,8 @@
 /** Panel de carrera: parrilla, trazado, duelo y ventanas de boxes. */
 
 import { CircuitMap } from './CircuitMap'
-import { BATTLE, BATTLE_ALT, COMPOUND_COLOR, GRID, PLAN_DISTRIBUTION, RACE } from './data'
+import { InsightOverlay } from './InsightCard'
+import { BATTLE, BATTLE_ALT, GRID, RACE } from './data'
 import { TRACKS } from './tracks'
 import type { DriverState, StrategyBattle } from './types'
 import { fmt, pct } from './format'
@@ -109,41 +110,17 @@ export function RaceView({
       </Panel>
 
       {/* ------------------------------------------------- trazado + plan modal */}
-      <div className="stack stack--centre">
+      <div className="stack">
         <Panel
           title={`Trazado · ${track.name}`}
-          note={`${track.lengthM.toLocaleString('es-AR')} m · geometría real (OSM)`}
+          note={`${track.lengthM.toLocaleString('es-AR')} m · geometría real (OSM · f1-circuits)`}
+          fill
         >
-          <CircuitMap track={track} drivers={GRID.slice(0, 8)} lapFraction={lapFraction} />
+          <CircuitMap track={track} drivers={GRID.slice(0, 8)} lapFraction={lapFraction}>
+            <InsightOverlay lap={scenarioLap} />
+          </CircuitMap>
         </Panel>
 
-        <Panel
-          title={`Plan más probable · ${PLAN_DISTRIBUTION.driver}`}
-          note="salida del algoritmo genético"
-        >
-          <div className="stints">
-            {PLAN_DISTRIBUTION.modalPlan.map((s, i) => (
-              <div
-                className="stint"
-                key={`${s.compound}-${i}`}
-                style={{
-                  flex: s.laps,
-                  background: COMPOUND_COLOR[s.compound],
-                }}
-              >
-                {s.compound} · {s.laps}
-              </div>
-            ))}
-          </div>
-          <div className="stints__legend">
-            <span>2 paradas · 48%</span>
-            <span>alternativas: 1 parada 31% · 3 paradas 19%</span>
-          </div>
-          <p className="footnote">
-            El plan modal es el más probable, <strong>no una certeza</strong>: en algo más de la
-            mitad de las simulaciones la carrera se resuelve de otra manera.
-          </p>
-        </Panel>
       </div>
 
       {/* --------------------------------------------------- duelo + ventanas */}

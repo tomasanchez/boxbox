@@ -7,10 +7,13 @@ import type { Compound } from './types'
 export function Panel({
   title,
   note,
+  fill,
   children,
 }: {
   title: string
   note?: string
+  /** El contenido ocupa todo el alto en vez de medir lo que necesita. */
+  fill?: boolean
   children: ReactNode
 }) {
   return (
@@ -19,7 +22,7 @@ export function Panel({
         <h2 className="panel__title">{title}</h2>
         {note ? <span className="panel__note">{note}</span> : null}
       </header>
-      <div className="panel__body">{children}</div>
+      <div className={`panel__body${fill ? ' panel__body--fill' : ''}`}>{children}</div>
     </section>
   )
 }

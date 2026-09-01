@@ -11,6 +11,7 @@ import type {
   DriverState,
   RaceContext,
   Scenario,
+  StintPlan,
   StrategyBattle,
   StrategyForecast,
 } from './types'
@@ -48,10 +49,10 @@ export const SCENARIOS: Scenario[] = [
 
 export const RACE: RaceContext = {
   season: 2026,
-  round: 11,
-  circuit: 'Budapest',
-  trackKey: 'hungaroring',
-  totalLaps: 70,
+  round: 12,
+  circuit: 'Zandvoort',
+  trackKey: 'zandvoort',
+  totalLaps: 72,
   currentLap: 30,
   trackStatus: 'GREEN',
   scProbability: 0.571,
@@ -148,13 +149,17 @@ export const BATTLE_ALT: StrategyBattle = {
 }
 
 /** Salida del algoritmo genético para LEC en la carrera actual. */
-export const PLAN_DISTRIBUTION = {
+export const PLAN_DISTRIBUTION: {
+  driver: string
+  stopDistribution: Record<string, number>
+  modalPlan: StintPlan[]
+} = {
   driver: 'LEC',
   stopDistribution: { '1': 0.31, '2': 0.48, '3': 0.19, '4': 0.02 },
   modalPlan: [
-    { compound: 'MEDIUM' as Compound, laps: 18 },
-    { compound: 'HARD' as Compound, laps: 25 },
-    { compound: 'SOFT' as Compound, laps: 14 },
+    { compound: 'MEDIUM', laps: 18 },
+    { compound: 'HARD', laps: 25 },
+    { compound: 'SOFT', laps: 14 },
   ],
 }
 

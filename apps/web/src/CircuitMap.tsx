@@ -1,34 +1,50 @@
 /**
- * Trazado real con los autos ubicados sobre la pista.
+ * Trazado del circuito, replicando el render del concepto.
  *
- * Las posiciones se calculan con `getPointAtLength` sobre el propio path, así
- * que los autos caen exactamente sobre el asfalto en vez de sobre una elipse
- * aproximada. Requiere el nodo montado, de ahí el `useLayoutEffect`.
+ * La pista se dibuja con **tres paths apilados sobre la misma `d`**:
  *
- * El reparto a lo largo de la vuelta es **ilustrativo**: separa los autos según
- * el intervalo acumulado al líder para que se lean, pero no es telemetría de
- * posición real, que FastF1 sí publica y todavía no ingerimos.
+ *   1. trazo grueso en gris  (#4a4644, ancho 14)
+ *   2. el mismo trazo otra vez, para densificar las esquinas
+ *   3. trazo más fino del color del fondo (#131211, ancho 9)
+ *
+ * El tercero vacía el centro, así que lo que queda a la vista son los dos
+ * bordes finos y paralelos del asfalto. Es el truco que hace que se lea como
+ * un circuito y no como una línea gruesa.
+ *
+ * Los autos son un halo oscuro, el disco del color del equipo, y el código del
+ * piloto **por fuera** del disco — nunca encima, que es lo que lo volvía
+ * ilegible.
  */
 
-import { useLayoutEffect, useRef, useState } from 'react'
-import type { DriverState } from './types'
+import { type ReactNode, useLayoutEffect, useRef, useState } from 'react'
 import type { Track } from './tracks'
+import type { DriverState } from './types'
+
+const TRACK_COLOR = '#4a4644'
+const TRACK_WIDTH = 14
+const INNER_COLOR = '#131211'
+const INNER_WIDTH = 9
 
 interface Placed {
   driver: DriverState
   x: number
   y: number
+  labelX: number
+  anchor: 'start' | 'end'
 }
 
 export function CircuitMap({
   track,
   drivers,
   lapFraction,
+  children,
 }: {
   track: Track
   drivers: DriverState[]
   /** Avance dentro de la vuelta actual, 0 a 1. */
   lapFraction: number
+  /** Contenido superpuesto sobre el mapa. */
+  children?: ReactNode
 }) {
   const pathRef = useRef<SVGPathElement>(null)
   const [placed, setPlaced] = useState<Placed[]>([])
@@ -38,45 +54,92 @@ export function CircuitMap({
     if (!node) return
 
     const total = node.getTotalLength()
+    const box = node.getBBox()
+    const midX = box.x + box.width / 2
 
     // Cuánta vuelta representa un segundo de intervalo. El valor físico sería
-    // ~0,012 (una vuelta ronda los 80 s), pero a esa escala los autos quedan
-    // literalmente encimados y no se leen los números. Se exagera a propósito;
-    // por eso el panel dice que el reparto es ilustrativo.
+    // ~0,012 (la vuelta ronda los 80 s); se exagera para que los autos se
+    // separen y los códigos se lean. El panel lo declara como esquemático.
     const perSecond = 0.045
 
     let cumulative = 0
-    const next = drivers.map((driver) => {
-      cumulative += (driver.gapAheadS ?? 0) * perSecond
-      // Se recorre hacia atrás desde el punto de cabeza.
-      const at = (((lapFraction - cumulative) % 1) + 1) % 1
-      const point = node.getPointAtLength(at * total)
-      return { driver, x: point.x, y: point.y }
-    })
-    setPlaced(next)
+    setPlaced(
+      drivers.map((driver) => {
+        cumulative += (driver.gapAheadS ?? 0) * perSecond
+        const at = (((lapFraction - cumulative) % 1) + 1) % 1
+        const point = node.getPointAtLength(at * total)
+        // La etiqueta se va hacia afuera del circuito para no taparlo.
+        const outward = point.x < midX ? -1 : 1
+        return {
+          driver,
+          x: point.x,
+          y: point.y,
+          labelX: point.x + outward * 24,
+          anchor: outward < 0 ? ('end' as const) : ('start' as const),
+        }
+      }),
+    )
   }, [track.path, drivers, lapFraction])
 
   return (
     <div className="circuit">
-      <svg viewBox="-6 -6 112 112" role="img" aria-label={`Trazado de ${track.name}`}>
-        <path ref={pathRef} className="circuit__path" d={track.path} />
-        <path className="circuit__inner" d={track.path} />
+      <svg
+        viewBox={track.viewBox}
+        preserveAspectRatio="xMidYMid meet"
+        role="img"
+        aria-label={`Trazado de ${track.name}`}
+      >
+        <path
+          ref={pathRef}
+          d={track.path}
+          fill="none"
+          stroke={TRACK_COLOR}
+          strokeWidth={TRACK_WIDTH}
+          strokeLinejoin="round"
+        />
+        <path
+          d={track.path}
+          fill="none"
+          stroke={TRACK_COLOR}
+          strokeWidth={TRACK_WIDTH}
+          strokeLinejoin="round"
+        />
+        <path
+          d={track.path}
+          fill="none"
+          stroke={INNER_COLOR}
+          strokeWidth={INNER_WIDTH}
+          strokeLinejoin="round"
+        />
 
-        {placed.map(({ driver, x, y }) => (
+        <g stroke="#f4f3f2" strokeWidth={4}>
+          <line
+            x1={track.startLine.x1}
+            y1={track.startLine.y1}
+            x2={track.startLine.x2}
+            y2={track.startLine.y2}
+          />
+        </g>
+
+        {placed.map(({ driver, x, y, labelX, anchor }) => (
           <g key={driver.code}>
-            <circle
-              className="circuit__car"
-              cx={x}
-              cy={y}
-              r={3.4}
-              fill={driver.teamColor}
-            />
-            <text className="circuit__label" x={x} y={y + 1.3} textAnchor="middle">
-              {driver.position}
+            <circle cx={x} cy={y} r={15} fill={INNER_COLOR} />
+            <circle cx={x} cy={y} r={12} fill={driver.teamColor} />
+            <text
+              x={labelX}
+              y={y + 8}
+              fill="#f4f3f2"
+              fontFamily="Archivo, sans-serif"
+              fontSize={24}
+              fontWeight={800}
+              textAnchor={anchor}
+            >
+              {driver.code}
             </text>
           </g>
         ))}
       </svg>
+      {children}
     </div>
   )
 }
