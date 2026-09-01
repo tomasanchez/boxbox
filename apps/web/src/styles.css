@@ -1,0 +1,864 @@
+/*
+ * Panel de estrategia — hoja de estilos.
+ *
+ * Restricción central: NADA SCROLLEA. Todo entra en el viewport.
+ *
+ * En una grilla CSS los ítems tienen `min-height:auto` por defecto, así que un
+ * hijo con mucho contenido estira la fila y rompe el alto fijo. Por eso cada
+ * contenedor de la cadena lleva `min-height:0`. Si algo empieza a scrollear,
+ * casi siempre falta ese `min-height:0` en algún nivel intermedio.
+ */
+
+:root {
+  /* Superficies, de más oscura a más clara */
+  --bg-0: #0f0e0d;
+  --bg-1: #131211;
+  --bg-2: #171615;
+  --bg-3: #1c1a19;
+  --bg-4: #201e1d;
+  --bg-5: #232120;
+
+  --line: #302c2a;
+  --line-soft: #232120;
+  --line-strong: #3d3936;
+
+  --txt-0: #f4f3f2;
+  --txt-1: #c9c5c2;
+  --txt-2: #8f8b88;
+  --txt-3: #6b6764;
+  --txt-4: #56524f;
+
+  --red: #ec3013;
+  --green: #35c46f;
+  --yellow: #f5c518;
+  --blue: #3671c6;
+
+  --sans: 'Archivo', 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* Tipografía fluida: el panel debe seguir siendo legible en 13" y en 27". */
+  --fs-micro: clamp(7.5px, 0.62vw, 10px);
+  --fs-tiny: clamp(8.5px, 0.7vw, 11px);
+  --fs-sm: clamp(10px, 0.82vw, 13px);
+  --fs-md: clamp(12px, 1vw, 16px);
+  --fs-lg: clamp(15px, 1.35vw, 22px);
+  --fs-xl: clamp(20px, 2vw, 34px);
+  --fs-huge: clamp(26px, 2.8vw, 48px);
+
+  --gap: clamp(5px, 0.5vw, 10px);
+  --pad: clamp(6px, 0.62vw, 12px);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  background: var(--bg-0);
+  color: var(--txt-0);
+  font-family: var(--sans);
+  font-size: var(--fs-sm);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Números en columnas: tabulares o no alinean. */
+.num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------- estructura */
+
+.app {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: var(--gap);
+  height: 100dvh;
+  padding: var(--gap);
+  min-height: 0;
+}
+
+.view {
+  display: grid;
+  gap: var(--gap);
+  min-height: 0;
+}
+
+.view--race {
+  grid-template-columns: minmax(210px, 1fr) minmax(340px, 2.1fr) minmax(260px, 1.35fr);
+}
+
+.view--forecast {
+  grid-template-columns: minmax(300px, 1fr) minmax(380px, 1.4fr);
+}
+
+/* Sin esto las filas se reparten en partes iguales y sobra hueco abajo. */
+.stack--forecast-left {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.stack--forecast-right {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+/* ------------------------------------------------------------- calibración */
+
+.calib {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--gap);
+  min-height: 0;
+  align-items: start;
+}
+
+.calib__plot {
+  position: relative;
+  width: clamp(88px, 9vw, 128px);
+  height: clamp(88px, 9vw, 128px);
+  flex: none;
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+}
+
+/* La diagonal es la calibración perfecta: dicho 70% -> ocurrido 70%. */
+.calib__diag {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.calib__diag line {
+  stroke: var(--line-strong);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+}
+
+.calib__axis {
+  position: absolute;
+  font-size: var(--fs-micro);
+  color: var(--txt-4);
+}
+
+.calib__empty {
+  display: grid;
+  align-content: center;
+  gap: calc(var(--gap) * 0.5);
+}
+
+.calib__count {
+  font-size: var(--fs-xl);
+  font-weight: 800;
+  color: var(--txt-2);
+  line-height: 1;
+}
+
+/* ------------------------------------------------------------------- paneles */
+
+.panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.panel__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap);
+  padding: calc(var(--pad) * 0.7) var(--pad);
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-2);
+}
+
+.panel__title {
+  font-size: var(--fs-tiny);
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--txt-1);
+}
+
+.panel__note {
+  font-size: var(--fs-micro);
+  color: var(--txt-3);
+  letter-spacing: 0.04em;
+  text-align: right;
+}
+
+.panel__body {
+  min-height: 0;
+  padding: var(--pad);
+  display: grid;
+  align-content: start;
+  gap: calc(var(--gap) * 0.7);
+}
+
+.stack {
+  display: grid;
+  gap: var(--gap);
+  min-height: 0;
+}
+
+/* -------------------------------------------------------------------- header */
+
+.topbar {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--gap);
+  padding: calc(var(--pad) * 0.6) var(--pad);
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--gap) * 1.2);
+}
+
+.brand__mark {
+  width: 3px;
+  height: var(--fs-lg);
+  background: var(--red);
+}
+
+.brand__name {
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.brand__race {
+  font-size: var(--fs-micro);
+  letter-spacing: 0.14em;
+  color: var(--txt-3);
+  text-transform: uppercase;
+}
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  justify-self: center;
+}
+
+.tab {
+  padding: calc(var(--pad) * 0.45) calc(var(--pad) * 1.5);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  color: var(--txt-3);
+  font-family: inherit;
+  font-size: var(--fs-tiny);
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--txt-1);
+}
+
+.tab[aria-selected='true'] {
+  background: var(--bg-4);
+  border-color: var(--line-strong);
+  color: var(--txt-0);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: 1px;
+}
+
+/* --------------------------------------------------------------- barra de KPI */
+
+.strip {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: var(--gap);
+}
+
+.kpi {
+  display: grid;
+  align-content: center;
+  gap: 1px;
+  padding: calc(var(--pad) * 0.55) var(--pad);
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+
+.kpi__label {
+  font-size: var(--fs-micro);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--txt-3);
+}
+
+.kpi__value {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  line-height: 1.05;
+}
+
+.kpi__note {
+  font-size: var(--fs-micro);
+  color: var(--txt-3);
+}
+
+.kpi--alert .kpi__value {
+  color: var(--red);
+}
+
+.kpi--good .kpi__value {
+  color: var(--green);
+}
+
+/* ------------------------------------------------------------- selector estado */
+
+.scenarios {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+
+.scenario {
+  flex: 1 1 auto;
+  padding: calc(var(--pad) * 0.4) calc(var(--pad) * 0.6);
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  color: var(--txt-3);
+  font-family: inherit;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.scenario[aria-pressed='true'] {
+  background: var(--bg-5);
+  border-color: var(--txt-4);
+  color: var(--txt-0);
+}
+
+.scenario:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: 1px;
+}
+
+/* ------------------------------------------------------------------ parrilla */
+
+.grid-table {
+  display: grid;
+  /* pos · piloto · goma · edad · degradación · ventana */
+  grid-template-columns: 1.5em minmax(3.4em, auto) 1.5em 1.6em minmax(3.2em, auto) 1fr;
+  gap: 0 calc(var(--gap) * 0.6);
+  align-content: start;
+  font-size: var(--fs-tiny);
+  min-height: 0;
+}
+
+.grid-table__h {
+  font-size: var(--fs-micro);
+  letter-spacing: 0.1em;
+  color: var(--txt-4);
+  text-transform: uppercase;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 3px;
+}
+
+.grid-row {
+  display: contents;
+}
+
+.grid-row > * {
+  padding: calc(var(--pad) * 0.3) 0;
+  border-bottom: 1px solid var(--line-soft);
+  align-self: center;
+}
+
+.grid-row__pos {
+  color: var(--txt-3);
+}
+
+.grid-row__code {
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.team-bar {
+  width: 2px;
+  height: 0.85em;
+  flex: none;
+  border-radius: 1px;
+}
+
+.grid-row__win {
+  color: var(--txt-1);
+}
+
+.grid-row__deg--losing {
+  color: var(--txt-1);
+}
+
+/* Negativo = la goma todavía mejora. Es buena noticia, no un dato faltante. */
+.grid-row__deg--gaining {
+  color: var(--green);
+}
+
+/* «Sin proyectar» no es un hueco de datos: es información. */
+.grid-row__win--none {
+  color: var(--txt-4);
+  font-style: italic;
+}
+
+.tyre {
+  display: inline-grid;
+  place-items: center;
+  width: 1.3em;
+  height: 1.3em;
+  border-radius: 50%;
+  font-size: 0.78em;
+  font-weight: 800;
+  color: #0f0e0d;
+}
+
+/* El duro es casi blanco: sobre fondo oscuro necesita borde propio. */
+.tyre--HARD {
+  border: 1px solid var(--txt-3);
+}
+
+/* ----------------------------------------------------------------- ventanas */
+
+.window-row {
+  display: grid;
+  grid-template-columns: 2.6em 1fr;
+  align-items: center;
+  gap: calc(var(--gap) * 0.7);
+  font-size: var(--fs-micro);
+  min-height: 0;
+}
+
+.window-list {
+  display: grid;
+  gap: calc(var(--gap) * 0.45);
+  align-content: start;
+  min-height: 0;
+}
+
+.window-track {
+  position: relative;
+  height: 0.85em;
+  background: var(--bg-4);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.window-bar {
+  position: absolute;
+  inset-block: 0;
+  background: var(--green);
+  opacity: 0.55;
+}
+
+.window-now {
+  position: absolute;
+  inset-block: -1px;
+  width: 2px;
+  background: var(--red);
+}
+
+.window-none {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 0.9em;
+  color: var(--txt-4);
+  font-style: italic;
+}
+
+/* -------------------------------------------------------------------- duelo */
+
+.duel {
+  display: grid;
+  gap: calc(var(--gap) * 0.8);
+  align-content: start;
+  min-height: 0;
+}
+
+.duel__head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: var(--fs-md);
+}
+
+.duel__who {
+  font-size: var(--fs-lg);
+  font-weight: 800;
+}
+
+.duel__vs {
+  font-size: var(--fs-micro);
+  color: var(--txt-3);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.verdict {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--gap);
+  padding: calc(var(--pad) * 0.7) var(--pad);
+  border-radius: 2px;
+  border: 1px solid;
+}
+
+.verdict--SALE_ADELANTE {
+  background: color-mix(in srgb, var(--green) 14%, transparent);
+  border-color: color-mix(in srgb, var(--green) 45%, transparent);
+  color: var(--green);
+}
+
+.verdict--CARA_O_CRUZ {
+  background: color-mix(in srgb, var(--yellow) 12%, transparent);
+  border-color: color-mix(in srgb, var(--yellow) 42%, transparent);
+  color: var(--yellow);
+}
+
+.verdict--SIGUE_ATRAS {
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+  border-color: color-mix(in srgb, var(--red) 42%, transparent);
+  color: var(--red);
+}
+
+.verdict__text {
+  font-size: var(--fs-md);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.verdict__prob {
+  font-size: var(--fs-xl);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--line-soft);
+  border: 1px solid var(--line-soft);
+}
+
+.fact {
+  background: var(--bg-2);
+  padding: calc(var(--pad) * 0.5) calc(var(--pad) * 0.7);
+}
+
+.fact__k {
+  font-size: var(--fs-micro);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--txt-3);
+}
+
+.fact__v {
+  font-size: var(--fs-md);
+  font-weight: 700;
+}
+
+/* ------------------------------------------------------- distribución paradas */
+
+.dist {
+  display: grid;
+  gap: calc(var(--gap) * 0.6);
+  align-content: start;
+}
+
+.dist-row {
+  display: grid;
+  grid-template-columns: 5.6em 1fr 2.6em;
+  white-space: nowrap;
+  align-items: center;
+  gap: calc(var(--gap) * 0.7);
+  font-size: var(--fs-tiny);
+}
+
+.dist-track {
+  display: block;
+  height: 1.05em;
+  background: var(--bg-4);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.dist-bar {
+  display: block;
+  height: 100%;
+  background: var(--txt-3);
+  min-width: 2px;
+}
+
+.dist-row--modal .dist-bar {
+  background: var(--red);
+}
+
+.dist-row--modal {
+  color: var(--txt-0);
+  font-weight: 700;
+}
+
+.dist-row--actual .dist-bar {
+  background: var(--green);
+}
+
+/* ------------------------------------------------------------- plan de stints */
+
+.stints {
+  display: flex;
+  gap: 2px;
+  height: clamp(30px, 4.4vh, 56px);
+  flex: none;
+}
+
+.stint {
+  display: grid;
+  place-items: center;
+  border-radius: 1px;
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  color: #0f0e0d;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.stints__legend {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--fs-micro);
+  color: var(--txt-3);
+}
+
+/* --------------------------------------------------------------- intervalo */
+
+.interval {
+  position: relative;
+  height: clamp(46px, 6.5vh, 74px);
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+}
+
+.interval__band {
+  position: absolute;
+  inset-block: 20%;
+  background: color-mix(in srgb, var(--yellow) 26%, transparent);
+  border-inline: 1px solid var(--yellow);
+}
+
+.interval__median {
+  position: absolute;
+  inset-block: 8%;
+  width: 2px;
+  background: var(--yellow);
+}
+
+.interval__actual {
+  position: absolute;
+  inset-block: 0;
+  width: 2px;
+  background: var(--red);
+}
+
+.interval__tick {
+  position: absolute;
+  bottom: 2px;
+  transform: translateX(-50%);
+  font-size: var(--fs-micro);
+  color: var(--txt-4);
+}
+
+/* En los extremos el centrado empuja la etiqueta fuera del panel. */
+.interval__tick--first {
+  transform: none;
+  left: 3px !important;
+}
+
+.interval__tick--last {
+  transform: translateX(-100%);
+}
+
+.interval__flag {
+  position: absolute;
+  top: 2px;
+  transform: translateX(-50%);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* ----------------------------------------------------------------- resultado */
+
+.result {
+  display: grid;
+  gap: calc(var(--gap) * 0.6);
+  padding: var(--pad);
+  border: 1px solid;
+  border-radius: 2px;
+}
+
+.result--miss {
+  background: color-mix(in srgb, var(--red) 9%, transparent);
+  border-color: color-mix(in srgb, var(--red) 38%, transparent);
+}
+
+.result--hit {
+  background: color-mix(in srgb, var(--green) 9%, transparent);
+  border-color: color-mix(in srgb, var(--green) 38%, transparent);
+}
+
+.result__kicker {
+  font-size: var(--fs-micro);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--txt-3);
+}
+
+.result__verdict {
+  font-size: var(--fs-lg);
+  font-weight: 800;
+}
+
+.result--miss .result__verdict {
+  color: var(--red);
+}
+
+.result--hit .result__verdict {
+  color: var(--green);
+}
+
+.result__body {
+  font-size: var(--fs-tiny);
+  color: var(--txt-1);
+  line-height: 1.45;
+}
+
+/* ------------------------------------------------------------------- sello */
+
+.frozen {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  background: var(--bg-4);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--txt-2);
+}
+
+.frozen::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--blue);
+}
+
+/* ------------------------------------------------------------------ circuito */
+
+.circuit {
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  padding: calc(var(--pad) * 0.5);
+}
+
+/* El trazado es contexto, no el dato: no debe dominar la columna central. */
+.stack--centre {
+  grid-template-rows: minmax(0, 1.35fr) minmax(0, 1fr);
+}
+
+.circuit svg {
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+}
+
+.circuit__path {
+  fill: none;
+  stroke: var(--line-strong);
+  stroke-width: 7;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.circuit__inner {
+  fill: none;
+  stroke: var(--bg-2);
+  stroke-width: 3.5;
+  stroke-dasharray: 1 9;
+  stroke-linecap: round;
+}
+
+.circuit__car {
+  stroke: var(--bg-0);
+  stroke-width: 1.2;
+}
+
+.circuit__label {
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 700;
+  fill: var(--txt-0);
+}
+
+/* -------------------------------------------------------------------- notas */
+
+.footnote {
+  font-size: var(--fs-micro);
+  line-height: 1.45;
+  color: var(--txt-3);
+}
+
+.footnote strong {
+  color: var(--txt-2);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .dist-bar,
+  .window-bar {
+    transition: width 0.35s ease, left 0.35s ease;
+  }
+}

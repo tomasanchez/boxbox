@@ -1,122 +1,116 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+/**
+ * Simulador de estrategia — armazón.
+ *
+ * Todo entra en el viewport: el `.app` es una grilla de tres filas con la
+ * última en `minmax(0,1fr)`, y ningún contenedor scrollea. Ver `styles.css`.
+ */
 
-function App() {
-  const [count, setCount] = useState(0)
+import { useState } from 'react'
+import { ForecastView } from './ForecastView'
+import { RaceView } from './RaceView'
+import { RACE, SCENARIOS } from './data'
+import { Kpi } from './ui'
+import type { TrackStatus } from './types'
+
+type View = 'race' | 'forecast'
+
+const TABS: { id: View; label: string }[] = [
+  { id: 'race', label: 'Panel de carrera' },
+  { id: 'forecast', label: 'Pronóstico' },
+]
+
+export default function App() {
+  // El hash permite abrir una vista directo (y sacarle captura sin interactuar).
+  const initial: View = window.location.hash === '#forecast' ? 'forecast' : 'race'
+  const [view, setView] = useState<View>(initial)
+  const [status, setStatus] = useState<TrackStatus>('GREEN')
+  const [lap, setLap] = useState(RACE.currentLap)
+
+  const scenario = SCENARIOS.find((s) => s.id === status) ?? SCENARIOS[0]
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <div className="app">
+      <header className="topbar">
+        <div className="brand">
+          <span className="brand__mark" aria-hidden="true" />
+          <div>
+            <div className="brand__name">Simulador de estrategia</div>
+            <div className="brand__race">
+              {RACE.season} · R{RACE.round} {RACE.circuit}
+            </div>
+          </div>
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
 
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+        <div className="tabs" role="tablist" aria-label="Vistas">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              className="tab"
+              aria-selected={view === t.id}
+              onClick={() => {
+                setView(t.id)
+                window.location.hash = t.id
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+        <div className="scenarios" role="group" aria-label="Estado de pista">
+          {SCENARIOS.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              className="scenario"
+              aria-pressed={status === s.id}
+              onClick={() => setStatus(s.id)}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </header>
+
+      <div className="strip">
+        <Kpi
+          label="Vuelta"
+          value={`${lap} / ${RACE.totalLaps}`}
+          note={`quedan ${RACE.totalLaps - lap}`}
+        />
+        <Kpi
+          label="Costo de parar"
+          value={`${scenario.pitCostPositions} pos`}
+          note={scenario.note}
+          tone={scenario.pitCostPositions === 0 ? 'good' : 'alert'}
+        />
+        <Kpi
+          label="Prob. Safety Car"
+          value="0,571"
+          note="tasa global medida"
+        />
+        <Kpi
+          label="Compuestos obligatorios"
+          value={RACE.mandatoryCompounds.length === 2 ? 'M + H' : '—'}
+          note={`mínimo ${RACE.minSets} juegos · B6.3.8`}
+        />
+        <div className="kpi">
+          <span className="kpi__label">Avanzar vuelta</span>
+          <input
+            type="range"
+            min={1}
+            max={RACE.totalLaps}
+            value={lap}
+            onChange={(e) => setLap(Number(e.target.value))}
+            aria-label="Vuelta de la carrera"
+            style={{ width: '100%', accentColor: 'var(--red)' }}
+          />
+        </div>
+      </div>
+
+      {view === 'race' ? <RaceView scenarioLap={lap} /> : <ForecastView />}
+    </div>
   )
 }
-
-export default App
