@@ -74,6 +74,11 @@ const MAX_CATCHUP = 0.9
  */
 const FIELD_SPAN = 0.82
 
+/** Formación en parrilla: fila india sobre la línea, en orden de posición. */
+function gridTravelled(drivers: DriverState[]): number[] {
+  return drivers.map((_, i) => -0.0075 * i)
+}
+
 /** Posiciones iniciales, a partir de los intervalos medidos. */
 function initialTravelled(drivers: DriverState[]): number[] {
   const totalGap = drivers.reduce((sum, d) => sum + (d.gapAheadS ?? 0), 0)
@@ -127,22 +132,31 @@ export function useField(
   playing: boolean,
   /** Milisegundos de reloj por vuelta a ritmo pleno; sale del selector. */
   msPerLap: number,
+  /** Vuelta actual. En la 1 el pelotón está en la parrilla de salida. */
+  lap: number,
 ): FieldState {
   const spec = STATUS[status]
+  // En la vuelta 1 todavía no largaron: forman en la grilla, en orden de
+  // clasificación y sobre la línea, sin importar el estado de bandera.
+  const onGrid = lap <= 1
 
   // Todo el estado mutable vive acá: se toca una vez por cuadro y recién
   // entonces se publica una instantánea, así el render nunca lee la ref.
+  //
+  // El ritmo arranca en cero, no en el del estado: si arrancara en carrera, el
+  // pelotón se movería —y hasta cruzaría la meta— antes de que nadie apriete
+  // reproducir. Y si la vuelta es la 1, se arranca formado en la grilla.
   const sim = useRef({
-    spacing: spec.spacing,
-    pace: spec.pace,
-    gridded: 0,
-    uniform: 0,
+    spacing: onGrid ? STATUS.RED.spacing : spec.spacing,
+    pace: 0,
+    gridded: onGrid ? 1 : 0,
+    uniform: onGrid ? 1 : 0,
     /** Vueltas recorridas por cada auto. Monótona creciente. */
-    travelled: initialTravelled(drivers),
+    travelled: onGrid ? gridTravelled(drivers) : initialTravelled(drivers),
   })
 
   const [snapshot, setSnapshot] = useState<FieldState>(() => ({
-    pace: spec.pace,
+    pace: 0,
     gridded: 0,
     uniform: 0,
     positions: drivers.map(() => 0),
@@ -156,8 +170,9 @@ export function useField(
   const grid = useRef(drivers)
 
   useEffect(() => {
-    target.current = spec
-  }, [spec])
+    // La parrilla de salida se comporta como la formación de bandera roja.
+    target.current = onGrid ? { ...spec, field: 'grid', pace: 0 } : spec
+  }, [spec, onGrid])
 
   useEffect(() => {
     lapsPerSecond.current = 1000 / msPerLap
@@ -170,6 +185,30 @@ export function useField(
       sim.current.travelled = initialTravelled(drivers)
     }
   }, [drivers])
+
+  // Saltar de vuelta con la barra reubica el pelotón: en la 1, sobre la línea
+  // de largada; en cualquier otra, en sus intervalos medidos. Sin esto los
+  // autos quedaban donde estaban y el salto no se notaba.
+  const previousLap = useRef(lap)
+  useEffect(() => {
+    const jumped = Math.abs(lap - previousLap.current) > 1
+    previousLap.current = lap
+    if (!jumped) return
+
+    const s = sim.current
+    if (lap <= 1) {
+      s.travelled = gridTravelled(drivers)
+      s.uniform = 1
+      s.gridded = 1
+      s.spacing = STATUS.RED.spacing
+    } else {
+      s.travelled = initialTravelled(drivers)
+      s.uniform = 0
+      s.gridded = 0
+      s.spacing = STATUS[status].spacing
+    }
+    s.pace = 0
+  }, [lap, drivers, status])
 
   useEffect(() => {
     let frame = 0

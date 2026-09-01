@@ -77,18 +77,32 @@ export function CircuitMap({
       drivers.map((driver, index) => {
         const at = field.positions[index] ?? 0
         const point = node.getPointAtLength(at * length)
-        const outward = point.x < midX ? -1 : 1
+
+        // En parrilla los autos van escalonados a los costados de la línea,
+        // como una grilla real. Además separa los códigos, que apilados sobre
+        // la recta quedaban ilegibles.
+        const stagger = index % 2 === 0 ? -1 : 1
+        const ahead = node.getPointAtLength(Math.min(at * length + 6, length))
+        const dx = ahead.x - point.x
+        const dy = ahead.y - point.y
+        const norm = Math.hypot(dx, dy) || 1
+        // Normal a la dirección de marcha.
+        const offset = 13 * stagger * field.gridded
+        const x = point.x + (-dy / norm) * offset
+        const y = point.y + (dx / norm) * offset
+
+        const outward = x < midX ? -1 : 1
         return {
           driver,
           place: rank.get(index) ?? driver.position,
-          x: point.x,
-          y: point.y,
-          labelX: point.x + outward * 24,
+          x,
+          y,
+          labelX: x + outward * 24,
           anchor: outward < 0 ? ('end' as const) : ('start' as const),
         }
       }),
     )
-  }, [track.path, drivers, field.positions, field.order])
+  }, [track.path, drivers, field.positions, field.order, field.gridded])
 
   // El sector afectado se dibuja encima con un guion del largo justo.
   const sector = spec.sector

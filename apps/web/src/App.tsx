@@ -50,7 +50,7 @@ export default function App() {
 
   // El pelotón vive en useField: separación, ritmo y posición se interpolan
   // cuadro a cuadro, así que cambiar de estado es una maniobra y no un salto.
-  const field = useField(FIELD_CARS, status, playing, speed.msPerLap)
+  const field = useField(FIELD_CARS, status, playing, speed.msPerLap, lap)
 
   // La vuelta avanza cuando la cabeza del pelotón cruza la meta.
   const crossed = useRef(field.positions[0] ?? 0)
@@ -156,7 +156,9 @@ export default function App() {
         <span className="statusbar__dot" style={{ background: spec.fg }} />
         <span className="statusbar__label">{spec.label}</span>
         <span className="statusbar__note">{spec.note}</span>
-        {fieldNote(status, true) ? (
+        {lap <= 1 ? (
+          <span className="statusbar__field">Parrilla de salida</span>
+        ) : fieldNote(status, true) ? (
           <span className="statusbar__field">{fieldNote(status, true)}</span>
         ) : null}
       </div>
