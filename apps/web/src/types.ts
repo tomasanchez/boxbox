@@ -14,6 +14,11 @@ export type Verdict = 'SALE_ADELANTE' | 'CARA_O_CRUZ' | 'SIGUE_ATRAS'
 
 export interface DriverState {
   code: string
+  /**
+   * Vuelta en la que abandonó, o `null` si terminó la carrera. El estado no se
+   * guarda como bandera porque depende de la vuelta que se esté mirando.
+   */
+  retiredOnLap?: number | null
   team: string
   teamColor: string
   position: number

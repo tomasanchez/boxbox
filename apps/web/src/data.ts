@@ -63,8 +63,9 @@ export const RACE: RaceContext = {
 /**
  * 2026 R12 Zandvoort, vuelta 30 — la parrilla completa tal como estaba.
  *
- * Veinte autos, no veintidós: para la vuelta 30 ya había dos abandonos. Se
- * listan los que estaban en pista, que es lo que muestra la torre de tiempos.
+ * Los veintidós que largaron. Dos ya estaban afuera en la vuelta 30 —VER en la
+ * 1 y BEA en la 2, ambos en el episodio de la bandera roja— y se listan igual
+ * al pie de la torre, como en la transmisión: no se borran de la tabla.
  *
  * Regenerable con `apps/ml/scripts/broadcast_demo.py --round 12 --lap 30`.
  */
@@ -228,6 +229,20 @@ export const GRID: DriverState[] = [
     gapAheadS: 1.11,
     gapLeaderS: 99.46,
     pitWindow: null,
+  },
+  {
+    code: 'BEA', team: 'Haas F1 Team', teamColor: '#b6babd',
+    position: 21, compound: 'SOFT', tyreAge: 2,
+    degradationS: 0, degradationRate: 0,
+    gapAheadS: null, gapLeaderS: null, pitWindow: null,
+    retiredOnLap: 2,
+  },
+  {
+    code: 'VER', team: 'Red Bull Racing', teamColor: '#3671c6',
+    position: 22, compound: 'SOFT', tyreAge: 1,
+    degradationS: 0, degradationRate: 0,
+    gapAheadS: null, gapLeaderS: null, pitWindow: null,
+    retiredOnLap: 1,
   },
 ]
 

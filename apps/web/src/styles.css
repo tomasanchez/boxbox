@@ -1419,3 +1419,53 @@ body {
 .insight:has(.card__toggle[aria-expanded='false']) {
   width: auto;
 }
+
+/* ------------------------------------------ abandonos y columna de ventana */
+
+/* Sin la ventana, la metrica se lleva el ancho que sobra. */
+.tower--nowindow {
+  grid-template-columns: 1.6em minmax(3em, auto) 1.4em minmax(0, 1fr);
+}
+
+/* La columna de datos aloja también la marca OUT: necesita algo más de aire. */
+.tower {
+  grid-template-columns:
+    1.6em minmax(3em, auto) 1.4em minmax(4.6em, auto)
+    minmax(3.2em, auto) minmax(70px, 1fr);
+}
+
+/* El que abandono sigue en la tabla, apagado pero legible. */
+.grid-row--out > * {
+  color: var(--txt-4);
+}
+
+.grid-row--out .team-bar {
+  opacity: 0.45;
+}
+
+/* El compuesto con el que abandonó sigue siendo dato, sólo que atenuado. */
+.grid-row--out .tyre {
+  opacity: 0.4;
+}
+
+.tower__outlap {
+  color: var(--txt-4);
+}
+
+.tag-out {
+  display: inline-block;
+  padding: 0 3px;
+  border: 1px solid var(--txt-4);
+  border-radius: 2px;
+  font-size: 0.78em;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--txt-3);
+}
+
+/* Separa el interruptor de la ventana de los selectores de metrica. */
+.metric--sep {
+  margin-left: calc(var(--gap) * 0.7);
+  flex: 0 0 auto;
+  padding-inline: calc(var(--pad) * 0.6);
+}
