@@ -107,6 +107,26 @@ function initialTravelled(drivers: DriverState[]): number[] {
   })
 }
 
+/**
+ * Cada cuánto se publican posiciones e intervalos para la tabla, en ms.
+ *
+ * El mapa necesita 60 cuadros por segundo; la torre de tiempos no. Una torre
+ * real refresca unas pocas veces por segundo, y a 60 Hz habría que volver a
+ * renderizar veintidós filas de MUI en cada cuadro sin que nadie note la
+ * diferencia.
+ */
+const TIMING_INTERVAL_MS = 170
+
+/** Datos de cronometraje, publicados a menor frecuencia que la animación. */
+export interface Timing {
+  /** Índices de piloto ordenados por posición en pista. */
+  order: number[]
+  /** Intervalo en segundos al de adelante; `null` para el líder. */
+  gapAhead: (number | null)[]
+  /** Distancia en segundos al líder. */
+  gapLeader: number[]
+}
+
 export interface FieldState {
   /** Ritmo actual, de 0 (detenido) a 1 (carrera). */
   pace: number
@@ -151,7 +171,7 @@ export function useField(
   msPerLap: number,
   /** Vuelta actual. En la 1 el pelotón está en la parrilla de salida. */
   lap: number,
-): FieldState {
+): { field: FieldState; timing: Timing } {
   const spec = STATUS[status]
   // En la vuelta 1 forman en la grilla — pero sólo mientras esté en pausa. Al
   // apretar reproducir se largan: si `onGrid` siguiera valiendo, el ritmo
@@ -180,6 +200,13 @@ export function useField(
     positions: drivers.map(() => 0),
     order: drivers.map((_, i) => i),
   }))
+
+  const [timing, setTiming] = useState<Timing>(() => ({
+    order: drivers.map((_, i) => i),
+    gapAhead: drivers.map((d) => d.gapAheadS ?? null),
+    gapLeader: drivers.map((d) => d.gapLeaderS ?? 0),
+  }))
+  const lastTiming = useRef(0)
 
   // Los objetivos se leen de refs para que cambiar de estado, de velocidad o de
   // parrilla no reinicie el bucle a mitad de una transición.
@@ -319,6 +346,23 @@ export function useField(
         .map((_, i) => i)
         .sort((a, b) => s.travelled[b] - s.travelled[a])
 
+      // Los intervalos se reconstruyen desde la simulación deshaciendo la
+      // escala con la que se repartió el pelotón, así vuelven a leerse en
+      // segundos. Son los de ahora, no los del dato de la vuelta 30.
+      const gapAhead: (number | null)[] = cars.map(() => null)
+      const gapLeader: number[] = cars.map(() => 0)
+      const head = s.travelled[order[0]]
+      for (let place = 0; place < order.length; place += 1) {
+        const car = order[place]
+        gapLeader[car] = spread > 0 ? (head - s.travelled[car]) / spread : 0
+        gapAhead[car] =
+          place === 0
+            ? null
+            : spread > 0
+              ? (s.travelled[order[place - 1]] - s.travelled[car]) / spread
+              : 0
+      }
+
       setSnapshot({
         pace: s.pace,
         gridded: s.gridded,
@@ -326,6 +370,12 @@ export function useField(
         positions: s.travelled.map((v) => ((v % 1) + 1) % 1),
         order,
       })
+
+      // La tabla se refresca aparte, más lento: ver TIMING_INTERVAL_MS.
+      if (now - lastTiming.current >= TIMING_INTERVAL_MS) {
+        lastTiming.current = now
+        setTiming({ order, gapAhead, gapLeader })
+      }
       frame = requestAnimationFrame(tick)
     }
 
@@ -333,5 +383,5 @@ export function useField(
     return () => cancelAnimationFrame(frame)
   }, [playing])
 
-  return snapshot
+  return { field: snapshot, timing }
 }

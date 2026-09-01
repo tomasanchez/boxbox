@@ -61,7 +61,7 @@ export default function App() {
 
   // El pelotón vive en useField: separación, ritmo y posición se interpolan
   // cuadro a cuadro, así que cambiar de estado es una maniobra y no un salto.
-  const field = useField(FIELD_CARS, status, playing, speed.msPerLap, lap)
+  const { field, timing } = useField(FIELD_CARS, status, playing, speed.msPerLap, lap)
 
   // La vuelta avanza cuando la cabeza del pelotón cruza la meta.
   const crossed = useRef(field.positions[0] ?? 0)
@@ -175,7 +175,7 @@ export default function App() {
       </div>
 
       {view === 'race' ? (
-        <RaceView scenarioLap={lap} status={status} field={field} cars={FIELD_CARS} />
+        <RaceView scenarioLap={lap} status={status} field={field} cars={FIELD_CARS} timing={timing} />
       ) : (
         <ForecastView />
       )}

@@ -14,6 +14,11 @@
  * ventana de boxes se enciende o apaga aparte.
  *
  * Los que abandonan **no se borran**: bajan al pie marcados DNF con su vuelta.
+ *
+ * Posiciones e intervalos salen de la **simulación en curso**, no del dato de
+ * la vuelta 30: si un auto adelanta, la tabla lo muestra. Lo que sí es estático
+ * es la estrategia —compuesto, edad de goma, ventana de boxes—, que es la
+ * medición sobre la que trabaja el sistema.
  */
 
 import { useMemo, useState } from 'react'
@@ -27,10 +32,11 @@ import {
   ToggleButton,
   ToggleButtonGroup,
 } from '@mui/material'
-import { GRID, RACE } from './data'
+import { RACE } from './data'
 import { fmt } from './format'
 import { PALETTE } from './theme'
 import type { DriverState } from './types'
+import type { Timing } from './useField'
 import { Panel, Tyre } from './ui'
 
 type Metric = 'interval' | 'leader' | 'age' | 'deg'
@@ -49,14 +55,18 @@ function isOut(driver: DriverState, lap: number): boolean {
 function metricValue(
   d: DriverState,
   metric: Metric,
+  live: { gapAhead: number | null; gapLeader: number; place: number },
 ): { text: string; tone: 'normal' | 'gaining' | 'muted' } {
   switch (metric) {
     case 'interval':
-      return { text: d.gapAheadS === null ? '—' : `+${fmt(d.gapAheadS)}`, tone: 'normal' }
+      return {
+        text: live.gapAhead === null ? '—' : `+${fmt(live.gapAhead)}`,
+        tone: 'normal',
+      }
     case 'leader':
-      return d.position === 1 || d.gapLeaderS === null
+      return live.place === 1
         ? { text: 'líder', tone: 'muted' }
-        : { text: `+${fmt(d.gapLeaderS)}`, tone: 'normal' }
+        : { text: `+${fmt(live.gapLeader)}`, tone: 'normal' }
     case 'age':
       return { text: `${d.tyreAge}v`, tone: 'normal' }
     case 'deg':
@@ -74,7 +84,17 @@ const TONE_COLOR = {
   muted: PALETTE.txt3,
 } as const
 
-export function GridPanel({ lap }: { lap: number }) {
+export function GridPanel({
+  lap,
+  cars,
+  timing,
+}: {
+  lap: number
+  /** Los mismos autos que alimentan la simulación, en su orden de arreglo. */
+  cars: DriverState[]
+  /** Cronometraje vivo: de acá salen posiciones e intervalos. */
+  timing: Timing
+}) {
   const { totalLaps } = RACE
   const [metric, setMetric] = useState<Metric>('interval')
   const [showWindow, setShowWindow] = useState(true)
@@ -82,19 +102,27 @@ export function GridPanel({ lap }: { lap: number }) {
   const active = METRICS.find((m) => m.id === metric) ?? METRICS[0]
   const nowPct = (lap / totalLaps) * 100
 
-  // Los que corren primero por posición; los que abandonaron al pie.
-  const order = useMemo(
-    () =>
-      [...GRID].sort((a, b) => {
-        const outA = isOut(a, lap)
-        const outB = isOut(b, lap)
-        if (outA !== outB) return outA ? 1 : -1
-        if (outA && outB) return (b.retiredOnLap ?? 0) - (a.retiredOnLap ?? 0)
-        return a.position - b.position
-      }),
-    [lap],
-  )
-  const running = order.filter((d) => !isOut(d, lap)).length
+  // Orden de carrera en vivo: sale de la simulación. Los que abandonaron van al
+  // pie, del abandono más reciente al más viejo.
+  const rows = useMemo(() => {
+    const place = new Map(timing.order.map((carIndex, i) => [carIndex, i + 1]))
+    return cars
+      .map((driver, index) => ({
+        driver,
+        index,
+        out: isOut(driver, lap),
+        place: place.get(index) ?? driver.position,
+        gapAhead: timing.gapAhead[index] ?? null,
+        gapLeader: timing.gapLeader[index] ?? 0,
+      }))
+      .sort((a, b) => {
+        if (a.out !== b.out) return a.out ? 1 : -1
+        if (a.out && b.out) return (b.driver.retiredOnLap ?? 0) - (a.driver.retiredOnLap ?? 0)
+        return a.place - b.place
+      })
+  }, [cars, timing, lap])
+
+  const running = rows.filter((r) => !r.out).length
 
   return (
     <Panel
@@ -149,13 +177,12 @@ export function GridPanel({ lap }: { lap: number }) {
           </TableHead>
 
           <TableBody>
-            {order.map((d) => {
-              const out = isOut(d, lap)
+            {rows.map(({ driver: d, out, place, gapAhead, gapLeader }) => {
               const w = d.pitWindow
-              const cell = metricValue(d, metric)
+              const cell = metricValue(d, metric, { gapAhead, gapLeader, place })
               return (
                 <TableRow key={d.code} className={out ? 'row--out' : undefined}>
-                  <TableCell>{out ? '—' : d.position}</TableCell>
+                  <TableCell>{out ? '—' : place}</TableCell>
 
                   <TableCell>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 700 }}>

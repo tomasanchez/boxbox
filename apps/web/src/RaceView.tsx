@@ -14,7 +14,7 @@ import { InsightOverlay } from './InsightCard'
 import { BATTLE, BATTLE_ALT, RACE } from './data'
 import { TRACKS } from './tracks'
 import type { DriverState, TrackStatus } from './types'
-import type { FieldState } from './useField'
+import type { FieldState, Timing } from './useField'
 import { Panel } from './ui'
 
 export function RaceView({
@@ -22,10 +22,13 @@ export function RaceView({
   status,
   field,
   cars,
+  timing,
 }: {
   scenarioLap: number
   status: TrackStatus
   field: FieldState
+  /** Cronometraje, a menor frecuencia que la animación. */
+  timing: Timing
   /** Los mismos autos que alimentan la simulación. */
   cars: DriverState[]
 }) {
@@ -38,7 +41,7 @@ export function RaceView({
 
   return (
     <div className="view view--race">
-      <GridPanel lap={scenarioLap} />
+      <GridPanel lap={scenarioLap} cars={cars} timing={timing} />
 
       <Panel
         title={`Trazado · ${track.name}`}
