@@ -11,6 +11,16 @@
  * porque lo teletransporten. La corrección de velocidad está acotada por arriba
  * y por abajo, así que nadie retrocede ni pega un salto.
  *
+ * **Cada auto tiene su propio ritmo**, derivado de la degradación medida: el
+ * que pierde 1,58 s por vuelta anda más lento que el que todavía gana 0,50. En
+ * verde eso hace que los intervalos evolucionen solos y que haya
+ * adelantamientos cuando alguien alcanza al de adelante. Bajo neutralización el
+ * ritmo se iguala y el orden queda congelado, como manda el reglamento.
+ *
+ * La diferencia real es chica —1,3 s sobre una vuelta de 80 s es un 1,6%— así
+ * que se amplifica para que se vea. Es la misma licencia que con la separación,
+ * y por eso el panel declara el movimiento como esquemático.
+ *
  * Reglamento aplicable:
  *
  *  - **B5.12** VSC: cada auto debe superar un tiempo mínimo por sector, así que
@@ -23,6 +33,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { STATUS } from './status'
 import type { DriverState, TrackStatus } from './types'
+
+/**
+ * Cuánto se amplifica la diferencia de ritmo entre autos. Con el valor físico
+ * (~1,6% entre el mejor y el peor) no se notaría nada. Tampoco conviene pasarse:
+ * con un valor alto la parrilla se reordena entera en pocas vueltas, que
+ * tampoco es lo que pasa en una carrera.
+ */
+const PACE_SPREAD = 0.22
 
 /** Qué tan rápido converge cada magnitud, en unidades por segundo. */
 const RATE = {
@@ -56,9 +74,22 @@ const MAX_CATCHUP = 0.9
  */
 const FIELD_SPAN = 0.82
 
+/** Posiciones iniciales, a partir de los intervalos medidos. */
+function initialTravelled(drivers: DriverState[]): number[] {
+  const totalGap = drivers.reduce((sum, d) => sum + (d.gapAheadS ?? 0), 0)
+  const spread = totalGap > 0 ? FIELD_SPAN / totalGap : 0.02
+  let cumulative = 0
+  return drivers.map((d) => {
+    cumulative += (d.gapAheadS ?? 0) * spread
+    return -cumulative
+  })
+}
+
 export interface FieldState {
   /** Ritmo actual, de 0 (detenido) a 1 (carrera). */
   pace: number
+  /** Orden en pista, de adelante hacia atrás. Cambia si hay adelantamientos. */
+  order: number[]
   /** 0 = corriendo en pista, 1 = formado en la parrilla. */
   gridded: number
   /** 0 = ordenado por intervalo, 1 = formación pareja tras el safety car. */
@@ -78,6 +109,18 @@ function clamp(value: number, low: number, high: number): number {
   return Math.min(high, Math.max(low, value))
 }
 
+/**
+ * Ritmo propio de un auto, relativo al del pelotón.
+ *
+ * Sale de la degradación medida: el que más pierde por vuelta anda más lento.
+ * `held` apaga la diferencia cuando la carrera está neutralizada, porque ahí
+ * todos van al mismo ritmo impuesto.
+ */
+function carPace(driver: DriverState, held: number): number {
+  const penalty = Math.max(driver.degradationS, 0) * PACE_SPREAD * 0.1
+  return 1 - penalty * (1 - held)
+}
+
 export function useField(
   drivers: DriverState[],
   status: TrackStatus,
@@ -95,7 +138,7 @@ export function useField(
     gridded: 0,
     uniform: 0,
     /** Vueltas recorridas por cada auto. Monótona creciente. */
-    travelled: drivers.map((_, i) => -0.05 * i),
+    travelled: initialTravelled(drivers),
   })
 
   const [snapshot, setSnapshot] = useState<FieldState>(() => ({
@@ -103,6 +146,7 @@ export function useField(
     gridded: 0,
     uniform: 0,
     positions: drivers.map(() => 0),
+    order: drivers.map((_, i) => i),
   }))
 
   // Los objetivos se leen de refs para que cambiar de estado, de velocidad o de
@@ -123,7 +167,7 @@ export function useField(
     grid.current = drivers
     // Si cambia la cantidad de autos, se reinicia el arreglo de posiciones.
     if (sim.current.travelled.length !== drivers.length) {
-      sim.current.travelled = drivers.map((_, i) => -0.05 * i)
+      sim.current.travelled = initialTravelled(drivers)
     }
   }, [drivers])
 
@@ -159,9 +203,13 @@ export function useField(
         (totalGap > 0 ? FIELD_SPAN / totalGap : 0.02) * (s.spacing / STATUS.GREEN.spacing)
       const base = s.pace * lps
 
+      // `held` es cuánto manda la formación sobre el ritmo propio: en verde
+      // cada uno corre a lo suyo, neutralizado todos van en fila.
+      const held = Math.max(s.uniform, s.gridded)
+
       // La cabeza dicta el ritmo (B5.12.2): avanza sola y el resto se acomoda
       // detrás. Con bandera roja el ritmo llega a cero y se detiene.
-      s.travelled[0] += dt * base
+      s.travelled[0] += dt * base * carPace(cars[0], held)
 
       let byGap = 0
       for (let i = 1; i < cars.length; i += 1) {
@@ -170,22 +218,30 @@ export function useField(
         const goal = s.travelled[0] - desired
 
         // Acelera si quedó lejos y levanta si se pasó, pero la velocidad nunca
-        // baja de cero: acá está el arreglo del retroceso. El término extra
-        // permite acomodarse incluso con el pelotón detenido, para poder rodar
-        // a la parrilla bajo bandera roja.
+        // baja de cero: acá está el arreglo del retroceso.
         const correction = clamp(
           (goal - s.travelled[i]) * RATE.catchup,
           -base * 0.6,
           base * MAX_CATCHUP + lps * 0.04,
         )
-        s.travelled[i] += Math.max(0, dt * (base + correction))
+        // En verde manda el ritmo propio y la corrección casi no interviene;
+        // neutralizado es al revés y el pelotón se acomoda en formación.
+        const own = base * carPace(cars[i], held)
+        s.travelled[i] += Math.max(0, dt * (own + correction * held))
       }
+
+      // El orden en pista sale de la distancia recorrida, así que un
+      // adelantamiento aparece solo cuando un auto pasa al de adelante.
+      const order = cars
+        .map((_, i) => i)
+        .sort((a, b) => s.travelled[b] - s.travelled[a])
 
       setSnapshot({
         pace: s.pace,
         gridded: s.gridded,
         uniform: s.uniform,
         positions: s.travelled.map((v) => ((v % 1) + 1) % 1),
+        order,
       })
       frame = requestAnimationFrame(tick)
     }
