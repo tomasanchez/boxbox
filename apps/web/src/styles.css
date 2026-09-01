@@ -1182,18 +1182,19 @@ body {
   text-align: right;
 }
 
-/* ---------------------------------------------- duelo sobre el mapa (AWS-like) */
+/* ------------------------------------- duelo sobre el mapa (Pit Strategy Battle) */
 
 /* La franja va arriba del mapa; el resto de la superposición queda abajo. */
 .overlay--top {
   bottom: auto;
   top: calc(var(--pad) * 0.8);
-  justify-content: stretch;
+  justify-content: flex-start;
 }
 
+/* Tarjeta compacta, no una banda: en la transmisión ocupa poco más de un tercio. */
 .battle {
   pointer-events: auto;
-  width: 100%;
+  width: clamp(330px, 46%, 560px);
   background: #0b0a0a;
   border: 2px solid var(--line-strong);
   box-shadow: 0 0 0 4px rgba(11, 10, 10, 0.6);
@@ -1224,7 +1225,7 @@ body {
 
 .battle__title {
   font-size: var(--fs-micro);
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--txt-1);
@@ -1233,26 +1234,54 @@ body {
 .battle__sub {
   font-size: var(--fs-micro);
   color: var(--txt-3);
+  margin-left: auto;
+  margin-right: 6px;
 }
 
-.battle__main {
+.battle__body {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--gap);
-  padding: calc(var(--pad) * 0.6) var(--pad);
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
 }
 
+/*
+ * Fondo rayado en diagonal, como el de la gráfica. Se tiñe con el color del
+ * veredicto en vez del rojo fijo de la televisión.
+ */
+.battle__stage {
+  position: relative;
+  padding: calc(var(--pad) * 0.7) var(--pad);
+  background-image: repeating-linear-gradient(
+    115deg,
+    rgba(255, 255, 255, 0.045) 0 6px,
+    transparent 6px 13px
+  );
+}
+
+.battle--SALE_ADELANTE .battle__stage {
+  background-color: color-mix(in srgb, var(--green) 11%, #0b0a0a);
+}
+
+.battle--CARA_O_CRUZ .battle__stage {
+  background-color: color-mix(in srgb, var(--yellow) 10%, #0b0a0a);
+}
+
+.battle--SIGUE_ATRAS .battle__stage {
+  background-color: color-mix(in srgb, var(--red) 11%, #0b0a0a);
+}
+
+/* El gap proyectado va arriba y centrado, como en la transmisión. */
 .battle__gap {
   display: flex;
   align-items: baseline;
-  gap: 7px;
+  justify-content: center;
+  gap: 8px;
 }
 
 .battle__gapv {
-  font-size: clamp(24px, 2.6vw, 44px);
+  font-size: clamp(24px, 2.5vw, 40px);
   font-weight: 800;
-  line-height: 0.9;
+  line-height: 0.95;
 }
 
 .battle--SALE_ADELANTE .battle__gapv {
@@ -1269,77 +1298,95 @@ body {
 
 .battle__gapl {
   font-size: var(--fs-micro);
-  line-height: 1.25;
-  letter-spacing: 0.1em;
+  line-height: 1.2;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--txt-3);
+  color: var(--txt-1);
 }
 
+/* Los dos pilotos enfrentados, con la distancia dibujada entre ellos. */
 .battle__cars {
-  display: flex;
-  gap: var(--gap);
-  justify-content: center;
-  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(20px, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  margin-top: calc(var(--gap) * 0.8);
 }
 
 .battle__car {
   display: flex;
   align-items: center;
   gap: 5px;
-  min-width: 0;
 }
 
 .battle__bar {
-  width: 3px;
-  height: 1.05em;
+  width: 4px;
+  height: 1.15em;
   flex: none;
 }
 
 .battle__code {
   font-size: var(--fs-md);
   font-weight: 800;
+  letter-spacing: 0.04em;
 }
 
-.battle__role {
-  font-size: var(--fs-micro);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--txt-3);
+.battle__track {
+  height: 2px;
+  background-image: linear-gradient(to right, currentColor 0 5px, transparent 5px 10px);
+  background-size: 10px 2px;
+  opacity: 0.55;
 }
 
+.battle--SALE_ADELANTE .battle__track {
+  color: var(--green);
+}
+
+.battle--CARA_O_CRUZ .battle__track {
+  color: var(--yellow);
+}
+
+.battle--SIGUE_ATRAS .battle__track {
+  color: var(--red);
+}
+
+/* Recuadro destacado a la derecha, el equivalente al naranja de la gráfica. */
 .battle__odds {
   display: grid;
-  justify-items: end;
-  gap: 1px;
-  padding: 3px 9px;
-  border-left: 2px solid var(--line);
+  align-content: center;
+  justify-items: start;
+  gap: 2px;
+  padding: calc(var(--pad) * 0.6) var(--pad);
+  min-width: 8.5em;
+}
+
+.battle--SALE_ADELANTE .battle__odds {
+  background: var(--green);
+  color: #0b0a0a;
+}
+
+.battle--CARA_O_CRUZ .battle__odds {
+  background: var(--yellow);
+  color: #0b0a0a;
+}
+
+.battle--SIGUE_ATRAS .battle__odds {
+  background: var(--red);
+  color: #f4f3f2;
 }
 
 .battle__pct {
-  font-size: clamp(18px, 1.9vw, 30px);
+  font-size: clamp(19px, 1.9vw, 30px);
   font-weight: 800;
   line-height: 1;
 }
 
-.battle--SALE_ADELANTE .battle__pct {
-  color: var(--green);
-}
-
-.battle--CARA_O_CRUZ .battle__pct {
-  color: var(--yellow);
-}
-
-.battle--SIGUE_ATRAS .battle__pct {
-  color: var(--red);
-}
-
 .battle__verdict {
   font-size: var(--fs-micro);
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  font-weight: 800;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--txt-2);
-  white-space: nowrap;
+  line-height: 1.25;
 }
 
 .battle__others {

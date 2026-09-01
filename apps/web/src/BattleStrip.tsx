@@ -1,14 +1,18 @@
 /**
  * Duelo de estrategia, con la forma de la gráfica «Pit Strategy Battle».
  *
- * Es una franja horizontal sobre el mapa, no un panel lateral: el gap
- * proyectado va grande y al centro, los dos pilotos abajo con su color de
- * equipo, y la probabilidad en un recuadro a la derecha.
+ * Sigue el reparto de la transmisión: cabecera con el título, el **gap
+ * proyectado grande y centrado** arriba, los dos pilotos enfrentados abajo con
+ * su barra de equipo y una línea punteada entre ellos que representa la
+ * distancia, y la probabilidad en un recuadro destacado a la derecha.
  *
- * Diferencia deliberada con la gráfica de televisión: ahí la probabilidad es un
- * dato más, acá **manda**. El texto del veredicto sale de la probabilidad y no
- * del gap proyectado, porque un gap de −0,1 s al 47% es un volado y anunciarlo
- * como adelantamiento sería engañoso.
+ * Es una tarjeta compacta, no una banda a todo el ancho: en la transmisión
+ * ocupa poco más de un tercio de la pantalla.
+ *
+ * Diferencia deliberada con la televisión: ahí el recuadro es siempre naranja y
+ * la probabilidad es un dato más. Acá **manda**, y le da el color a la tarjeta,
+ * porque un gap proyectado de −0,1 s al 47% es un volado y anunciarlo como
+ * adelantamiento sería engañoso.
  */
 
 import { GRID } from './data'
@@ -16,9 +20,9 @@ import { fmt, pct } from './format'
 import type { StrategyBattle } from './types'
 
 const VERDICT_TEXT: Record<StrategyBattle['verdict'], string> = {
-  SALE_ADELANTE: 'Sale adelante',
-  CARA_O_CRUZ: 'A cara o cruz',
-  SIGUE_ATRAS: 'Sigue atrás',
+  SALE_ADELANTE: 'sale adelante',
+  CARA_O_CRUZ: 'a cara o cruz',
+  SIGUE_ATRAS: 'sigue atrás',
 }
 
 function teamColor(code: string): string {
@@ -59,50 +63,61 @@ export function BattleStrip({
       </div>
 
       {open ? (
-      <>
-      <div className="battle__main">
-        <div className="battle__gap">
-          <span className="battle__gapv num">{fmt(Math.abs(battle.gapAfter))}</span>
-          <span className="battle__gapl">
-            gap proyectado
-            <br />
-            en {battle.responseLaps} vueltas
-          </span>
-        </div>
+        <>
+          <div className="battle__body">
+            <div className="battle__stage">
+              <div className="battle__gap">
+                <span className="battle__gapv num">{fmt(Math.abs(battle.gapAfter))}</span>
+                <span className="battle__gapl">
+                  gap proyectado
+                  <br />
+                  en {battle.responseLaps} vueltas
+                </span>
+              </div>
 
-        <div className="battle__cars">
-          {[battle.chaser, battle.leader].map((code, i) => (
-            <span className="battle__car" key={code}>
-              <span className="battle__bar" style={{ background: teamColor(code) }} />
-              <span className="battle__code">{code}</span>
-              <span className="battle__role">{i === 0 ? 'para' : 'responde'}</span>
-            </span>
-          ))}
-        </div>
+              <div className="battle__cars">
+                <span className="battle__car">
+                  <span className="battle__bar" style={{ background: teamColor(battle.chaser) }} />
+                  <span className="battle__code">{battle.chaser}</span>
+                </span>
 
-        <div className="battle__odds">
-          <span className="battle__pct num">{pct(battle.probability)}</span>
-          <span className="battle__verdict">{VERDICT_TEXT[battle.verdict]}</span>
-        </div>
-      </div>
+                {/* La línea punteada representa la distancia entre los dos. */}
+                <span className="battle__track" aria-hidden="true" />
 
-      {others.length > 0 ? (
-        <div className="battle__others">
-          <span className="battle__otherslabel">Otros duelos</span>
-          {others.map((b) => (
-            <button
-              type="button"
-              className="battle__other"
-              key={`${b.chaser}-${b.leader}`}
-              onClick={() => onPick(b)}
-            >
-              {b.chaser} vs {b.leader}
-              <span className="num"> {pct(b.probability)}</span>
-            </button>
-          ))}
-        </div>
-      ) : null}
-      </>
+                <span className="battle__car">
+                  <span className="battle__bar" style={{ background: teamColor(battle.leader) }} />
+                  <span className="battle__code">{battle.leader}</span>
+                </span>
+              </div>
+            </div>
+
+            <div className="battle__odds">
+              <span className="battle__pct num">{pct(battle.probability)}</span>
+              <span className="battle__verdict">
+                {battle.chaser}
+                <br />
+                {VERDICT_TEXT[battle.verdict]}
+              </span>
+            </div>
+          </div>
+
+          {others.length > 0 ? (
+            <div className="battle__others">
+              <span className="battle__otherslabel">Otros duelos</span>
+              {others.map((b) => (
+                <button
+                  type="button"
+                  className="battle__other"
+                  key={`${b.chaser}-${b.leader}`}
+                  onClick={() => onPick(b)}
+                >
+                  {b.chaser} vs {b.leader}
+                  <span className="num"> {pct(b.probability)}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </>
       ) : null}
     </div>
   )
