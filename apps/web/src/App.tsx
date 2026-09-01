@@ -10,7 +10,8 @@ import { ForecastView } from './ForecastView'
 import { PlaybackControls } from './Playback'
 import { SPEEDS, usePlayback } from './playback-clock'
 import { RaceView } from './RaceView'
-import { RACE, SCENARIOS } from './data'
+import { RACE } from './data'
+import { STATUS, STATUS_ORDER, fieldNote } from './status'
 import { Kpi } from './ui'
 import type { TrackStatus } from './types'
 
@@ -32,7 +33,7 @@ export default function App() {
   // Avance dentro de la vuelta: mueve los autos sobre el trazado entre vueltas.
   const [fraction, setFraction] = useState(0)
 
-  const scenario = SCENARIOS.find((s) => s.id === status) ?? SCENARIOS[0]
+  const spec = STATUS[status]
 
   const advance = useCallback(() => {
     setLap((current) => {
@@ -97,15 +98,15 @@ export default function App() {
         </div>
 
         <div className="scenarios" role="group" aria-label="Estado de pista">
-          {SCENARIOS.map((s) => (
+          {STATUS_ORDER.map((id) => (
             <button
-              key={s.id}
+              key={id}
               type="button"
               className="scenario"
-              aria-pressed={status === s.id}
-              onClick={() => setStatus(s.id)}
+              aria-pressed={status === id}
+              onClick={() => setStatus(id)}
             >
-              {s.label}
+              {STATUS[id].label}
             </button>
           ))}
         </div>
@@ -119,9 +120,9 @@ export default function App() {
         />
         <Kpi
           label="Costo de parar"
-          value={`${scenario.pitCostPositions} pos`}
-          note={scenario.note}
-          tone={scenario.pitCostPositions === 0 ? 'good' : 'alert'}
+          value={`${spec.cost} pos`}
+          note={spec.costNote}
+          tone={spec.cost === '0,0' ? 'good' : 'alert'}
         />
         <Kpi
           label="Prob. Safety Car"
@@ -152,8 +153,21 @@ export default function App() {
         </div>
       </div>
 
+      <div
+        className={`statusbar statusbar--${status}`}
+        style={{ background: spec.color, color: spec.fg }}
+        role="status"
+      >
+        <span className="statusbar__dot" style={{ background: spec.fg }} />
+        <span className="statusbar__label">{spec.label}</span>
+        <span className="statusbar__note">{spec.note}</span>
+        {fieldNote(status, true) ? (
+          <span className="statusbar__field">{fieldNote(status, true)}</span>
+        ) : null}
+      </div>
+
       {view === 'race' ? (
-        <RaceView scenarioLap={lap} lapFraction={fraction} />
+        <RaceView scenarioLap={lap} lapFraction={fraction} status={status} />
       ) : (
         <ForecastView />
       )}

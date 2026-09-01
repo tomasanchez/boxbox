@@ -79,7 +79,7 @@ body {
 
 .app {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   gap: var(--gap);
   height: 100dvh;
   padding: var(--gap);
@@ -1468,4 +1468,92 @@ body {
   margin-left: calc(var(--gap) * 0.7);
   flex: 0 0 auto;
   padding-inline: calc(var(--pad) * 0.6);
+}
+
+/* ------------------------------------------------------- estado de pista */
+
+/*
+ * Animaciones tomadas del concepto:
+ *   VSC  trama diagonal que se desplaza — el ritmo delta, marcado
+ *   SC   latido — el pelotón esperando
+ *   RED  latido más marcado — carrera detenida
+ */
+@keyframes hatch {
+  to {
+    background-position: 24px 0;
+  }
+}
+
+@keyframes vscpulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.statusbar {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  padding: calc(var(--pad) * 0.45) var(--pad);
+  border-radius: 3px;
+  font-weight: 800;
+}
+
+.statusbar__dot {
+  width: 13px;
+  height: 13px;
+  flex: none;
+}
+
+.statusbar__label {
+  font-size: var(--fs-sm);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.statusbar__note {
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  opacity: 0.85;
+}
+
+.statusbar__field {
+  margin-left: auto;
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: right;
+}
+
+.statusbar--VSC {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(0, 0, 0, 0.22) 0 12px,
+    transparent 12px 24px
+  );
+  background-size: 24px 24px;
+  animation: hatch 1.1s linear infinite;
+}
+
+.statusbar--SC {
+  animation: vscpulse 1.6s ease-in-out infinite;
+}
+
+.statusbar--RED {
+  animation: vscpulse 1.1s ease-in-out infinite;
+}
+
+/* Quien pida menos movimiento ve el estado igual, sin la animación. */
+@media (prefers-reduced-motion: reduce) {
+  .statusbar--VSC,
+  .statusbar--SC,
+  .statusbar--RED {
+    animation: none;
+  }
 }

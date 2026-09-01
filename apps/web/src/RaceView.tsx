@@ -13,14 +13,17 @@ import { GridPanel } from './GridPanel'
 import { InsightOverlay } from './InsightCard'
 import { BATTLE, BATTLE_ALT, GRID, RACE } from './data'
 import { TRACKS } from './tracks'
+import type { TrackStatus } from './types'
 import { Panel } from './ui'
 
 export function RaceView({
   scenarioLap,
   lapFraction,
+  status,
 }: {
   scenarioLap: number
   lapFraction: number
+  status: TrackStatus
 }) {
   const track = TRACKS[RACE.trackKey]
   const duels = [BATTLE, BATTLE_ALT]
@@ -38,7 +41,12 @@ export function RaceView({
         note={`${track.lengthM.toLocaleString('es-AR')} m · geometría real (OSM · f1-circuits)`}
         fill
       >
-        <CircuitMap track={track} drivers={GRID.slice(0, 8)} lapFraction={lapFraction}>
+        <CircuitMap
+          track={track}
+          drivers={GRID.slice(0, 8)}
+          lapFraction={lapFraction}
+          status={status}
+        >
           <div className="overlay overlay--top">
             <BattleStrip
               battle={duel}

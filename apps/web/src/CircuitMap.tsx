@@ -17,13 +17,13 @@
  */
 
 import { type ReactNode, useLayoutEffect, useRef, useState } from 'react'
+import { STATUS } from './status'
 import type { Track } from './tracks'
-import type { DriverState } from './types'
+import type { DriverState, TrackStatus } from './types'
 
-const TRACK_COLOR = '#4a4644'
-const TRACK_WIDTH = 14
 const INNER_COLOR = '#131211'
-const INNER_WIDTH = 9
+/** Cuánto más fino es el trazo interior que vacía el centro del asfalto. */
+const INNER_INSET = 13
 
 interface Placed {
   driver: DriverState
@@ -37,15 +37,19 @@ export function CircuitMap({
   track,
   drivers,
   lapFraction,
+  status,
   children,
 }: {
   track: Track
   drivers: DriverState[]
   /** Avance dentro de la vuelta actual, 0 a 1. */
   lapFraction: number
+  /** El estado de pista pinta el trazado y agrupa al pelotón. */
+  status: TrackStatus
   /** Contenido superpuesto sobre el mapa. */
   children?: ReactNode
 }) {
+  const spec = STATUS[status]
   const pathRef = useRef<SVGPathElement>(null)
   const [placed, setPlaced] = useState<Placed[]>([])
 
@@ -57,10 +61,11 @@ export function CircuitMap({
     const box = node.getBBox()
     const midX = box.x + box.width / 2
 
-    // Cuánta vuelta representa un segundo de intervalo. El valor físico sería
-    // ~0,012 (la vuelta ronda los 80 s); se exagera para que los autos se
-    // separen y los códigos se lean. El panel lo declara como esquemático.
-    const perSecond = 0.045
+    // Separación entre autos. En verde el pelotón está estirado; bajo Safety
+    // Car se agrupa y con bandera roja va casi pegado, como en la realidad.
+    // El valor de verde está exagerado respecto de la física (~0,012 por
+    // segundo de intervalo) para que los códigos se lean.
+    const perSecond = (STATUS[status].spacing / 0.055) * 0.045
 
     let cumulative = 0
     setPlaced(
@@ -79,7 +84,7 @@ export function CircuitMap({
         }
       }),
     )
-  }, [track.path, drivers, lapFraction])
+  }, [track.path, drivers, lapFraction, status])
 
   return (
     <div className="circuit panel__grow">
@@ -93,22 +98,22 @@ export function CircuitMap({
           ref={pathRef}
           d={track.path}
           fill="none"
-          stroke={TRACK_COLOR}
-          strokeWidth={TRACK_WIDTH}
+          stroke={spec.stroke}
+          strokeWidth={spec.width}
           strokeLinejoin="round"
         />
         <path
           d={track.path}
           fill="none"
-          stroke={TRACK_COLOR}
-          strokeWidth={TRACK_WIDTH}
+          stroke={spec.stroke}
+          strokeWidth={spec.width}
           strokeLinejoin="round"
         />
         <path
           d={track.path}
           fill="none"
           stroke={INNER_COLOR}
-          strokeWidth={INNER_WIDTH}
+          strokeWidth={Math.max(spec.width - INNER_INSET, 4)}
           strokeLinejoin="round"
         />
 

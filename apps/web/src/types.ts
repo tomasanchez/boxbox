@@ -91,11 +91,3 @@ export interface StrategyForecast {
     plan: StintPlan[]
   } | null
 }
-
-export interface Scenario {
-  id: TrackStatus
-  label: string
-  /** Posiciones que cuesta parar bajo este estado de pista. Medido. */
-  pitCostPositions: number
-  note: string
-}

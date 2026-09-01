@@ -10,7 +10,6 @@ import type {
   Compound,
   DriverState,
   RaceContext,
-  Scenario,
   StintPlan,
   StrategyBattle,
   StrategyForecast,
@@ -32,20 +31,6 @@ export const COMPOUND_LETTER: Record<Compound, string> = {
   INTERMEDIATE: 'I',
   WET: 'W',
 }
-
-/**
- * Costo de parar por estado de pista, en posiciones.
- *
- * Medido sobre 413 paradas de 2026: en verde una parada cuesta 2 posiciones,
- * bajo neutralización cuesta 0 — aunque en segundos parezca más cara, porque
- * el pelotón circula agrupado.
- */
-export const SCENARIOS: Scenario[] = [
-  { id: 'GREEN', label: 'Verde', pitCostPositions: 2, note: 'parada normal · 22,2 s' },
-  { id: 'VSC', label: 'VSC', pitCostPositions: 0, note: 'pelotón agrupado' },
-  { id: 'SC', label: 'Safety Car', pitCostPositions: 0, note: 'ventana barata' },
-  { id: 'RED', label: 'Bandera roja', pitCostPositions: 0, note: 'cambio gratis' },
-]
 
 export const RACE: RaceContext = {
   season: 2026,
