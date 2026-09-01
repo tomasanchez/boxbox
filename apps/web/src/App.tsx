@@ -28,7 +28,7 @@ export default function App() {
   const [status, setStatus] = useState<TrackStatus>('GREEN')
   const [lap, setLap] = useState(RACE.currentLap)
   const [playing, setPlaying] = useState(false)
-  const [speed, setSpeed] = useState(SPEEDS[0])
+  const [speed, setSpeed] = useState(SPEEDS[1])
   // Avance dentro de la vuelta: mueve los autos sobre el trazado entre vueltas.
   const [fraction, setFraction] = useState(0)
 

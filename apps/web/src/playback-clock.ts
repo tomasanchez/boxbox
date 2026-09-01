@@ -15,10 +15,20 @@ export interface Speed {
   msPerLap: number
 }
 
+/**
+ * Velocidades de reproducción.
+ *
+ * El multiplicador es relativo a la velocidad base de lectura del panel, **no
+ * al tiempo real**: una vuelta de Zandvoort dura unos 72 segundos y nadie
+ * quiere esperar eso. En 1× la carrera completa lleva algo menos de cuatro
+ * minutos, que es el ritmo al que se alcanzan a leer las ventanas de boxes y
+ * los duelos mientras cambian.
+ */
 export const SPEEDS: Speed[] = [
-  { id: 'x1', label: '1×', msPerLap: 1600 },
-  { id: 'x2', label: '2×', msPerLap: 800 },
-  { id: 'x5', label: '5×', msPerLap: 320 },
+  { id: 'half', label: '½×', msPerLap: 6000 },
+  { id: 'x1', label: '1×', msPerLap: 3000 },
+  { id: 'x2', label: '2×', msPerLap: 1500 },
+  { id: 'x4', label: '4×', msPerLap: 750 },
 ]
 
 /**
