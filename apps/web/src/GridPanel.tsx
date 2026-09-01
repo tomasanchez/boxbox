@@ -114,7 +114,7 @@ export function GridPanel({
         driver,
         index,
         out: isOut(driver, lap),
-        place: place.get(index) ?? driver.position,
+        place: place.get(index) ?? 0,
         gapAhead: timing.gapAhead[index] ?? null,
         gapLeader: timing.gapLeader[index] ?? 0,
       }))

@@ -236,6 +236,7 @@ export function useField(
   const target = useRef(spec)
   const lapsPerSecond = useRef(1000 / msPerLap)
   const grid = useRef(drivers)
+  const currentLap = useRef(lap)
   /**
    * Dónde va a formar el pelotón: la próxima vez que la cabeza cruce la meta.
    * Se fija al entrar en formación y se borra al salir, para que los autos
@@ -253,6 +254,10 @@ export function useField(
   useEffect(() => {
     lapsPerSecond.current = 1000 / msPerLap
   }, [msPerLap])
+
+  useEffect(() => {
+    currentLap.current = lap
+  }, [lap])
 
   useEffect(() => {
     grid.current = drivers
@@ -372,15 +377,28 @@ export function useField(
 
       // El orden en pista sale de la distancia recorrida, así que un
       // adelantamiento aparece solo cuando un auto pasa al de adelante.
-      const order = cars
+      //
+      // Los que abandonaron quedan fuera: si se los deja, ocupan lugares en la
+      // clasificación y corren a los demás — era lo que dejaba huecos en la
+      // numeración, con P1 y P11 vacíos.
+      const running = cars
         .map((_, i) => i)
-        .sort((a, b) => s.travelled[b] - s.travelled[a])
+        .filter((i) => {
+          const out = cars[i].retiredOnLap
+          return out == null || currentLap.current <= out
+        })
+      const order = running.sort((a, b) => s.travelled[b] - s.travelled[a])
 
       // Los intervalos se reconstruyen desde la simulación deshaciendo la
       // escala con la que se repartió el pelotón, así vuelven a leerse en
       // segundos. Son los de ahora, no los del dato de la vuelta 30.
+      // Sólo los que están en pista tienen intervalo; el resto queda en nulo.
       const gapAhead: (number | null)[] = cars.map(() => null)
       const gapLeader: number[] = cars.map(() => 0)
+      if (order.length === 0) {
+        frame = requestAnimationFrame(tick)
+        return
+      }
       const head = s.travelled[order[0]]
       for (let place = 0; place < order.length; place += 1) {
         const car = order[place]
