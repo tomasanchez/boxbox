@@ -115,21 +115,69 @@ percentiles - beyond those there is no data, and a straight line there invents e
 
 ## Pit stops
 
-The simulator now stops. Each car with a projectable window enters on a lap drawn **uniformly**
-inside it - with only a range to go on, uniform is the maximum-entropy choice, and any other shape
-would smuggle in a belief about when teams stop that no measurement supports.
+Everything about a stop is drawn, not decided: **how many, when, with what, and what it costs.** The
+first version of this had one stop per car, placed in its window, on a compound picked by a rule —
+three decisions dressed up as certainties.
 
-Pit loss is drawn from a triangular over the measured Zandvoort green-flag quartiles: **median
-23.5 s, p25 20.6, p75 31.3**, over 164 stops. That agrees with the global 22.2 s in
+Measured with `scripts/stop_plans.py`, over cars that saw the flag, with free stops (tyre changes
+under a red flag) and wet races excluded.
+
+### How many
+
+Stops still to come from lap 30 of 72, which is where the simulation starts:
+
+| Stops left | Zandvoort | All circuits |
+|---|---|---|
+| 0 | 0.151 | 0.249 |
+| 1 | 0.493 | 0.586 |
+| 2 | 0.192 | 0.122 |
+| 3 | 0.164 | 0.026 |
+
+n = 73 cars at Zandvoort over 4 dry races; 1,686 across all circuits. Zandvoort stops noticeably
+more, and there is a mechanism rather than only noise: **36% of its strategic stops happen under a
+neutralisation**, against 23% globally. Where a stop is cheap, teams take it. Still, 73 cars over
+four races is thin, and the all-circuit column is the conservative reading.
+
+The simulator uses the Zandvoort column, because it is simulating Zandvoort.
+
+### When
+
+The first stop lands inside the car's projected window when it has one — that window is this
+project's own model output and knows more about *this* car than an aggregate does. Any further stop
+is drawn from where late stops actually fall here, as a share of race distance:
+
+| p5 | p25 | p50 | p75 | p95 |
+|---|---|---|---|---|
+| 0.458 | 0.597 | 0.722 | 0.778 | 0.817 |
+
+Over 109 late stops. Drawn laps are sorted and forced at least 6 laps apart, and a stop inside the
+last 6 laps is dropped — there is no race left to amortise 23 seconds against.
+
+### With what
+
+Drawn from the measured transition matrix over 1,768 late stops:
+
+| From ↓ / To → | HARD | MEDIUM | SOFT |
+|---|---|---|---|
+| HARD | 0.409 | 0.379 | 0.212 |
+| MEDIUM | 0.501 | 0.172 | 0.327 |
+| SOFT | 0.104 | 0.264 | 0.632 |
+
+This looks like it violates B6.3.8 — 41% of stops from hard fit hard again — but these are real stops
+from races that complied: the car had already used the other compound earlier. Forcing a change at
+every stop would produce *less* realistic races, not more. What cannot be verified here is
+compliance across the whole race: the frozen lap-30 snapshot does not record which sets each car
+used before it.
+
+### What it costs
+
+Drawn from a triangular over the measured Zandvoort green-flag quartiles: **median 23.5 s, p25 20.6,
+p75 31.3**, over 164 stops. That agrees with the global 22.2 s in
 [`pit-loss-under-neutralisation.md`](pit-loss-under-neutralisation.md).
 
 The cost is applied as time spent stationary, not as distance subtracted. A car in the pit lane does
-not move backwards - it stops advancing - and the field order is derived from distance travelled, so
+not move backwards — it stops advancing — and the field order is derived from distance travelled, so
 subtracting would have moved cars backwards along the track.
-
-Compound choice follows B6.3.8: the mandatory dry compound the car does not have on, choosing
-between medium and hard by whether the remaining distance fits a set's measured life here - **HARD
-28 laps, MEDIUM 22, SOFT 15** (medians over 90, 94 and 155 stints).
 
 ### A measurement error worth recording
 
@@ -174,13 +222,18 @@ divides by the measured lap time.
 
 ## Known gaps
 
-- **Half the field never stops.** Only 12 of the 20 running cars have a projectable pit window; the
-  other 8 have flat or improving measured degradation, so `insights.pit_window` returns `None` and
-  there is no lap to stop them on. Those cars run the whole distance on one set, which is illegal
-  under B6.3.8 and visibly wrong - they climb the order because everyone else pits. Giving them an
-  invented window would hide the real problem, which is the fuel coefficient under-correcting.
-- **One stop per car.** No window is projected after the first stop, so the window column and the
-  strategy-duel card go blank for a car that has already stopped.
+- **Stops do not react to the race.** 36% of Zandvoort's real stops happen under a neutralisation,
+  because that is when a stop is nearly free — and demonstrating exactly that is this project's
+  central claim. Here the plan is drawn up front and does not respond to the safety car, because the
+  track status is a manual control in this simulator with no history: there is no "the safety car
+  came out on lap 41" for the plan to react to. This is the most valuable thing still missing.
+- **Compliance with B6.3.8 is not checked.** The compound draw reproduces real, legal behaviour in
+  aggregate, but the frozen lap-30 snapshot does not record which sets a car used before it, so
+  whether a given simulated car ends the race having used two dry compounds is unknown.
+- **The pit window is a projection, not a plan.** A car can have an open window and draw no stop, or
+  stop without ever having one. The window column keeps showing the model's projection and goes blank
+  once that stop is made; it deliberately does not show the drawn plan, because the two are different
+  kinds of statement.
 - **The neutralised discount is not applied to the stop itself.** Stopping under a safety car costs
   the same seconds here as under green. What it actually saves is *positions*, not seconds, and that
   is already measured - but wiring it in needs the track status at the stop lap, which is a manual

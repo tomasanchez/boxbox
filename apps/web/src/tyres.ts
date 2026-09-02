@@ -33,13 +33,28 @@
  * se sortea interpolando entre ellos. Es lo que pidió el dato, no lo que le
  * quedaba cómodo al modelo.
  *
- * ## La parada
+ * ## Las paradas
  *
- * Entra en su ventana —sorteada uniforme adentro, que es lo único honesto
- * sabiendo sólo el rango— y calza el compuesto obligatorio que le falta,
- * eligiendo entre medio y duro según cuánto quede por correr. Los autos sin
- * ventana proyectable no paran: es la mitad de la parrilla, y es un hallazgo
- * anotado, no un olvido. Ver `docs/research/pace-noise.md`.
+ * También se sortean, y no sólo la pérdida: **cuántas, cuándo y con qué**.
+ *
+ *   cuántas    de la distribución medida de paradas que le quedan a un auto
+ *              desde el 42% de la carrera: ninguna 15%, una 49%, dos 19%, tres
+ *              16%. Medido en Zandvoort seco, sobre 73 autos que vieron la
+ *              bandera.
+ *
+ *   cuándo     la primera cae en su ventana si tiene una —es la proyección del
+ *              propio modelo—; las demás salen de dónde caen las paradas tardías
+ *              acá, medido.
+ *
+ *   con qué    de la matriz de transición medida: de duro a duro 41%, a medio
+ *              38%, a blando 21%; de medio a duro 50%; de blando a blando 63%.
+ *
+ * Antes esto era una regla: **una** parada, en la ventana, al compuesto que le
+ * faltaba. Tres decisiones disfrazadas de certezas.
+ *
+ * Un auto sin ventana proyectable ya no queda sin parar: su plan sale entero de
+ * la distribución medida. Antes eran ocho de veinte corriendo la carrera con un
+ * solo juego.
  *
  * Medido con `apps/ml/scripts/pace_noise.py` y
  * `apps/ml/scripts/zandvoort_distributions.py`.
@@ -75,10 +90,56 @@ const WEAR_CUTS: Record<Compound, number[]> = {
 const PIT_LOSS_CUTS = { p25: 20.6, median: 23.5, p75: 31.3 }
 
 /**
- * Cuánto dura un juego acá, en vueltas. Mediana medida en Zandvoort.
- * Se usa para elegir compuesto: si queda más que esto, hace falta el duro.
+ * Cuántas paradas le quedan a un auto desde la vuelta 30 de 72.
+ *
+ * Índice = cantidad de paradas. Medido en Zandvoort seco sobre 73 autos que
+ * vieron la bandera, descontando las paradas gratis bajo bandera roja.
+ *
+ * Zandvoort para más que el promedio —una parada 49% contra 59% global, tres
+ * 16% contra 2,6%— y hay un mecanismo detrás, no sólo ruido: **el 36% de sus
+ * paradas ocurren bajo neutralización**, contra 23% global. Donde la parada sale
+ * barata, se para más. Aun así son 73 autos sobre cuatro carreras: poco.
  */
-const STINT_LIFE: Partial<Record<Compound, number>> = { HARD: 28, MEDIUM: 22, SOFT: 15 }
+const STOPS_LEFT = [0.151, 0.493, 0.192, 0.164]
+
+/**
+ * Dónde caen las paradas tardías en Zandvoort, como fracción de la carrera.
+ * Cortes en las mismas probabilidades que `CUT_AT`, sobre 109 paradas.
+ */
+const LATE_STOP_CUTS = [0.458, 0.533, 0.597, 0.653, 0.722, 0.75, 0.778, 0.789, 0.817]
+
+/**
+ * A qué compuesto se cambia, medido sobre 1.768 paradas tardías.
+ *
+ * Se sortea de acá en vez de aplicar la regla «el obligatorio que le falta».
+ * Parece contradecir B6.3.8, porque el 41% de las paradas de duro vuelven a
+ * calzar duro — pero son paradas reales de carreras que cumplieron el
+ * reglamento: el auto ya había usado el otro compuesto antes. Forzar un cambio
+ * en cada parada daría carreras **menos** realistas, no más.
+ *
+ * Lo que no se puede verificar acá es el cumplimiento sobre la carrera entera:
+ * la foto congelada de la vuelta 30 no dice qué juegos usó cada auto antes.
+ */
+const NEXT_COMPOUND: Record<string, [Compound, number][]> = {
+  HARD: [
+    ['HARD', 0.409],
+    ['MEDIUM', 0.379],
+    ['SOFT', 0.212],
+  ],
+  MEDIUM: [
+    ['HARD', 0.501],
+    ['MEDIUM', 0.172],
+    ['SOFT', 0.327],
+  ],
+  SOFT: [
+    ['HARD', 0.104],
+    ['MEDIUM', 0.264],
+    ['SOFT', 0.632],
+  ],
+}
+
+/** Vueltas mínimas entre dos paradas: menos que eso no es una tanda. */
+const MIN_STINT = 6
 
 /** Semilla por defecto. Cambiarla es, en chiquito, una corrida de Monte Carlo. */
 export const DEFAULT_SEED = 20261
@@ -165,8 +226,10 @@ export interface Stochastic {
    * **tendencia**, no el temblor de una vuelta suelta.
    */
   paceNoise: number[]
-  /** La parada planeada de cada auto, o `null` si no para. */
+  /** La próxima parada de cada auto, o `null` si no le queda ninguna. */
   stops: (PitStop | null)[]
+  /** El plan completo de cada auto, para poder mirarlo entero. */
+  plans: PitStop[][]
   /**
    * Vueltas de avance que cada auto ya cedió en boxes. Sube de golpe cuando
    * para; `useField` lo convierte en tiempo detenido en el pit lane.
@@ -174,31 +237,66 @@ export interface Stochastic {
   progressLost: number[]
 }
 
+/** Elige de una lista de opciones con peso. */
+function pick<T>(options: [T, number][], u: number): T {
+  let acc = 0
+  for (const [value, weight] of options) {
+    acc += weight
+    if (u < acc) return value
+  }
+  return options[options.length - 1][0]
+}
+
 /**
- * Cuándo y con qué para un auto.
+ * El plan de paradas de un auto para lo que queda de carrera.
  *
- * La vuelta sale uniforme dentro de su ventana. Con sólo un rango, uniforme es
- * la distribución de máxima entropía: cualquier otra forma estaría metiendo una
- * creencia sobre cuándo paran los equipos que no salió de ningún dato.
+ * Nada de esto es una regla: la cantidad, las vueltas y los compuestos salen los
+ * tres de distribuciones medidas. La única concesión al modelo propio es que la
+ * primera parada, si el auto tiene ventana proyectada, cae adentro — porque esa
+ * ventana **es** la salida del modelo y tiene más información sobre este auto en
+ * particular que la distribución agregada del circuito.
  *
- * El compuesto es el obligatorio que le falta —B6.3.8 exige dos secas—, medio o
- * duro según si lo que queda entra en la vida medida de un juego de medios.
+ * Las vueltas sorteadas se ordenan y se separan al menos `MIN_STINT` vueltas:
+ * dos paradas pegadas no son un plan, son un sorteo mal leído.
  */
-function planStop(car: DriverState, index: number, seed: number): PitStop | null {
-  const window = car.pitWindow
-  if (!window || car.retiredOnLap != null) return null
+function planStops(car: DriverState, index: number, seed: number, fromLap: number): PitStop[] {
+  if (car.retiredOnLap != null) return []
 
-  const span = Math.max(0, window.closesLap - window.opensLap)
-  const lap = window.opensLap + Math.round(hash(seed, index, 0x9017) * span)
+  const count = pick(
+    STOPS_LEFT.map((p, n) => [n, p] as [number, number]),
+    hash(seed, index, 0x570b),
+  )
+  if (count === 0) return []
 
-  const remaining = RACE.totalLaps - lap
-  const alternatives = RACE.mandatoryCompounds.filter((c) => c !== car.compound)
-  const compound: Compound =
-    alternatives.length === 0
-      ? car.compound
-      : (alternatives.find((c) => remaining <= (STINT_LIFE[c] ?? 99)) ?? alternatives[0])
+  const laps: number[] = []
+  for (let n = 0; n < count; n += 1) {
+    const window = car.pitWindow
+    if (n === 0 && window) {
+      const span = Math.max(0, window.closesLap - window.opensLap)
+      laps.push(window.opensLap + Math.round(hash(seed, index, 0x9017) * span))
+      continue
+    }
+    const share = fromCuts(LATE_STOP_CUTS, hash(seed, index, 0x4a97 + n))
+    laps.push(Math.round(share * RACE.totalLaps))
+  }
 
-  return { lap, compound, lossS: drawPitLoss(seed, index, 0x1055) }
+  laps.sort((a, b) => a - b)
+
+  const stops: PitStop[] = []
+  let compound = car.compound
+  let previous = fromLap
+  for (let n = 0; n < laps.length; n += 1) {
+    const lap = Math.max(laps[n], previous + MIN_STINT)
+    // Una parada en las últimas vueltas no le sirve a nadie: no queda carrera
+    // para amortizar los veintitrés segundos.
+    if (lap > RACE.totalLaps - MIN_STINT) break
+
+    compound = pick(NEXT_COMPOUND[compound] ?? NEXT_COMPOUND.MEDIUM, hash(seed, index, 0x8c02 + n))
+    stops.push({ lap, compound, lossS: drawPitLoss(seed, index, 0x1055 + n) })
+    previous = lap
+  }
+
+  return stops
 }
 
 /**
@@ -213,26 +311,33 @@ export function evolve(
   fromLap: number,
   seed: number = DEFAULT_SEED,
 ): Stochastic {
-  const stops = base.map((car, index) => planStop(car, index, seed))
+  const plans = base.map((car, index) => planStops(car, index, seed, fromLap))
+  // La última parada ya hecha es la que define con qué goma anda ahora.
+  const done = plans.map((plan) => plan.filter((stop) => lap >= stop.lap))
+  const stops = plans.map((plan) => plan.find((stop) => lap < stop.lap) ?? null)
 
   const cars = base.map((car, index) => {
-    const stop = stops[index]
+    const stop = done[index][done[index].length - 1]
 
-    if (stop && lap >= stop.lap) {
+    if (stop) {
       // Juego nuevo: no hay medición previa de este auto con esta goma, así que
       // el ritmo se sortea entero de la distribución del compuesto.
       const age = lap - stop.lap
-      const rate = drawWear(stop.compound, seed, index, 0x2472)
+      const rate = drawWear(stop.compound, seed, index, 0x2472 + done[index].length)
       return {
         ...car,
         compound: stop.compound,
         tyreAge: age,
         degradationRate: rate,
         degradationS: rate * age,
-        // La ventana que traía era para **esta** parada, y ya la hizo. No hay
-        // una proyectada para la siguiente, así que se limpia en vez de dejar
-        // un rango vencido: la tabla mostraba la ventana pasada y el duelo de
-        // boxes seguía ofreciendo parar a un auto que acababa de parar.
+        // La ventana que traía era para la parada que ya hizo, y no hay otra
+        // proyectada: se limpia en vez de dejar un rango vencido, que la tabla
+        // mostraba y el duelo de boxes seguía ofreciendo.
+        //
+        // No se pone acá la próxima parada del plan. La ventana es lo que
+        // **proyecta** el modelo; el plan es una realización sorteada. Mezclar
+        // las dos en la misma columna las hace pasar por lo mismo, y no lo son:
+        // un auto puede tener ventana abierta y no parar, o parar sin tenerla.
         pitWindow: null,
       }
     }
@@ -253,9 +358,10 @@ export function evolve(
 
   const paceNoise = base.map((_, index) => gaussian(seed, index, lap) * LAP_NOISE_S)
 
-  const progressLost = stops.map((stop) =>
-    stop && lap >= stop.lap ? stop.lossS / RACE.greenLapS : 0,
+  // Se suman todas las paradas ya hechas: `useField` cobra sólo el incremento.
+  const progressLost = done.map((made) =>
+    made.reduce((total, stop) => total + stop.lossS / RACE.greenLapS, 0),
   )
 
-  return { cars, paceNoise, stops, progressLost }
+  return { cars, paceNoise, stops, plans, progressLost }
 }
