@@ -5,13 +5,14 @@
  * última en `minmax(0,1fr)`, y ningún contenedor scrollea. Ver `styles.css`.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ForecastView } from './ForecastView'
 import { PlaybackControls } from './Playback'
 import { SPEEDS } from './playback-clock'
 import { RaceView } from './RaceView'
 import { GRID, RACE } from './data'
 import { STATUS, STATUS_ORDER, fieldNote } from './status'
+import { evolve } from './tyres'
 import { useField } from './useField'
 import { Kpi } from './ui'
 import type { TrackStatus } from './types'
@@ -59,9 +60,14 @@ export default function App() {
     })
   }, [])
 
+  // La goma envejece con la carrera, y no lo hace igual para todos: cada tanda
+  // tiene su propio ritmo de caída sorteado, y cada vuelta su propio ruido. Sin
+  // esto dos autos con la misma goma andaban exactamente igual para siempre.
+  const { cars, paceNoise } = useMemo(() => evolve(FIELD_CARS, lap, RACE.currentLap), [lap])
+
   // El pelotón vive en useField: separación, ritmo y posición se interpolan
   // cuadro a cuadro, así que cambiar de estado es una maniobra y no un salto.
-  const { field, timing } = useField(FIELD_CARS, status, playing, speed.msPerLap, lap)
+  const { field, timing } = useField(cars, status, playing, speed.msPerLap, lap, paceNoise)
 
   // La vuelta avanza cuando la cabeza del pelotón cruza la meta.
   const crossed = useRef(field.positions[0] ?? 0)
@@ -175,7 +181,7 @@ export default function App() {
       </div>
 
       {view === 'race' ? (
-        <RaceView scenarioLap={lap} status={status} field={field} cars={FIELD_CARS} timing={timing} />
+        <RaceView scenarioLap={lap} status={status} field={field} cars={cars} timing={timing} />
       ) : (
         <ForecastView />
       )}

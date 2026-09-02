@@ -38,6 +38,8 @@ export const RACE: RaceContext = {
   circuit: 'Zandvoort',
   trackKey: 'zandvoort',
   totalLaps: 72,
+  // Mediana de 1.119 vueltas verdes representativas de Zandvoort 2026.
+  greenLapS: 77.861,
   currentLap: 30,
   trackStatus: 'GREEN',
   scProbability: 0.571,

@@ -65,6 +65,12 @@ export interface RaceContext {
   /** Clave en `tracks.ts` para la geometría real. */
   trackKey: string
   totalLaps: number
+  /**
+   * Vuelta verde representativa, en segundos. Es la mediana medida, y sirve para
+   * convertir «segundos por vuelta perdidos» en fracción de ritmo: una décima
+   * pesa distinto en una vuelta de 78 s que en una de 120.
+   */
+  greenLapS: number
   currentLap: number
   trackStatus: TrackStatus
   scProbability: number

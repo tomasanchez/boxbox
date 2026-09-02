@@ -31,17 +31,10 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
+import { RACE } from './data'
 import { STATUS } from './status'
 import { STARTING_GRID } from './startingGrid'
 import type { DriverState, TrackStatus } from './types'
-
-/**
- * Cuánto se amplifica la diferencia de ritmo entre autos. Con el valor físico
- * (~1,6% entre el mejor y el peor) no se notaría nada. Tampoco conviene pasarse:
- * con un valor alto la parrilla se reordena entera en pocas vueltas, que
- * tampoco es lo que pasa en una carrera.
- */
-const PACE_SPREAD = 0.22
 
 /** Qué tan rápido converge cada magnitud, en unidades por segundo. */
 const RATE = {
@@ -174,12 +167,24 @@ function clamp(value: number, low: number, high: number): number {
 /**
  * Ritmo propio de un auto, relativo al del pelotón.
  *
- * Sale de la degradación medida: el que más pierde por vuelta anda más lento.
- * `held` apaga la diferencia cuando la carrera está neutralizada, porque ahí
+ * Sale de la degradación medida más el ruido de esta vuelta: el que más pierde
+ * anda más lento, y encima ninguna vuelta sale igual a la anterior. Sin ese
+ * segundo término dos autos con la misma goma andaban exactamente igual para
+ * siempre, que es lo único que no puede pasar en una carrera.
+ *
+ * `held` apaga las dos cosas cuando la carrera está neutralizada, porque ahí
  * todos van al mismo ritmo impuesto.
  */
-function carPace(driver: DriverState, held: number): number {
-  const penalty = Math.max(driver.degradationS, 0) * PACE_SPREAD * 0.1
+function carPace(driver: DriverState, noise: number, held: number, lapTimeS: number): number {
+  // La conversión es física, no un número a ojo: perder medio segundo por vuelta
+  // en una vuelta de 78 s es andar un 0,64% más lento. Antes había un factor
+  // suelto que equivalía a una vuelta de 45 s, y el pelotón se reordenaba casi
+  // al doble de velocidad de lo que corresponde.
+  //
+  // El ruido puede ser negativo —una vuelta buena— pero el ritmo nunca puede
+  // caer a cero ni invertirse, así que el castigo total queda acotado.
+  const wear = Math.max(driver.degradationS + noise, 0)
+  const penalty = clamp(wear / lapTimeS, 0, 0.35)
   return 1 - penalty * (1 - held)
 }
 
@@ -191,6 +196,8 @@ export function useField(
   msPerLap: number,
   /** Vuelta actual. En la 1 el pelotón está en la parrilla de salida. */
   lap: number,
+  /** Ruido de ritmo de esta vuelta, un valor por auto. Ver `tyres.ts`. */
+  paceNoise: number[],
 ): { field: FieldState; timing: Timing } {
   const spec = STATUS[status]
   // En la vuelta 1 forman en la grilla — pero sólo mientras esté en pausa. Al
@@ -258,6 +265,14 @@ export function useField(
   useEffect(() => {
     currentLap.current = lap
   }, [lap])
+
+  // El ruido de ritmo cambia de vuelta en vuelta, pero el bucle de animación no
+  // se reinicia por eso: se lee de una referencia, como el resto de lo que
+  // cambia mientras la carrera corre.
+  const noise = useRef(paceNoise)
+  useEffect(() => {
+    noise.current = paceNoise
+  }, [paceNoise])
 
   useEffect(() => {
     grid.current = drivers
@@ -343,7 +358,7 @@ export function useField(
         gridLine.current = null
         // La cabeza dicta el ritmo (B5.12.2): avanza sola y el resto se acomoda
         // detrás.
-        s.travelled[0] += dt * base * carPace(cars[0], held)
+        s.travelled[0] += dt * base * carPace(cars[0], noise.current[0] ?? 0, held, RACE.greenLapS)
       }
 
       let byGap = 0
@@ -366,7 +381,7 @@ export function useField(
         )
         // En verde manda el ritmo propio y la corrección casi no interviene;
         // neutralizado es al revés y el pelotón se acomoda en formación.
-        const own = base * carPace(cars[i], held)
+        const own = base * carPace(cars[i], noise.current[i] ?? 0, held, RACE.greenLapS)
         // La corrección sólo actúa cuando el pelotón tiene que *reordenarse*
         // —safety car o parrilla—. Bajo VSC no: ahí las distancias se congelan
         // como estaban, y aplicar la corrección las devolvía a los valores del
