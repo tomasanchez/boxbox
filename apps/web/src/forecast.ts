@@ -29,6 +29,15 @@ export const STRIKE_S = 1.0
 /** Más lejos que esto no es una batalla, son dos carreras distintas. */
 const MAX_GAP_S = 12
 
+/**
+ * Último puesto que reparte puntos.
+ *
+ * Una pelea por el 14.º no cambia el resultado de nadie: los dos terminan con
+ * cero. Se muestran sólo las que se dan dentro de la zona de puntos, que es
+ * donde una posición vale algo.
+ */
+export const POINTS_POSITIONS = 10
+
 /** Recorte por vuelta por debajo del cual se considera que no se acerca. */
 const CLOSING_DEAD_ZONE = 0.01
 
@@ -127,7 +136,8 @@ export function forecastBattle(
  *
  * **No siempre hay batalla.** Un par que se abre, o uno que recorta tan despacio
  * que no llega antes de la bandera a cuadros, no es una pelea: es el orden de la
- * carrera. Esos quedan afuera y la tarjeta no se muestra, igual que la
+ * carrera. Tampoco lo es una pelea por el 14.º, donde los dos terminan con cero
+ * puntos igual. Esos quedan afuera y la tarjeta no se muestra, como la
  * transmisión no pone el gráfico cuando no hay nada que anunciar.
  */
 export function pickBattle(
@@ -149,6 +159,9 @@ export function pickBattle(
     const chaser = cars[timing.order[place]]
     const leader = cars[timing.order[place - 1]]
     if (!chaser || !leader) continue
+
+    // `place` es el puesto que ocupa el de adelante: el que está en disputa.
+    if (place > POINTS_POSITIONS) break
 
     const gapNow = timing.gapAhead[timing.order[place]]
     if (gapNow == null || gapNow > MAX_GAP_S) continue

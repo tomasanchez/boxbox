@@ -32,8 +32,8 @@ import { Panel } from './ui'
 /** Por qué no hay duelo, dicho en la tarjeta. */
 const IDLE_TEXT = {
   formation: 'pelotón formado',
-  'no-window': 'nadie en ventana de parada',
-  'no-one-close': `nadie a menos de ${fmt(IN_RANGE_S, 1)} s`,
+  'no-window': 'nadie en ventana en los puntos',
+  'no-one-close': `nadie a menos de ${fmt(IN_RANGE_S, 1)} s en los puntos`,
 } as const
 
 export function RaceView({

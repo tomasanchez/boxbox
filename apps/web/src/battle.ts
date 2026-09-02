@@ -18,6 +18,7 @@
  */
 
 import type { DriverState, StrategyBattle, Verdict } from './types'
+import { POINTS_POSITIONS } from './forecast'
 import type { Timing } from './useField'
 
 /**
@@ -143,9 +144,9 @@ export type NoBattleReason = 'formation' | 'no-window' | 'no-one-close'
 /**
  * Duelos vivos, tomados del orden en pista de la simulación.
  *
- * Se miran los pares **contiguos** —el que va justo detrás contra el que va
- * justo adelante—, que son los que la transmisión levanta, y se ordenan por
- * cercanía.
+ * Se miran los pares **contiguos** dentro de la zona de puntos —el que va justo
+ * detrás contra el que va justo adelante—, que son los que la transmisión
+ * levanta, y se ordenan por cercanía.
  *
  * Hacen falta **dos** condiciones, no una. Que estén cerca no alcanza: el
  * undercut es adelantar parando antes, así que sólo tiene sentido preguntarlo
@@ -165,6 +166,9 @@ export function liveBattles(cars: DriverState[], timing: Timing, lap: number): S
     const chaser = cars[timing.order[place]]
     const leader = cars[timing.order[place - 1]]
     if (!chaser || !leader) continue
+    // Mismo criterio que el pronóstico de batalla: fuera de los puntos, la
+    // posición que se gana o se pierde no cambia el resultado de nadie.
+    if (place > POINTS_POSITIONS) break
     if (!nearPitWindow(chaser, lap)) continue
 
     const gapNow = timing.gapAhead[timing.order[place]]
@@ -182,7 +186,8 @@ export function liveBattles(cars: DriverState[], timing: Timing, lap: number): S
  */
 export function noBattleReason(cars: DriverState[], timing: Timing, lap: number): NoBattleReason {
   if (timing.formation) return 'formation'
-  const anyWindow = timing.order.some((i) => cars[i] && nearPitWindow(cars[i], lap))
+  const inPoints = timing.order.slice(1, POINTS_POSITIONS + 1)
+  const anyWindow = inPoints.some((i) => cars[i] && nearPitWindow(cars[i], lap))
   return anyWindow ? 'no-one-close' : 'no-window'
 }
 

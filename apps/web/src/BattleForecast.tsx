@@ -128,6 +128,16 @@ export function BattleForecastCard({
                   />
                 ))}
               </span>
+              {/*
+               * El puesto va escrito. El medidor solo se leería como una
+               * medición del circuito, y es una posición dentro de los que
+               * tenemos medidos — el detalle completo está en el título.
+               */}
+              {measured.rank ? (
+                <span className="bf__rank num">
+                  {measured.rank}º/{MEASURED_CIRCUITS}
+                </span>
+              ) : null}
             </div>
           </div>
 
