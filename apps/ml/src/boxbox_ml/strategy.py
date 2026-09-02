@@ -98,6 +98,18 @@ ROLLING_MEDIAN_S = 0.022
 #: the 99th percentile late in a stint. Past this the set gets changed.
 MAX_DEFICIT_S = 4.4
 
+#: Longest stint the evidence covers, per compound: the 90th percentile of
+#: measured stint length over 2,002 hard, 2,240 medium and 1,152 soft stints.
+#:
+#: This is a limit on what the model is allowed to *claim*, not a physical limit.
+#: Measured deficit against stint lap peaks around lap 20-25 and then **falls**,
+#: which no tyre does — it is survivorship: the sets that run past thirty laps are
+#: the ones that held, and the ones that did not were changed. Extrapolating a
+#: fitted slope past that point is extrapolating into a region the data describes
+#: optimistically and thinly, and the search noticed: given the chance it
+#: recommended running forty-two laps on one set for half the grid.
+MAX_STINT: dict[str, int] = {"HARD": 41, "MEDIUM": 31, "SOFT": 25}
+
 #: Wear rate per compound, as cuts of the measured Zandvoort stint-slope
 #: distribution. 98, 79 and 80 stints. See ``docs/research/pace-noise.md``.
 WEAR_CUTS: dict[str, tuple[float, ...]] = {
@@ -333,21 +345,70 @@ def race_time(
 
 
 def _repair(stops: Sequence[Stop], car: Car, model: RaceModel) -> tuple[Stop, ...]:
-    """Turn any stop list into a legal plan: ordered, spaced, inside the race."""
+    """Turn any stop list into a plan the evidence can actually price.
+
+    Three things are enforced: stops in order and at least ``MIN_STINT`` apart, no
+    stop so late that there is no race left to amortise it, and no stint longer
+    than :data:`MAX_STINT` for its compound. The last one binds more often than it
+    sounds — the first stint already carries ``car.tyre_age`` laps of wear, so a
+    set thirteen laps old only has the remainder of its budget left.
+
+    A stint that would run over budget gets a stop inserted at the limit rather
+    than being thrown away. Throwing it away would bias the search toward whatever
+    happened to be legal by accident; inserting the stop keeps the idea and makes
+    it affordable.
+    """
     fixed: list[Stop] = []
     previous = car.from_lap
+    compound = car.compound
+    age = car.tyre_age
+
+    def budget(on: str, used: int) -> int:
+        return max(MIN_STINT, MAX_STINT.get(on, 40) - used)
+
     for stop in sorted(stops, key=lambda s: s.lap):
         lap = max(stop.lap, previous + MIN_STINT)
+        # Force a stop before the current set runs past what has been measured.
+        limit = previous + budget(compound, age)
+        if lap > limit:
+            lap = limit
         if lap > model.total_laps - MIN_STINT:
             break
         fixed.append(replace(stop, lap=lap))
-        previous = lap
+        previous, compound, age = lap, stop.compound, 0
+
+    # The final stint has the same budget, so keep stopping until it fits.
+    while previous + budget(compound, age) < model.total_laps:
+        lap = previous + budget(compound, age)
+        # Whatever covers the rest; hard if nothing shorter will.
+        nxt = next(
+            (c for c in ("SOFT", "MEDIUM", "HARD") if MAX_STINT[c] >= model.total_laps - lap),
+            "HARD",
+        )
+        # Running the current set to its limit can leave a stop so late it is
+        # worthless. Pull it forward instead — far enough that the *new* set
+        # covers what is left, which is the earliest lap that solves both stints.
+        if lap > model.total_laps - MIN_STINT:
+            lap = max(previous + MIN_STINT, model.total_laps - MAX_STINT["HARD"])
+            nxt = "HARD"
+        if lap > model.total_laps - MIN_STINT:
+            break  # nothing legal left: the race is too short to fix it
+        fixed.append(Stop(lap, nxt))
+        previous, compound, age = lap, nxt, 0
+
     return tuple(fixed)
 
 
 def _random_plan(car: Car, model: RaceModel, rng: np.random.Generator, max_stops: int) -> Plan:
-    """A plan drawn from nowhere in particular, to seed the population."""
-    count = int(rng.integers(1, max_stops + 1))
+    """A plan drawn from nowhere in particular, to seed the population.
+
+    Zero stops is a legal candidate. It was not, at first, and that quietly
+    removed the most conservative option there is — a car that has already used
+    two compounds and is holding a points place may well be right to stay out.
+    Whether it *has* used two is something the lap-30 snapshot cannot say, so a
+    zero-stop winner is reported and left to the reader rather than filtered.
+    """
+    count = int(rng.integers(0, max_stops + 1))
     room = max(MIN_STINT + 1, model.total_laps - MIN_STINT - car.from_lap)
     laps = car.from_lap + rng.integers(MIN_STINT, room, count)
     return Plan(_repair([Stop(int(lap), str(rng.choice(DRY))) for lap in laps], car, model))
@@ -373,7 +434,7 @@ def _mutate(plan: Plan, car: Car, model: RaceModel, rng: np.random.Generator) ->
     if choice < 0.15 and len(stops) < 4:
         lap = int(rng.integers(car.from_lap + MIN_STINT, model.total_laps))
         stops.append(Stop(lap, str(rng.choice(DRY))))
-    elif choice < 0.3 and len(stops) > 1:
+    elif choice < 0.3 and stops:
         stops.pop(int(rng.integers(0, len(stops))))
     elif stops:
         index = int(rng.integers(0, len(stops)))
@@ -431,7 +492,16 @@ class Search:
     #: the search is, which is more honest than reporting one plan as the answer.
     stop_distribution: dict[int, float]
     mean_position: float
+    #: Spread of finishing position under ``best``. How much risk the plan takes,
+    #: which is the objective's doing: points punish variance at the front, where
+    #: a place costs seven, and reward it around tenth, where the downside is
+    #: already zero.
+    sd_position: float
     mean_points: float
+    #: What the choice is worth: best score minus the worst in the final
+    #: population. Near zero means every plan is equivalent and the recommendation
+    #: is arbitrary — worth knowing before acting on it.
+    decision_value: float
     #: Runner-up plans, best first, for showing alternatives.
     alternatives: tuple[tuple[Plan, float], ...]
 
@@ -511,8 +581,6 @@ def optimise(
             child = _crossover(a, b, car, model, rng)
             if rng.random() < 0.6:
                 child = _mutate(child, car, model, rng)
-            if not child.stops:
-                child = _random_plan(car, model, rng, max_stops)
             children.append((child, fitness(child)))
 
         scored = children
@@ -559,6 +627,8 @@ def optimise(
         score=score,
         stop_distribution=dict(sorted(counts.items())),
         mean_position=float(position.mean()),
+        sd_position=float(position.std()),
         mean_points=float(_points(position).mean()),
+        decision_value=float(score - scored[-1][1]),
         alternatives=tuple(alternatives),
     )
