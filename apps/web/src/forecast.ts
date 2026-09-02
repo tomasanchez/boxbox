@@ -12,7 +12,15 @@
  * diferencia se agranda sola, porque las gomas del que va adelante siguen
  * cayendo a su propio ritmo.
  *
- * Lo que el modelo **no** tiene: aire sucio. Un auto pegado al de adelante
+ * Lo que el modelo **no** tiene, y conviene tenerlo presente al leer la cuenta
+ * de vueltas: el recorte sale de la diferencia de **estado de goma**, no de
+ * ritmo puro. Dos autos con la misma degradación dan recorte cero aunque uno sea
+ * medio segundo más rápido por vuelta. Al revés, un auto que acaba de calzar
+ * gomas nuevas contra uno con treinta vueltas encima puede dar más de un segundo
+ * por vuelta, que es real pero se agota solo — el modelo lo agota, porque la
+ * diferencia se recalcula vuelta a vuelta con el ritmo de caída de cada uno.
+ *
+ * Tampoco tiene aire sucio. Un auto pegado al de adelante
  * pierde carga aerodinámica y deja de recortar, que es justamente por qué
  * adelantar es difícil. Por eso el pronóstico se corta en la zona de DRS y no
  * proyecta el adelantamiento en sí — eso lo dice el medidor de dificultad, que
@@ -130,9 +138,15 @@ export function forecastBattle(
 /**
  * La batalla que vale la pena mirar, o `null` si no hay ninguna.
  *
- * Se prefiere la que se resuelve antes: una persecución que se define en tres
- * vueltas es noticia y una de treinta no. Los que ya están a tiro van primero,
- * porque eso ya no es pronóstico sino pelea.
+ * **Manda la persecución, no la pelea que ya está.** Un auto que ya está dentro
+ * del segundo no tiene nada que pronosticar: el intervalo ya lo dice la tabla de
+ * tiempos, y lo que falta —si lo pasa o no— es justo lo que este modelo no
+ * calcula, porque no tiene aire sucio. Lo que aporta la tarjeta es la cuenta de
+ * vueltas hasta quedar a tiro, así que se elige la persecución que se resuelve
+ * antes; una que se define en tres vueltas es noticia y una de treinta no.
+ *
+ * Los que ya están a tiro quedan de respaldo, para cuando no hay ninguna
+ * persecución en curso.
  *
  * **No siempre hay batalla.** Un par que se abre, o uno que recorta tan despacio
  * que no llega antes de la bandera a cuadros, no es una pelea: es el orden de la
@@ -176,9 +190,9 @@ export function pickBattle(
   return sorted.find((b) => `${b.chaser}-${b.leader}` !== avoid) ?? sorted[0]
 }
 
-/** Orden de interés: a tiro primero, después por vueltas hasta el tiro. */
+/** Orden de interés: primero la persecución más corta, después los que ya llegaron. */
 function rank(b: BattleForecast): number {
-  if (b.state === 'IN_RANGE') return b.gapNow
-  if (b.lapsToStrike != null) return 10 + b.lapsToStrike
-  return 1000 + b.gapNow
+  if (b.lapsToStrike != null) return b.lapsToStrike
+  if (b.state === 'IN_RANGE') return 1000 + b.gapNow
+  return 2000 + b.gapNow
 }
