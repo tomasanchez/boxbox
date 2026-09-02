@@ -86,11 +86,66 @@ is `FUEL_EFFECT_S_PER_LAP = 0.035` under-correcting, which is already flagged as
 assumption in the feature set. The wear-rate spread is therefore an upper bound: part of it is fuel
 model error, not tyre behaviour.
 
+## The distribution is not normal, and the difference matters
+
+A follow-up measurement — `scripts/zandvoort_distributions.py` — fitted the same stint slopes at
+Zandvoort alone (80 HARD, 79 MEDIUM, 98 SOFT stints) and asked what shape they take. They are not
+remotely normal:
+
+| Compound | n | Median | sd | Skew | Excess kurtosis |
+|---|---|---|---|---|---|
+| HARD | 80 | 0.034 | 0.085 | -6.29 | **48.6** |
+| MEDIUM | 79 | 0.042 | 0.073 | 4.69 | **32.8** |
+| SOFT | 98 | 0.040 | 0.664 | -4.63 | **20.2** |
+
+A normal has excess kurtosis 0. A handful of catastrophic stints stretch the tails and make the
+standard deviation lie: Zandvoort SOFT has sd 0.664 s/lap, but its 5th-to-95th percentile range is
+only -0.184 to 0.138. Drawing from `N(0, 0.664)` would produce impossible stints several times a
+race.
+
+So the simulator stopped assuming a shape. It carries nine cut points of the measured distribution
+and samples by interpolating between them, clamping rather than extrapolating past the 5th and 95th
+percentiles - beyond those there is no data, and a straight line there invents exactly in the tail.
+
+| Compound | p5 | p25 | p50 | p75 | p95 |
+|---|---|---|---|---|---|
+| SOFT | -0.184 | 0.011 | 0.040 | 0.077 | 0.138 |
+| MEDIUM | -0.027 | 0.021 | 0.042 | 0.068 | 0.107 |
+| HARD | -0.035 | 0.013 | 0.034 | 0.050 | 0.097 |
+
+## Pit stops
+
+The simulator now stops. Each car with a projectable window enters on a lap drawn **uniformly**
+inside it - with only a range to go on, uniform is the maximum-entropy choice, and any other shape
+would smuggle in a belief about when teams stop that no measurement supports.
+
+Pit loss is drawn from a triangular over the measured Zandvoort green-flag quartiles: **median
+23.5 s, p25 20.6, p75 31.3**, over 164 stops. That agrees with the global 22.2 s in
+[`pit-loss-under-neutralisation.md`](pit-loss-under-neutralisation.md).
+
+The cost is applied as time spent stationary, not as distance subtracted. A car in the pit lane does
+not move backwards - it stops advancing - and the field order is derived from distance travelled, so
+subtracting would have moved cars backwards along the track.
+
+Compound choice follows B6.3.8: the mandatory dry compound the car does not have on, choosing
+between medium and hard by whether the remaining distance fits a set's measured life here - **HARD
+28 laps, MEDIUM 22, SOFT 15** (medians over 90, 94 and 155 stints).
+
+### A measurement error worth recording
+
+The first pit-loss figure from this script was wrong: it grouped the in-lap and the out-lap by
+stint, which splits them, because the in-lap closes stint N and the out-lap opens stint N+1. It
+reported a lower quartile of 5.3 s, which is not a pit stop - it is half of one. They are paired by
+lap number instead.
+
 ## What the simulator does with it
 
 `apps/web/src/tyres.ts`:
 
-- **once per stint**, each car draws a wear-rate deviation from `N(0, sd)` for its compound. This
+- **once per stint**, each car draws a wear rate by inverting the measured Zandvoort distribution for
+  its compound. For a stint already in progress the car keeps its own measured rate and takes the
+  draw as a deviation from that distribution's median, so the measurement is not thrown away; for a
+  set fitted at a stop there is nothing measured yet, so the rate is drawn outright. This
   accumulates, and it is what turns one projection into a distribution — a car can turn out to be
   kind to its tyres, or not, and the race finds out;
 - **every lap**, each car draws a pace deviation from `N(0, 0.457)`. This does not accumulate, and it
@@ -119,13 +174,16 @@ divides by the measured lap time.
 
 ## Known gaps
 
-- **No pit stops.** Nobody changes tyres, so degradation only ever grows: by lap 72 a car that
-  started the simulation on lap 30 is on a notional 51-lap-old set with over 7 seconds of
-  degradation. In a real race the stint is cut long before that. Simulating stops needs pit loss and
-  compound choice as well, or a stop becomes a free lunch.
-- **Pit windows are static.** They come from the frozen lap-30 data and do not move as the tyre state
-  evolves, even though `insights.pit_window` would recompute them.
-- **The wear-rate draw is per car, not per stint**, because there is only ever one stint. That
-  becomes wrong the moment stops exist.
+- **Half the field never stops.** Only 12 of the 20 running cars have a projectable pit window; the
+  other 8 have flat or improving measured degradation, so `insights.pit_window` returns `None` and
+  there is no lap to stop them on. Those cars run the whole distance on one set, which is illegal
+  under B6.3.8 and visibly wrong - they climb the order because everyone else pits. Giving them an
+  invented window would hide the real problem, which is the fuel coefficient under-correcting.
+- **One stop per car.** No window is projected after the first stop, so the window column and the
+  strategy-duel card go blank for a car that has already stopped.
+- **The neutralised discount is not applied to the stop itself.** Stopping under a safety car costs
+  the same seconds here as under green. What it actually saves is *positions*, not seconds, and that
+  is already measured - but wiring it in needs the track status at the stop lap, which is a manual
+  control in this simulator rather than part of the race.
 - **One noise scale for all dry compounds and all circuits.** The measurement supports the first
   (0.426–0.471) but says nothing about the second — per-circuit noise was not measured.

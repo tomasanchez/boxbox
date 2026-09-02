@@ -1,53 +1,87 @@
 /**
- * Desgaste probabilístico.
+ * Desgaste probabilístico y paradas en boxes.
  *
  * Hasta acá cada auto corría con una cifra de degradación fija, así que dos
- * autos con la misma goma andaban **exactamente** igual para siempre y los
- * intervalos evolucionaban sobre rieles. Las carreras no son así, y esto mide
- * por cuánto no lo son.
+ * autos con la misma goma andaban **exactamente** igual para siempre. Ahora hay
+ * tres fuentes de variación, todas medidas, y una parada.
  *
- * Son dos ruidos distintos, y la diferencia importa:
+ * ## De dónde sale cada sorteo
  *
- *   ruido de vuelta   se sortea **cada vuelta**. Es lo que queda después de
- *                     descontar desgaste y combustible: tráfico, viento, una
- *                     entrada ancha. Desvío medido: **0,457 s**, sobre 4.407
- *                     tandas. Es lo que impide que dos autos iguales anden
- *                     igual, pero no acumula: se olvida al final de la vuelta.
+ *   ruido de vuelta   se sortea **cada vuelta**, normal de desvío **0,457 s**.
+ *                     Es lo que queda después de descontar desgaste y
+ *                     combustible: tráfico, viento, una entrada ancha. No
+ *                     acumula, y es lo que impide que dos autos iguales anden
+ *                     igual. Medido sobre 4.407 tandas.
  *
- *   ritmo de caída    se sortea **una vez por tanda**. Dos autos con el mismo
- *                     compuesto no lo gastan al mismo ritmo — posición en pista,
- *                     manejo, cómo se preparó el juego. Esto sí acumula, y es lo
- *                     que convierte una proyección en una distribución.
+ *   ritmo de caída    se sortea **una vez por tanda**, de la distribución
+ *                     **empírica** de Zandvoort. Acumula.
  *
- * El dato incómodo de la medición: en 2026 el desvío del ritmo de caída
- * (0,069 s/vuelta en duro, 0,112 en medio, 0,178 en blando) es **más grande que
- * la mediana del ritmo mismo** (≈0,045 en los tres). O sea que cuánto va a
- * gastar una tanda determinada es, en buena medida, impredecible. No es un
- * defecto de la medición: es el motivo por el que este sistema tiene que dar
- * distribuciones y no un número.
+ *   pérdida de boxes  se sortea en la parada, de los cuartiles medidos en
+ *                     Zandvoort: mediana 23,5 s, p25 20,6, p75 31,3.
  *
- * Medido con `apps/ml/scripts/pace_noise.py`; ver
- * `docs/research/pace-noise.md`.
+ * ## Por qué la distribución empírica y no una normal
+ *
+ * Porque las tandas no se distribuyen normal ni de casualidad. Medida sobre
+ * Zandvoort, la curtosis del ritmo de caída da **48,6 en el duro, 32,8 en el
+ * medio y 20,2 en el blando** — una normal tiene cero. Hay unas pocas tandas
+ * catastróficas que estiran la cola y hacen que el desvío mienta: el blando de
+ * Zandvoort tiene desvío 0,664 s/vuelta, pero entre el percentil 5 y el 95 va de
+ * −0,184 a 0,138. Sortear de una normal con ese desvío daba tandas absurdas
+ * varias veces por carrera.
+ *
+ * Así que no se asume forma: se guardan nueve cortes de la distribución medida y
+ * se sortea interpolando entre ellos. Es lo que pidió el dato, no lo que le
+ * quedaba cómodo al modelo.
+ *
+ * ## La parada
+ *
+ * Entra en su ventana —sorteada uniforme adentro, que es lo único honesto
+ * sabiendo sólo el rango— y calza el compuesto obligatorio que le falta,
+ * eligiendo entre medio y duro según cuánto quede por correr. Los autos sin
+ * ventana proyectable no paran: es la mitad de la parrilla, y es un hallazgo
+ * anotado, no un olvido. Ver `docs/research/pace-noise.md`.
+ *
+ * Medido con `apps/ml/scripts/pace_noise.py` y
+ * `apps/ml/scripts/zandvoort_distributions.py`.
  */
 
+import { RACE } from './data'
 import type { Compound, DriverState } from './types'
 
 /** Desvío del ritmo de una vuelta, en segundos. Mediana de 4.407 tandas. */
 export const LAP_NOISE_S = 0.457
 
+/** Probabilidades a las que están cortadas las distribuciones de abajo. */
+const CUT_AT = [0.05, 0.15, 0.25, 0.35, 0.5, 0.65, 0.75, 0.85, 0.95]
+
 /**
- * Desvío del ritmo de caída entre tandas del mismo compuesto, en s/vuelta.
- * Medido sobre 2026, que es la temporada que corre el simulador.
+ * Ritmo de caída por compuesto, en s/vuelta, como cortes de la distribución
+ * medida en Zandvoort. El del medio de cada fila es la mediana.
  */
-export const RATE_SD_S: Record<Compound, number> = {
-  SOFT: 0.1776,
-  MEDIUM: 0.1124,
-  HARD: 0.0686,
-  // Mojados: 201 y 17 tandas, muy pocas para separarlas. Se usa la del blando,
-  // que es la más dispersa de las secas, y queda anotado que es un préstamo.
-  INTERMEDIATE: 0.1776,
-  WET: 0.1776,
+const WEAR_CUTS: Record<Compound, number[]> = {
+  // 98 tandas.
+  SOFT: [-0.184, -0.0213, 0.011, 0.0184, 0.0401, 0.0549, 0.0769, 0.0875, 0.1382],
+  // 79 tandas.
+  MEDIUM: [-0.0273, 0.0112, 0.0211, 0.0337, 0.0415, 0.0539, 0.0675, 0.08, 0.1067],
+  // 80 tandas.
+  HARD: [-0.0353, 0.0009, 0.0132, 0.0217, 0.0344, 0.0436, 0.0498, 0.0637, 0.0966],
+  // Mojados: 201 y 17 tandas en todo el conjunto, ninguna en Zandvoort seco. Se
+  // presta la del blando, que es la más dispersa de las secas, y queda dicho.
+  INTERMEDIATE: [-0.184, -0.0213, 0.011, 0.0184, 0.0401, 0.0549, 0.0769, 0.0875, 0.1382],
+  WET: [-0.184, -0.0213, 0.011, 0.0184, 0.0401, 0.0549, 0.0769, 0.0875, 0.1382],
 }
+
+/** Pérdida de boxes en verde en Zandvoort, en segundos. 164 paradas medidas. */
+const PIT_LOSS_CUTS = { p25: 20.6, median: 23.5, p75: 31.3 }
+
+/**
+ * Cuánto dura un juego acá, en vueltas. Mediana medida en Zandvoort.
+ * Se usa para elegir compuesto: si queda más que esto, hace falta el duro.
+ */
+const STINT_LIFE: Partial<Record<Compound, number>> = { HARD: 28, MEDIUM: 22, SOFT: 15 }
+
+/** Semilla por defecto. Cambiarla es, en chiquito, una corrida de Monte Carlo. */
+export const DEFAULT_SEED = 20261
 
 /**
  * Ruido reproducible.
@@ -73,11 +107,57 @@ function gaussian(...parts: number[]): number {
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v)
 }
 
-/** Semilla por defecto. Cambiarla es, en chiquito, una corrida de Monte Carlo. */
-export const DEFAULT_SEED = 20261
+/**
+ * Invierte una distribución dada por cortes: sortea interpolando entre ellos.
+ *
+ * Fuera del rango medido no extrapola — devuelve el corte del extremo. Es
+ * deliberado: más allá del percentil 95 no hay dato, y estirar una recta ahí es
+ * inventar justo en la cola, que es donde más se nota.
+ */
+function fromCuts(cuts: number[], u: number): number {
+  if (u <= CUT_AT[0]) return cuts[0]
+  const last = CUT_AT.length - 1
+  if (u >= CUT_AT[last]) return cuts[last]
+
+  let i = 0
+  while (i < last && CUT_AT[i + 1] < u) i += 1
+  const span = CUT_AT[i + 1] - CUT_AT[i]
+  const t = span > 0 ? (u - CUT_AT[i]) / span : 0
+  return cuts[i] + (cuts[i + 1] - cuts[i]) * t
+}
+
+/** La mediana de un compuesto, que es el corte del medio. */
+function medianWear(compound: Compound): number {
+  const cuts = WEAR_CUTS[compound] ?? WEAR_CUTS.MEDIUM
+  return cuts[(CUT_AT.length - 1) / 2]
+}
+
+/** Ritmo de caída sorteado para un compuesto, en s/vuelta. */
+function drawWear(compound: Compound, ...parts: number[]): number {
+  return fromCuts(WEAR_CUTS[compound] ?? WEAR_CUTS.MEDIUM, hash(...parts))
+}
+
+/** Pérdida de boxes sorteada, triangular sobre los cuartiles medidos. */
+function drawPitLoss(...parts: number[]): number {
+  const { p25: a, median: c, p75: b } = PIT_LOSS_CUTS
+  const u = hash(...parts)
+  const split = (c - a) / (b - a)
+  return u < split
+    ? a + Math.sqrt(u * (b - a) * (c - a))
+    : b - Math.sqrt((1 - u) * (b - a) * (b - c))
+}
+
+export interface PitStop {
+  /** Vuelta en la que entra a boxes. */
+  lap: number
+  /** Compuesto que calza. */
+  compound: Compound
+  /** Segundos que pierde. */
+  lossS: number
+}
 
 export interface Stochastic {
-  /** Los autos con la goma envejecida hasta `lap`. */
+  /** Los autos con la goma envejecida —o cambiada— hasta `lap`. */
   cars: DriverState[]
   /**
    * Ruido de esta vuelta para cada auto, en segundos. Va aparte de
@@ -85,19 +165,47 @@ export interface Stochastic {
    * **tendencia**, no el temblor de una vuelta suelta.
    */
   paceNoise: number[]
+  /** La parada planeada de cada auto, o `null` si no para. */
+  stops: (PitStop | null)[]
+  /**
+   * Vueltas de avance que cada auto ya cedió en boxes. Sube de golpe cuando
+   * para; `useField` lo convierte en tiempo detenido en el pit lane.
+   */
+  progressLost: number[]
 }
 
 /**
- * Envejece la goma de cada auto desde `fromLap` hasta `lap`.
+ * Cuándo y con qué para un auto.
  *
- * El ritmo de caída de cada tanda sale del nominal más un sorteo propio, así que
- * un auto puede resultar cuidadoso con la goma o no, y la carrera se entera. Es
- * la misma cuenta para adelante y para atrás: mover la vuelta con los botones no
- * altera la carrera, sólo mueve el reloj.
+ * La vuelta sale uniforme dentro de su ventana. Con sólo un rango, uniforme es
+ * la distribución de máxima entropía: cualquier otra forma estaría metiendo una
+ * creencia sobre cuándo paran los equipos que no salió de ningún dato.
  *
- * **Lo que todavía no hay: paradas.** Nadie cambia gomas, así que la degradación
- * sólo crece. En una carrera de verdad la tanda se corta antes de que el número
- * se vaya de escala.
+ * El compuesto es el obligatorio que le falta —B6.3.8 exige dos secas—, medio o
+ * duro según si lo que queda entra en la vida medida de un juego de medios.
+ */
+function planStop(car: DriverState, index: number, seed: number): PitStop | null {
+  const window = car.pitWindow
+  if (!window || car.retiredOnLap != null) return null
+
+  const span = Math.max(0, window.closesLap - window.opensLap)
+  const lap = window.opensLap + Math.round(hash(seed, index, 0x9017) * span)
+
+  const remaining = RACE.totalLaps - lap
+  const alternatives = RACE.mandatoryCompounds.filter((c) => c !== car.compound)
+  const compound: Compound =
+    alternatives.length === 0
+      ? car.compound
+      : (alternatives.find((c) => remaining <= (STINT_LIFE[c] ?? 99)) ?? alternatives[0])
+
+  return { lap, compound, lossS: drawPitLoss(seed, index, 0x1055) }
+}
+
+/**
+ * Envejece la goma de cada auto desde `fromLap` hasta `lap`, con su parada.
+ *
+ * Es la misma cuenta para adelante y para atrás: mover la vuelta con los botones
+ * no altera la carrera, sólo mueve el reloj.
  */
 export function evolve(
   base: DriverState[],
@@ -105,12 +213,36 @@ export function evolve(
   fromLap: number,
   seed: number = DEFAULT_SEED,
 ): Stochastic {
-  const elapsed = Math.max(0, lap - fromLap)
+  const stops = base.map((car, index) => planStop(car, index, seed))
 
   const cars = base.map((car, index) => {
-    const spread = RATE_SD_S[car.compound] ?? RATE_SD_S.MEDIUM
-    // Un sorteo por tanda, no por vuelta: la caída acumula, el ruido no.
-    const rate = car.degradationRate + gaussian(seed, index, 0x5747) * spread
+    const stop = stops[index]
+
+    if (stop && lap >= stop.lap) {
+      // Juego nuevo: no hay medición previa de este auto con esta goma, así que
+      // el ritmo se sortea entero de la distribución del compuesto.
+      const age = lap - stop.lap
+      const rate = drawWear(stop.compound, seed, index, 0x2472)
+      return {
+        ...car,
+        compound: stop.compound,
+        tyreAge: age,
+        degradationRate: rate,
+        degradationS: rate * age,
+        // La ventana que traía era para **esta** parada, y ya la hizo. No hay
+        // una proyectada para la siguiente, así que se limpia en vez de dejar
+        // un rango vencido: la tabla mostraba la ventana pasada y el duelo de
+        // boxes seguía ofreciendo parar a un auto que acababa de parar.
+        pitWindow: null,
+      }
+    }
+
+    // Tanda en curso: hay un ritmo medido para este auto. Se conserva como valor
+    // central y se le suma la incertidumbre con la forma de la distribución
+    // —el sorteo menos su mediana—, en vez de tirarlo y sortear de cero.
+    const deviation = drawWear(car.compound, seed, index, 0x5747) - medianWear(car.compound)
+    const rate = car.degradationRate + deviation
+    const elapsed = Math.max(0, lap - fromLap)
     return {
       ...car,
       degradationRate: rate,
@@ -121,5 +253,9 @@ export function evolve(
 
   const paceNoise = base.map((_, index) => gaussian(seed, index, lap) * LAP_NOISE_S)
 
-  return { cars, paceNoise }
+  const progressLost = stops.map((stop) =>
+    stop && lap >= stop.lap ? stop.lossS / RACE.greenLapS : 0,
+  )
+
+  return { cars, paceNoise, stops, progressLost }
 }

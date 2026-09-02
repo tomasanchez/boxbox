@@ -63,11 +63,14 @@ export default function App() {
   // La goma envejece con la carrera, y no lo hace igual para todos: cada tanda
   // tiene su propio ritmo de caída sorteado, y cada vuelta su propio ruido. Sin
   // esto dos autos con la misma goma andaban exactamente igual para siempre.
-  const { cars, paceNoise } = useMemo(() => evolve(FIELD_CARS, lap, RACE.currentLap), [lap])
+  const { cars, paceNoise, progressLost } = useMemo(
+    () => evolve(FIELD_CARS, lap, RACE.currentLap),
+    [lap],
+  )
 
   // El pelotón vive en useField: separación, ritmo y posición se interpolan
   // cuadro a cuadro, así que cambiar de estado es una maniobra y no un salto.
-  const { field, timing } = useField(cars, status, playing, speed.msPerLap, lap, paceNoise)
+  const { field, timing } = useField(cars, status, playing, speed.msPerLap, lap, paceNoise, progressLost)
 
   // La vuelta avanza cuando la cabeza del pelotón cruza la meta.
   const crossed = useRef(field.positions[0] ?? 0)

@@ -198,6 +198,14 @@ export function useField(
   lap: number,
   /** Ruido de ritmo de esta vuelta, un valor por auto. Ver `tyres.ts`. */
   paceNoise: number[],
+  /**
+   * Vueltas de avance que cada auto ya cedió en boxes, acumuladas.
+   *
+   * Cuando este número sube, el auto tiene una deuda de avance que paga
+   * quedándose quieto: es el tiempo que pasa en el pit lane. No se le resta la
+   * distancia recorrida, porque un auto no retrocede — deja de avanzar.
+   */
+  progressLost: number[],
 ): { field: FieldState; timing: Timing } {
   const spec = STATUS[status]
   // En la vuelta 1 forman en la grilla — pero sólo mientras esté en pausa. Al
@@ -274,6 +282,22 @@ export function useField(
     noise.current = paceNoise
   }, [paceNoise])
 
+  // Deuda de avance por la parada, y cuánto de la pérdida total ya se convirtió
+  // en deuda. Sin lo segundo, cada cuadro volvería a cobrar la misma parada.
+  const stall = useRef<number[]>(paceNoise.map(() => 0))
+  const charged = useRef<number[]>(progressLost.slice())
+  // Espejo para el salto de vuelta: ese efecto necesita el último valor sin
+  // volver a correr cada vez que cambia, que reiniciaría la deuda a cada vuelta.
+  const lost = useRef(progressLost)
+  useEffect(() => {
+    lost.current = progressLost
+    for (let i = 0; i < progressLost.length; i += 1) {
+      const owed = progressLost[i] - (charged.current[i] ?? 0)
+      if (owed > 0) stall.current[i] = (stall.current[i] ?? 0) + owed
+      charged.current[i] = progressLost[i]
+    }
+  }, [progressLost])
+
   useEffect(() => {
     grid.current = drivers
     // Si cambia la cantidad de autos, se reinicia el arreglo de posiciones.
@@ -292,6 +316,10 @@ export function useField(
     if (!jumped) return
 
     const s = sim.current
+    // Saltar de vuelta reubica el pelotón, así que la deuda pendiente ya no
+    // corresponde: la parada de esa vuelta queda saldada por el reposicionamiento.
+    stall.current = drivers.map(() => 0)
+    charged.current = lost.current.slice()
     if (lap <= 1) {
       s.travelled = gridTravelled(drivers)
       s.uniform = 1
@@ -387,7 +415,19 @@ export function useField(
         // como estaban, y aplicar la corrección las devolvía a los valores del
         // dato original en vez de dejarlas quietas.
         const reforming = Math.max(s.uniform, s.gridded)
-        s.travelled[i] += Math.max(0, dt * (own + correction * reforming))
+        let advance = Math.max(0, dt * (own + correction * reforming))
+
+        // El que está en boxes no avanza hasta saldar la deuda. Pagarla con lo
+        // que habría avanzado deja la pérdida expresada en tiempo de carrera,
+        // que es como se mide una parada.
+        const owed = stall.current[i] ?? 0
+        if (owed > 0) {
+          const paid = Math.min(owed, advance)
+          stall.current[i] = owed - paid
+          advance -= paid
+        }
+
+        s.travelled[i] += advance
       }
 
       // El orden en pista sale de la distancia recorrida, así que un
