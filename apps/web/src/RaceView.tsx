@@ -1,9 +1,11 @@
 /**
  * Panel de carrera: el mapa a la izquierda y la parrilla a la derecha.
  *
- * Los dos insights —el duelo de estrategia y el plan de neumáticos— van
- * superpuestos sobre el mapa y pueden minimizarse, porque tapan justamente la
- * zona donde corren los autos.
+ * Los insights van superpuestos sobre el mapa y pueden minimizarse, porque
+ * tapan justamente la zona donde corren los autos. Son tres, y contestan cosas
+ * distintas: el **duelo de estrategia** dice si conviene parar ahora, el
+ * **pronóstico de batalla** dice si lo va a alcanzar, y el **plan** dice a
+ * cuántas paradas va la carrera.
  *
  * Los duelos **no están escritos a mano**: salen del orden en pista que va
  * marcando la simulación, así que aparecen y se resuelven solos a medida que
@@ -13,12 +15,14 @@
  */
 
 import { useMemo, useState } from 'react'
+import { BattleForecastCard } from './BattleForecast'
 import { BattleStrip } from './BattleStrip'
 import { CircuitMap } from './CircuitMap'
 import { GridPanel } from './GridPanel'
 import { InsightOverlay } from './InsightCard'
 import { IN_RANGE_S, battleKey, liveBattles, noBattleReason } from './battle'
 import { RACE } from './data'
+import { pickBattle } from './forecast'
 import { fmt } from './format'
 import { TRACKS } from './tracks'
 import type { DriverState, TrackStatus } from './types'
@@ -61,7 +65,22 @@ export function RaceView({
 
   const reason = duel ? null : noBattleReason(cars, timing, scenarioLap)
 
+  // El pronóstico de batalla no depende de la ventana de parada: pregunta si
+  // lo alcanza, no si conviene parar, y eso se puede preguntar siempre.
+  const forecast = useMemo(
+    () =>
+      pickBattle(
+        cars,
+        timing,
+        RACE.totalLaps - scenarioLap,
+        RACE.circuit,
+        duel ? battleKey(duel) : null,
+      ),
+    [cars, timing, scenarioLap, duel],
+  )
+
   const [battleOpen, setBattleOpen] = useState(true)
+  const [forecastOpen, setForecastOpen] = useState(true)
   const [insightOpen, setInsightOpen] = useState(true)
 
   return (
@@ -102,6 +121,14 @@ export function RaceView({
                 </div>
               </div>
             )}
+
+            {forecast ? (
+              <BattleForecastCard
+                forecast={forecast}
+                open={forecastOpen}
+                onToggle={() => setForecastOpen((v) => !v)}
+              />
+            ) : null}
           </div>
 
           <InsightOverlay

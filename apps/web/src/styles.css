@@ -1189,6 +1189,8 @@ body {
   bottom: auto;
   top: calc(var(--pad) * 0.8);
   justify-content: flex-start;
+  /* Las dos tarjetas cuelgan del borde de arriba y tienen alturas distintas. */
+  align-items: flex-start;
 }
 
 /* Tarjeta compacta, no una banda: en la transmisión ocupa poco más de un tercio. */
@@ -1746,4 +1748,220 @@ body {
   .circuit__sector {
     animation: none;
   }
+}
+
+/* ------------------------------------------------ pronóstico de batalla */
+
+/*
+ * Banda ancha y baja, como la gráfica de la transmisión, que ocupa el ancho
+ * pero casi nada de alto. Va al lado del duelo de boxes, no debajo: el mapa no
+ * tiene alto para apilar dos tarjetas.
+ */
+.bf {
+  pointer-events: auto;
+  flex: 1 1 340px;
+  min-width: 0;
+  max-width: 500px;
+  background: #0b0a0a;
+  border: 2px solid var(--line-strong);
+  box-shadow: 0 0 0 4px rgba(11, 10, 10, 0.6);
+}
+
+.bf--IN_RANGE {
+  border-top-color: var(--green);
+}
+
+.bf--CLOSING {
+  border-top-color: var(--yellow);
+}
+
+.bf--PULLING_AWAY {
+  border-top-color: var(--red);
+}
+
+.bf__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--gap);
+  padding: 4px 9px;
+  background: var(--bg-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.bf__title {
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--txt-1);
+}
+
+.bf__sub {
+  font-size: var(--fs-micro);
+  color: var(--txt-3);
+  margin-left: auto;
+  margin-right: 6px;
+}
+
+.bf__body {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--gap);
+  padding: calc(var(--pad) * 0.6) var(--pad);
+}
+
+/* Piloto de cada costado: barra de equipo, código, y el dato de abajo. */
+.bf__side {
+  display: grid;
+  grid-template-columns: 4px auto;
+  column-gap: 5px;
+  row-gap: 2px;
+  align-content: center;
+}
+
+.bf__bar {
+  grid-column: 1;
+  grid-row: 1;
+  height: 1.15em;
+}
+
+.bf__code {
+  grid-column: 2;
+  grid-row: 1;
+  font-size: var(--fs-md);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.bf__foot {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  font-size: var(--fs-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--txt-2);
+  white-space: nowrap;
+}
+
+.bf__side--right {
+  grid-template-columns: auto 4px;
+  justify-items: end;
+}
+
+.bf__side--right .bf__bar {
+  grid-column: 2;
+}
+
+.bf__side--right .bf__code {
+  grid-column: 1;
+}
+
+.bf__side--right .bf__foot {
+  text-align: right;
+}
+
+.bf__middle {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+/* El recuadro del medio, el equivalente al naranja de la gráfica. */
+.bf__state {
+  padding: 2px 12px;
+  border: 1px solid currentColor;
+  font-size: var(--fs-md);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.bf--IN_RANGE .bf__state {
+  color: var(--green);
+}
+
+.bf--CLOSING .bf__state {
+  color: var(--yellow);
+}
+
+.bf--PULLING_AWAY .bf__state {
+  color: var(--red);
+}
+
+.bf__laps {
+  font-weight: 700;
+}
+
+/*
+ * Cinta de flechas. Se encienden en cadena, de izquierda a derecha cuando
+ * recorta y al revés cuando se le escapa, así el movimiento dice la dirección
+ * sin necesidad de leer el texto.
+ */
+.bf__chevrons {
+  display: flex;
+  gap: 3px;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.bf__chevron {
+  animation: chase 1.15s ease-in-out infinite;
+}
+
+.bf--IN_RANGE .bf__chevron {
+  color: var(--green);
+}
+
+.bf--CLOSING .bf__chevron {
+  color: var(--yellow);
+}
+
+.bf--PULLING_AWAY .bf__chevron {
+  color: var(--red);
+}
+
+@keyframes chase {
+  0%,
+  70%,
+  100% {
+    opacity: 0.22;
+  }
+  25% {
+    opacity: 1;
+  }
+}
+
+/* Quien pidió menos movimiento no debería recibir una cinta parpadeando. */
+@media (prefers-reduced-motion: reduce) {
+  .bf__chevron {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+
+.bf__gauge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bf__gaugel {
+  font-size: var(--fs-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--txt-3);
+}
+
+.bf__steps {
+  display: flex;
+  gap: 2px;
+}
+
+.bf__step {
+  width: 7px;
+  height: 11px;
+  background: var(--bg-3);
 }
