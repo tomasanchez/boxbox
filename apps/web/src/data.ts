@@ -11,7 +11,6 @@ import type {
   Compound,
   DriverState,
   RaceContext,
-  StintPlan,
   StrategyForecast,
 } from './types'
 
@@ -232,21 +231,6 @@ export const GRID: DriverState[] = [
     retiredOnLap: 1,
   },
 ]
-
-/** Salida del algoritmo genético para LEC en la carrera actual. */
-export const PLAN_DISTRIBUTION: {
-  driver: string
-  stopDistribution: Record<string, number>
-  modalPlan: StintPlan[]
-} = {
-  driver: 'LEC',
-  stopDistribution: { '1': 0.31, '2': 0.48, '3': 0.19, '4': 0.02 },
-  modalPlan: [
-    { compound: 'MEDIUM', laps: 18 },
-    { compound: 'HARD', laps: 25 },
-    { compound: 'SOFT', laps: 14 },
-  ],
-}
 
 /**
  * Pronóstico congelado de Zandvoort, con el resultado real.

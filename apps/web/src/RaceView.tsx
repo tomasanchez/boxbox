@@ -131,8 +131,14 @@ export function RaceView({
             ) : null}
           </div>
 
+          {/*
+           * El plan que se muestra es el del perseguidor del duelo en pantalla,
+           * o el del líder si no hay duelo. Así las tres tarjetas hablan del
+           * mismo momento de la carrera en vez de tres momentos distintos.
+           */}
           <InsightOverlay
             lap={scenarioLap}
+            driver={duel?.chaser ?? cars[timing.order[0]]?.code ?? 'ANT'}
             open={insightOpen}
             onToggle={() => setInsightOpen((v) => !v)}
           />
