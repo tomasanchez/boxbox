@@ -25,8 +25,15 @@ además las temporadas anteriores: se midió que agregarlas mejora el modelo un 
 orden de desgaste de los compuestos se haya invertido este año.
 
 La idea central es un **simulador de carrera** y, sobre él, un **Algoritmo Genético** que busca
-el mejor plan. Como comparación se usa un **agente de Aprendizaje por Refuerzo** que decide
+el mejor plan. Como comparación se propone un **agente de Aprendizaje por Refuerzo** que decide
 vuelta a vuelta.
+
+**Estado.** El pipeline de datos, el simulador y el algoritmo genético están construidos y
+medidos; el agente de refuerzo no. El resultado más importante hasta acá es **negativo y está
+reportado como tal**: el algoritmo genético apenas le gana a una regla simple, por motivos que la
+sección 6 explica. La sección 4 documenta además cuatro errores propios que se encontraron y
+corrigieron en el camino, porque todos daban números confiados y plausibles hasta que algo aguas
+abajo salió absurdo.
 
 ---
 
@@ -213,9 +220,12 @@ El procedimiento es:
 **El reglamento actúa como filtro.** Un plan que use un solo compuesto de seco queda descartado
 de entrada, porque en la carrera real sería descalificación. Nunca llega a competir.
 
-Se usa **DEAP**, la librería que recomienda la cátedra. Hay varias formas de elegir los mejores
-y de combinarlos —por torneo, por ruleta, tomando directamente los mejores— y se van a comparar
-en lugar de elegir una sola.
+**Sobre DEAP.** La propuesta decía que se iba a usar DEAP, la librería que recomienda la
+cátedra. La implementación quedó escrita a medida, porque el genoma es de largo variable —un plan
+tiene una, dos o tres paradas— y necesita reglas de reparación propias: ordenar las paradas,
+separarlas al menos seis vueltas y forzar una parada cuando la tanda excede lo que la evidencia
+puede cotizar. Eso no encaja cómodo en los operadores estándar. Portarlo a DEAP no cambia el
+modelo y queda como tarea pendiente, declarada acá y no escondida.
 
 **3. Agente de Aprendizaje por Refuerzo (comparación — Unidad 5).**
 
@@ -257,19 +267,32 @@ para entregar una es peor que proponer dos y cumplirlas.
 
 ### Lo que ya está hecho
 
-- El pipeline de datos completo: descarga, limpieza y cálculo de variables.
-- Un estudio previo para verificar que los datos alcanzan.
+- **El pipeline de datos completo**: descarga, limpieza y cálculo de variables, sobre 103
+  carreras y 114.414 vueltas.
+- **El simulador de carrera**, con todo lo que sortea medido: desgaste, pérdida de boxes,
+  Safety Car, ruido de ritmo y tráfico.
+- **El algoritmo genético**, que para cada auto busca el plan de paradas con mejor distribución
+  de resultados sobre cientos de carreras sorteadas.
+- **Una interfaz de simulación** que muestra la carrera corriendo con los insights de estrategia
+  encima del trazado, al estilo de las gráficas de la transmisión.
+- **Tres cuadernos Jupyter** que dejan el registro reproducible de los datos, la limpieza y cada
+  medición, con el cálculo a la vista y no sólo el resultado.
 
 ### Lo que falta
 
-- El simulador de carrera.
-- El algoritmo genético.
-- El agente de refuerzo.
+- El agente de Aprendizaje por Refuerzo, que era la comparación propuesta.
+- Portar el genético a **DEAP**. Está escrito a medida porque el genoma es de largo variable con
+  reglas de reparación, pero DEAP es la herramienta que recomienda la cátedra y conviene alinearse.
+- El tráfico de **rezagados**. El 23,1% de los pilotos terminan al menos una vuelta abajo, y la
+  medición actual los excluye por construcción.
+- La **ventana de parada** sale hoy de una heurística y debería salir del propio genético.
 
 ### Lo que encontramos al probar
 
-Hicimos pruebas antes de decidir el diseño. **El resultado más importante es negativo:**
-predecir un valor exacto no funciona.
+Esta sección es la más larga a propósito. La mayoría de lo que sigue son resultados negativos o
+correcciones de errores propios, y son la parte del trabajo que más costó.
+
+#### Predecir un valor exacto no funciona bien
 
 | Lo que intentamos predecir | Nuestro modelo | Predecir siempre la mediana | |
 |---|---|---|---|
@@ -279,117 +302,294 @@ predecir un valor exacto no funciona.
 | Duración de una tanda | 8,13 vueltas | 8,02 | empata |
 | Cantidad de paradas | 32,1% de acierto | 32,0% | empata |
 
-**Acá hay que matizar lo que dijimos antes.** Con sólo 2026 los cuatro intentos perdían o
-empataban. Al completar los datos, el modelo de degradación **pasa a ganarle al modelo tonto**.
-O sea que «no se puede predecir» era en parte falta de datos, no una propiedad del problema.
+Con sólo 2026 los cuatro intentos perdían o empataban. Al completar los datos, el modelo de
+degradación **pasa a ganarle al modelo tonto**. O sea que «no se puede predecir» era en parte
+falta de datos, no una propiedad del problema.
 
-Las otras dos pruebas —duración de tanda y cantidad de paradas— todavía no se repitieron con el
-conjunto completo. Hay que hacerlo antes de afirmar nada sobre ellas.
+#### La incertidumbre es más grande que la señal
 
-**En cambio, medir promedios sí funciona bien:**
+El dato que justifica todo el diseño: en 2026 el **desvío** del ritmo de caída de una tanda
+(0,069 s/vuelta en duro, 0,112 en medio, 0,178 en blando) es **más grande que la mediana del
+ritmo mismo** (≈0,045 en los tres). Cuánto va a gastar una tanda determinada es, en buena medida,
+impredecible.
 
-- En 2026 **se invirtió el orden de desgaste**: el blando pasó de ser el que más se gastaba
-  (0,0673 s/vuelta en 2024) al que menos (0,0142). Es un cambio real y grande.
-- Parar bajo Safety Car **cuesta 0 posiciones**, contra 2 posiciones en carrera normal.
-- Los equipos lo saben: el 9,6% de las vueltas están neutralizadas, pero ahí se toma el **30,8%**
-  de las paradas.
+Eso no es un defecto de la medición: es el motivo por el que el sistema devuelve distribuciones
+y no números.
 
-**También cambiamos de idea sobre los datos.** La primera versión de esta propuesta decía que no
-se podían mezclar temporadas. Al medirlo resultó lo contrario: mezclar mejora un 56% (sección 2).
-Se deja asentado porque una propuesta que esconde en qué se equivocó no sirve de nada.
+#### El desgaste no se distribuye normal
 
-**Conclusión:** el argumento a favor de dar un rango en vez de un número **no es** que los
-modelos no den. Es que buena parte de lo que decide una estrategia —una bandera roja en la vuelta
-2, un Safety Car a mitad de carrera— es **imposible de saber de antemano**, por más datos que se
-tengan. La estrategia depende más de lo que pasa en la carrera que de la física del
-neumático. Por eso el sistema tiene que dar **un rango de posibilidades, no un número exacto**.
+Medida sobre Zandvoort, la curtosis del ritmo de caída da **48,6 en duro, 32,8 en medio y 20,2 en
+blando**. Una normal tiene cero. Unas pocas tandas catastróficas estiran la cola y hacen que el
+desvío mienta: el blando tiene desvío 0,66 s/vuelta pero entre el percentil 5 y el 95 va de −0,18
+a 0,14. El simulador no asume forma: guarda nueve cortes de la distribución medida y sortea
+interpolando.
+
+#### Hubo que ajustar el efecto del combustible, y no fue rápido
+
+La propuesta anterior decía que reajustarlo era «rápido». No lo fue, y el problema es
+instructivo.
+
+Dos cosas hacen que las vueltas tardías sean más rápidas: el tanque que se vacía y la pista que
+se engoma. **Dentro de una carrera las dos son lineales en el número de vuelta**, así que son
+indistinguibles. Un primer diseño metió un efecto fijo por carrera-piloto y regresó contra las
+dos juntas: no funciona, y no falla a los gritos. Con el largo de carrera fijo dentro del grupo
+los dos regresores son afines —correlación exactamente −1,000— y el ajuste devolvió **−0,043
+s/vuelta**, o sea que llevar combustible te haría más rápido.
+
+Para medir desgaste la separación no hace falta: lo que hay que sacarle al tiempo de vuelta es el
+efecto completo. Ese sí se identifica, y da **0,056 s/vuelta** sobre 1.627 carreras-piloto,
+estable entre 0,047 y 0,062 en las cinco temporadas. Los **0,035** que estaban asumidos sacaban
+apenas el **63%**.
+
+Lo que desbloqueó:
+
+| Diferencia de ritmo, mismo piloto y carrera | Con 0,035 | Con 0,056 |
+|---|---|---|
+| medio − duro | +0,189 s/vuelta | −0,024 |
+| blando − medio | −0,160 | −0,015 |
+| blando − duro | +0,187 | +0,040 |
+
+Con la constante vieja el **duro salía el más rápido de los tres en las cinco temporadas**. No
+era un dato del neumático: el duro se corre en la mediana del 61% de la carrera y el medio en el
+26%, y una corrección corta le regala esa ventaja al que corre más tarde.
+
+Corregido, **no hay diferencia de ritmo medible entre compuestos secos**: los tres quedan a menos
+de 0,04 s/vuelta entre sí y los cuartiles cruzan el cero. Difieren en desgaste y en vida, no en
+ritmo con goma nueva.
+
+#### El desgaste medido se aplana, y es sesgo de supervivencia
+
+Déficit promedio contra vuelta de tanda, sobre 91.000 vueltas: sube hasta la vuelta 20-25 y
+después **baja**. Ningún neumático hace eso. Los juegos que llegan a las treinta vueltas son los
+que aguantaron; los que no, se cambiaron.
+
+Consecuencia: los datos **no pueden ponerle precio a una tanda larga**, y lo que dicen de ella es
+optimista. En vez de inventar una caída sin evidencia, la búsqueda tiene prohibido proponer
+tandas más largas que el percentil 90 medido —41 vueltas en duro, 31 en medio, 25 en blando—.
+Es un límite a lo que el modelo puede afirmar, no una afirmación sobre la goma.
+
+#### El ritmo de caída que trae cada auto casi no predice
+
+Comparando la pendiente de cinco vueltas medida en la vuelta 10 contra lo que esas tandas
+efectivamente hicieron después, sobre 2.492 tandas: **correlación 0,183**, y la estimación
+rodante está 3,5 veces sobredispersa. Se encoge al 5%.
+
+Proyectarla cruda no era un error chico: un auto de la foto arrastra −0,549 s/vuelta, que
+extrapolado a treinta vueltas dice que va a ganar cuatro minutos, y la búsqueda recomendaba un
+plan que lo hacía **ganar desde noveno**.
+
+#### La granularidad por circuito no la sostienen los datos
+
+Tres veces seguidas, con tres cantidades distintas, correlacionando la estimación de cada
+circuito en 2022-23 contra la de 2024-26:
+
+| Cantidad | Correlación entre eras | Qué se hizo |
+|---|---|---|
+| Dificultad para adelantar | 0,209 | Encoger hacia el promedio |
+| Corrección por avance de carrera | 0,150 | Usar un número global |
+| Costo del tráfico | −0,042 | Usar un número global |
+
+Con cuatro o cinco carreras por circuito, la dispersión aparente es ruido de una tarde. Lo único
+que sobrevive es Mónaco, extremo en las tres.
+
+Este patrón hizo caer una afirmación propia. En una versión anterior se dijo que la dificultad
+para adelantar modula el costo del tráfico, apoyado en agrupar circuitos por dificultad. Midiendo
+el castigo **por circuito** los dos correlacionan a 0,384 — pero a **0,157 sacando Mónaco**. Y
+ese agrupamiento le había asignado a Zandvoort un multiplicador de 1,31 cuando su castigo medido
+propio da 0,68: casi el doble, en la dirección equivocada.
+
+#### Medir promedios sí funciona
+
+- Parar bajo Safety Car **cuesta 0 posiciones**, contra 2 en carrera normal.
+- Los equipos lo saben: el 36% de las paradas estratégicas de Zandvoort ocurren bajo
+  neutralización, contra 23% global.
+- **La cantidad de paradas depende del compuesto de largada**: largando en duro, 1 parada el 56%
+  de las veces; largando en blando, 2 paradas el 55% y 3 el 26%.
+- El costo efectivo de una parada es **22,6 s en verde y 19,5 bajo Safety Car**, pero el primer
+  cuartil bajo Safety Car es **7,5 s**: reaccionar rápido y reaccionar tarde no son la misma
+  decisión.
 
 ---
 
 ## 5. Resultados
 
-Todavía no hay prototipo, así que acá se define **qué se va a medir**.
+### Lo que el sistema entrega
+
+Para cada auto, desde la vuelta 30 de 72 de Zandvoort 2026:
+
+| | Auto | Plan | Llega | Puntos | Objetivo |
+|---|---|---|---|---|---|
+| P1 | ANT | H19-H23 | 1,88 ± 0,86 | 19,9 | puntos |
+| P5 | LEC | M6-H36 | 2,77 ± 1,29 | 16,6 | puntos |
+| P11 | LIN | M6-H36 | 8,70 ± 1,13 | 2,9 | puntos |
+| P18 | COL | H6-H36 | 16,02 ± 1,34 | 0,0 | posición |
+
+Toda la parrilla converge en **una parada**, con confianzas de 0,62 a 0,91. Coincide con lo
+medido: desde el 42% de la carrera, el 49% de los autos en Zandvoort tiene exactamente una
+parada por delante.
+
+### Qué es «ganar», y por qué no es lo mismo para todos
+
+La aptitud son los **puntos absolutos** en la bandera. Mantener un puesto de puntos gana por
+construcción: quedarse quinto paga 10 en cada sorteo, y un plan que la mitad de las veces da
+tercero y la otra mitad octavo (0,5·15 + 0,5·4 = 9,5) no lo alcanza.
+
+Pero para un auto cuyos planes suman cero, ese objetivo está **plano** y la búsqueda no tiene
+nada que escalar. Medido: un auto 18.º con objetivo puntos termina con la población repartida
+0,21 / 0,33 / 0,17 / 0,29 entre una y cuatro paradas, que es ruido. Con objetivo posición
+converge en una parada al 0,87.
+
+**Un auto fuera de los puntos sí puede ganar, pero no con la misma vara, y usar la equivocada no
+da una respuesta prudente sino una al azar.** Por eso el objetivo es adaptativo: puntos donde son
+alcanzables, posición donde no.
+
+### El resultado principal es negativo
+
+Se comparó el plan del genético contra tres alternativas sin búsqueda, todas evaluadas sobre las
+**mismas** carreras sorteadas. La más fuerte es «parar en la mitad de lo que queda, al duro».
+
+| Desde la vuelta | Gana | Ventaja media |
+|---|---|---|
+| 10 | 6 de 10 | +0,11 puntos |
+| 20 | 6 de 10 | +0,22 |
+| 30 | 5 de 10 | +0,18 |
+| 45 | 2 de 10 | −0,01 |
+
+**El algoritmo genético apenas le gana a una regla de servilleta.** Décimas de punto, sin patrón
+claro por momento de la carrera.
+
+Se probaron dos hipótesis sobre por qué:
+
+1. **Que el coeficiente de combustible achatara el desgaste.** Ajustarlo triplicó la ventaja en
+   la vuelta 30, de +0,065 a +0,179 puntos. Era parte, no todo.
+2. **Que faltara el tráfico.** Se midió (0,544 s/vuelta a menos de un segundo, 23,4% de las
+   vueltas) y se agregó a la aptitud. **No movió nada.**
+
+### Qué se mide y con qué se compara
 
 | Qué | Cómo se mide | Cuándo está bien |
 |---|---|---|
-| Simulador | Error del modelo de degradación | Mejor que predecir la mediana |
-| Algoritmo genético | Posiciones ganadas contra la estrategia real del equipo | Ganar posiciones en promedio |
-| Sistema completo | **¿La estrategia real cayó dentro del rango que predijimos?** | La métrica principal |
-| Sistema completo | **Calibración**: si decimos 70% de chance de una parada, ¿pasa el 70% de las veces? | |
-| Reglamento | Planes ilegales generados | **Cero** |
+| Simulador | Error del modelo de degradación | Mejor que predecir la mediana ✅ |
+| Algoritmo genético | Puntos contra una regla simple | Ganar en promedio ⚠️ apenas |
+| Sistema completo | ¿La estrategia real cayó dentro del rango? | Pendiente |
+| Reglamento | Planes ilegales generados | Cero ✅ |
 
-### La exactitud no se usa como métrica
-
-"No parar nunca" acierta el **96,6%** de las vueltas. Pero además de inútil, **es ilegal**: el
-reglamento obliga a usar dos compuestos y no hacerlo es descalificación.
-
-O sea: un modelo que busque maximizar exactitud termina proponiendo algo que te deja afuera de la
-carrera. Por eso el reglamento va como filtro y no como sugerencia.
-
-### Prueba en carreras futuras
-
-Quedan 11 carreras. La idea es **publicar la predicción antes de cada carrera y después
-compararla con lo que pasó**. Empezando por Monza, el 6 de septiembre.
-
-Esto tiene una ventaja grande: no se puede hacer trampa. La predicción queda escrita antes.
+**La exactitud no se usa como métrica.** «No parar nunca» acierta el 96,6% de las vueltas, y
+además de inútil **es ilegal**: el reglamento obliga a usar dos compuestos.
 
 ---
 
 ## 6. Análisis de los Resultados
 
-**Contra modelos simples.** Todo resultado se compara siempre contra "predecir la mediana" o
-"tirar al azar". Un número solo, sin esa comparación, no dice nada.
+### Por qué es tan difícil ganarle a la servilleta
 
-**Contra trabajos previos.** Hay un paper de 2025 (Chaudhary et al.) que hace algo parecido con
-redes neuronales sobre datos de 2020 a 2024, y llega a F1 = 0,81. Se va a comparar contra eso
-explicando las diferencias. **Lo nuevo acá no es el problema, es la temporada:** ningún trabajo
-publicado pudo usar datos de 2026, porque el reglamento cambió este año.
+La explicación que queda no es una falla del modelo: es una propiedad de la decisión.
 
-**Contra un trabajo propio.** En 2025 hice el TP de la materia Inteligencia Artificial sobre este
-mismo tema: clasificar el compuesto con una red neuronal MLP, con datos de 2020 a 2022. Se
-declara acá y se compara:
+Desde la vuelta 30 el espacio de planes es **efectivamente unidimensional**: una parada, y la
+única pregunta es en qué vuelta. El objetivo es suave en esa dimensión y su óptimo cae cerca del
+medio del tramo que queda. Una búsqueda sobre una función suave y unimodal en una variable, cuyo
+óptimo está cerca del punto medio, va a empatar con «elegí el punto medio» **casi por
+construcción**.
+
+La servilleta no es una heurística tonta: es una buena aproximación del óptimo en este caso
+particular. Y el dato lo respalda — el mejor momento medido es la vuelta 20, que es donde dos
+paradas y la secuencia de compuestos siguen sobre la mesa.
+
+### Entonces qué aporta el algoritmo
+
+Se puede decir con precisión, y no es «el óptimo»:
+
+1. **La distribución.** Confianza sobre la cantidad de paradas, dispersión del puesto de llegada,
+   y cuánto vale elegir. Eso permite decir *«acá da igual lo que hagas»* cuando da igual, cosa
+   que una regla no dice. Medido: el mejor plan le gana al peor por **7,89 puntos** para el auto
+   que va primero y por **0,38** para el que va décimo.
+2. **Los casos multiparada**, donde no hay punto medio que copiar.
+3. **La coherencia con lo medido**: el plan respeta el límite de tanda, la zona de puntos y el
+   reglamento, cosa que una regla no chequea.
+
+### Contra trabajos previos
+
+Hay un paper de 2025 (Chaudhary et al.) que hace algo parecido con redes neuronales sobre datos
+de 2020 a 2024, y llega a F1 = 0,81. **Lo nuevo acá no es el problema, es la temporada:** ningún
+trabajo publicado pudo usar datos de 2026, porque el reglamento cambió este año.
+
+### Contra un trabajo propio
+
+En 2025 hice el TP de Inteligencia Artificial sobre este mismo tema: clasificar el compuesto con
+una red neuronal MLP, con datos de 2020 a 2022.
 
 | | TP de IA 2025 | Este trabajo |
 |---|---|---|
-| Datos | 2020–2022, 782 registros | 2026, 14.095 vueltas |
+| Datos | 2020–2022, 782 registros | 2022–2026, 114.414 vueltas |
 | Pregunta | ¿Qué compuesto? | ¿Cuándo parar y cuántas veces? |
-| Técnica | Red neuronal MLP (Unidad 2) | Algoritmo Genético y Refuerzo (Unidades 3 y 5) |
-| Resultado | 0,62–0,70 de exactitud, con sobreajuste | — |
+| Técnica | Red neuronal MLP | Algoritmo Genético sobre simulador Monte Carlo |
+| Resultado | 0,62–0,70 de exactitud, con sobreajuste | Plan por auto, con su distribución |
 
 Aquel trabajo trató de **aprender** qué compuesto elegir y no le fue del todo bien. Este trabajo
-propone una explicación: en 2026 esa elección está **decidida en buena parte por el reglamento**,
-y la diferencia de desgaste entre compuestos es de apenas 0,029 s/vuelta. No era un problema de
-la red neuronal: era una pregunta mal planteada.
+da una explicación mejor de la que dio la propuesta: no es sólo que el reglamento decida la
+elección. Es que **no hay diferencia de ritmo medible entre compuestos secos** una vez que se
+corrige bien el efecto del combustible. No era un problema de la red neuronal: era una pregunta
+sin respuesta en los datos.
+
+### Sobre la comparación con AWS
+
+Las gráficas de la transmisión —«Pit Strategy Battle», «Battle Forecast»— se replicaron con
+nuestros propios números. La diferencia de fondo no es el modelo: **ellos tienen telemetría de
+300 sensores por auto y 1,1 millones de puntos por segundo, y nosotros tiempos por vuelta.** Eso
+explica por qué pueden ver aire sucio y tráfico con un detalle que acá se aproxima con un
+promedio. La metodología de AWS no está publicada.
 
 ---
 
 ## 7. Conclusiones
 
-1. **Predecir un valor exacto es difícil, pero no imposible.** Con sólo 2026 los cuatro intentos
-   perdían. Con las cinco temporadas, el modelo de degradación ya gana. Lo que sigue sin poder
-   anticiparse son los **eventos de carrera**, y eso no se arregla con más datos.
-2. **Medir promedios sí se puede**, y alcanza para armar un sistema útil.
-3. **El costo de parar se mide en posiciones, no en segundos.** Bajo Safety Car son 0 posiciones
-   contra 2 en carrera normal.
-4. **El reglamento es una ventaja, no una molestia.** Impide que el sistema proponga algo ilegal.
-5. **Las temporadas anteriores sí sirven, pero no para todo.** Mezclarlas mejora el clasificador
-   un 56% (de 4,24× a 6,64× sobre el azar). Pero las magnitudes de degradación por compuesto y el
-   efecto del combustible se toman sólo de 2026, porque ahí sí cambió el comportamiento.
+1. **La incertidumbre es más grande que la señal.** El desvío del ritmo de caída de una tanda
+   supera a la mediana del ritmo mismo. Ése es el argumento central para devolver distribuciones
+   y no números, y no es una preferencia de diseño: es lo que dicen los datos.
+
+2. **El algoritmo genético apenas le gana a una regla simple**, y eso hay que decirlo antes que
+   cualquier otra cosa sobre él. La explicación es que desde mitad de carrera la decisión es
+   casi unidimensional y su óptimo cae cerca del punto medio. Lo que el algoritmo aporta con
+   seguridad es la distribución y los casos multiparada, no el óptimo.
+
+3. **La mitad del trabajo fue encontrar errores propios.** El coeficiente de combustible que
+   sacaba el 63% del efecto, el ritmo de caída extrapolado que hacía ganar a un auto desde
+   noveno, el escalado por circuito que duplicaba el tráfico de Zandvoort en la dirección
+   equivocada, la referencia de pérdida de boxes que hacía parecer cara la parada bajo Safety
+   Car. Todos daban números confiados y plausibles hasta que algo aguas abajo salió absurdo.
+
+4. **La granularidad por circuito no la sostienen los datos.** Tres cantidades distintas, tres
+   correlaciones entre eras de 0,21, 0,15 y −0,04. Con cuatro carreras por circuito, pretender un
+   número propio para cada uno es describir ruido. Sólo Mónaco sobrevive.
+
+5. **El reglamento es una ventaja, no una molestia.** Impide que el sistema proponga algo ilegal,
+   y la exactitud como métrica propondría exactamente eso.
+
+6. **Los datos tienen un techo y conviene nombrarlo.** El desgaste medido se aplana por
+   supervivencia, el tráfico de rezagados queda afuera por construcción, y el aire sucio se
+   aproxima con un promedio porque no hay telemetría. El sistema es honesto dentro de ese techo
+   y lo declara en vez de simular que no existe.
 
 ### Qué sigue
 
 | Acción | Por qué | ¿Se puede? |
 |---|---|---|
-| Armar el simulador | Es la base de todo lo demás | Sí, los datos que necesita ya están medidos |
-| Algoritmo genético con DEAP | Es la técnica principal | Sí, para la Entrega 2 |
-| Agente de refuerzo | Comparación | Sí, si el genético ya está listo |
+| Correr el genético **desde antes de largar** | Es donde el espacio es multidimensional y debería ganarse el sueldo | Sí, es el test más barato de la afirmación central |
+| Portar a **DEAP** | Es la herramienta que recomienda la cátedra | Sí, no cambia el modelo |
+| La ventana de parada como **salida** del genético | Hoy es una heurística de entrada y falla en un tercio de la parrilla | Sí |
+| Tráfico de **rezagados** | 23,1% de los pilotos terminan una vuelta abajo | Requiere comparar por posición y no por vuelta |
+| Agente de **Refuerzo** | La comparación propuesta: planificar contra reaccionar | Para la Entrega 2 |
 | Red bayesiana | Modelar el Safety Car | Sólo como línea futura |
-| Reajustar el efecto del combustible | Hoy es un número fijo de la era anterior | Sí, es rápido |
+
+**Lo que no se va a hacer:** más granularidad por circuito, ni más términos en la aptitud
+esperando que deje de ser plana. Los datos rechazaron lo primero tres veces y lo segundo dio dos
+negativos seguidos.
 
 **Riesgo que se asume:** publicar una predicción antes de la carrera puede salir mal en público.
 Es a propósito. Se evalúa si el rango estaba bien calculado, no si se acertó justo.
 
 ---
+
 
 ## Referencias
 
