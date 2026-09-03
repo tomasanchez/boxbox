@@ -479,55 +479,88 @@ pd.DataFrame(sonda)
 
 # %% [markdown]
 # La ventaja es de **centésimas o décimas de punto en todos los momentos de la
-# carrera**, sin un patrón claro. No es que desde la vuelta 30 ya no quede nada
-# por decidir: el algoritmo tampoco agrega nada desde la vuelta 10, con 62
-# vueltas por delante.
+# carrera**. No es que desde la vuelta 30 ya no quede nada por decidir: el
+# algoritmo tampoco agrega mucho desde la vuelta 10, con 62 vueltas por delante.
 #
-# Hay dos explicaciones y no son excluyentes.
+# El mejor momento es la **vuelta 20**, que es donde dos paradas siguen siendo
+# una opción viva. Eso resulta ser la pista.
+
+# %% [markdown]
+# ### Se agregó el tráfico, y no era la respuesta
 #
-# **Una: la decisión es genuinamente plana.** Una vez que un auto se compromete a
-# «una parada, a un compuesto durable, en algún lugar del medio», la vuelta exacta
-# cambia poco. Eso coincide con lo que ya decía la columna «vale elegir» y con
-# que la parrilla entera converja en un plan de una parada.
+# La sospecha era que el modelo fuera demasiado liso: sin tráfico, parar en la
+# vuelta 38 o en la 44 difiere sólo en aritmética. Así que se midió y se agregó.
 #
-# **Dos, y probablemente la más grande: el modelo es demasiado liso para
-# discriminar.** No tiene tráfico, ni aire sucio, ni bloqueo, ni ventaja de
-# vuelta de salida en pista libre. Y esos son exactamente los mecanismos por los
-# que una parada bien puesta gana algo en la realidad: el undercut funciona
-# porque el que sale con gomas nuevas encuentra pista libre mientras el otro
-# queda atrapado. Un modelo que le pone precio a la parada sólo en segundos no
-# puede ver la diferencia entre parar en la vuelta 38 y en la 44.
+# El costo está medido dentro de la propia tanda de cada piloto, con la
+# antigüedad de goma controlada, sobre 81.719 vueltas: **0,544 s/vuelta a menos
+# de un segundo**, decayendo a cero pasados los cinco. Se cobra **cada vuelta**
+# según el hueco de esa vuelta, no una vez al salir de boxes.
 #
-# Cuál de las dos pesa más se puede averiguar, y es la línea de trabajo que este
-# resultado abre: agregar un término de tráfico —cuántos autos hay en la ventana
-# de salida— y volver a correr esta misma comparación. Si la ventaja sigue en
-# cero, la decisión es plana de verdad. Si aparece, el modelo era el problema.
+# Ese detalle importó: la primera versión cobraba sólo en el momento del rejoin, y
+# resultó inerte. El hueco al de adelante justo después de parar es de unos 16
+# segundos en este pelotón, así que casi nunca cobraba nada. El tráfico no es un
+# evento de la parada: es una condición de toda la tanda — el que calza goma nueva
+# **alcanza** al de adelante diez vueltas después y se queda ahí.
 #
-# Mientras tanto, lo que el algoritmo aporta con seguridad no es el óptimo sino
-# **la distribución**: la confianza sobre la cantidad de paradas, la dispersión
-# del puesto de llegada y cuánto vale elegir. Eso una servilleta no lo da.
+# Con el cobro por vuelta el término se activa en el **12,5%** de las vueltas
+# simuladas, contra el 23,4% medido en carreras reales. O sea que funciona,
+# aunque el pelotón simulado se agrupa la mitad de lo que se agrupa uno real.
+#
+# **Y la ventaja del algoritmo no se movió**: +0,14 / +0,33 / +0,13 / −0,03 desde
+# las vueltas 10, 20, 30 y 45, contra +0,10 / +0,32 / +0,18 / −0,01 sin tráfico.
+
+# %% [markdown]
+# ### Entonces por qué es tan difícil ganarle a la servilleta
+#
+# La explicación que queda no es una falla del modelo, es una propiedad de la
+# decisión. Desde la vuelta 30 el espacio de planes es **efectivamente
+# unidimensional**: una parada, y la única pregunta es en qué vuelta. El objetivo
+# es suave en esa dimensión y su óptimo cae cerca del medio del tramo que queda.
+#
+# Una búsqueda sobre una función suave y unimodal en una variable, cuyo óptimo
+# está cerca del punto medio, va a empatar con «elegí el punto medio» casi por
+# construcción. La servilleta no es una heurística tonta: es una aproximación
+# buena del óptimo en este caso particular.
+#
+# Lo cual dice dónde el algoritmo sí debería ganarse el sueldo: donde el espacio
+# es genuinamente multidimensional. Y coincide con el dato — el mejor momento
+# medido es la vuelta 20, con nueve de diez autos ganando, que es exactamente
+# donde dos paradas y la secuencia de compuestos siguen sobre la mesa.
+#
+# Con eso, lo que el algoritmo aporta se puede decir con precisión, y no es «el
+# óptimo»:
+#
+# 1. **La distribución.** Confianza sobre la cantidad de paradas, dispersión del
+#    puesto de llegada, y cuánto vale elegir. Una servilleta no da nada de eso, y
+#    es lo que permite decir «acá da igual lo que hagas» cuando da igual.
+# 2. **Los casos multiparada**, donde no hay regla de servilleta obvia: dos o tres
+#    paradas con secuencia de compuestos no tiene un «punto medio» que copiar.
+# 3. **La coherencia con lo medido.** El plan que devuelve respeta el límite de
+#    tanda, la zona de puntos y B6.3.8, cosa que una regla no chequea.
 
 # %% [markdown]
 # ## 3.8 Lo que este modelo no hace
 #
-# - **No hay bloqueo en pista.** Un auto más rápido pasa. Es generoso en Mónaco y
-#   más o menos justo en Zandvoort — y es justamente la suposición que permite
-#   calcular los tiempos de los rivales una sola vez, así que quitar una implica
-#   quitar la otra.
-# - **Los rivales no reaccionan.** Sus planes se sortean una vez y se mantienen.
-#   Falso precisamente donde dos autos se pelean entre sí, que es donde la
-#   recomendación más importa.
-# - **El plan no se replanifica.** El optimizador sabe que **puede** salir un
-#   safety car y lo cotiza, pero devuelve un plan fijo. Un muro de verdad
-#   replanifica en el momento en que se prende el tablero, y el 36% de las
-#   paradas reales de Zandvoort ocurren bajo neutralización.
-# - **Una sola foto.** Todo se calcula desde la vuelta 30 y no se vuelve a correr
-#   a medida que la carrera avanza.
-# - **B6.3.8 no se verifica.** La foto no registra qué juegos usó cada auto antes
-#   de la vuelta 30, así que no se puede comprobar que el plan lo deje con dos
-#   compuestos secos usados.
+# - **El pelotón simulado no se agrupa como uno real.** El 12,5% de las vueltas
+#   se corren a menos de un segundo contra el 23,4% medido. El espaciado sale de
+#   los gaps al líder de la foto y no hay mecanismo que forme trenes; el término
+#   de tráfico crea algo de eso, pero partiendo de un pelotón desparramado no
+#   puede fabricar un paquete.
+# - **No hay bloqueo propiamente dicho.** Un auto más rápido termina pasando, y lo
+#   que paga por el privilegio es el término de tráfico, no un modelo de
+#   adelantamiento.
+# - **Los rivales no reaccionan** y no pagan tráfico: cotizarles el tráfico
+#   necesitaría las trazas de sus propios vecinos, que es circular. Eso los
+#   favorece un poco, así que el puesto proyectado del auto focal es algo
+#   pesimista. Se aplica igual a todos los planes candidatos, así que no sesga la
+#   **elección** entre ellos.
+# - **El plan no se replanifica.** El optimizador sabe que puede salir un safety
+#   car y lo cotiza, pero devuelve un plan fijo. Un muro de verdad replanifica
+#   cuando se prende el tablero, y el 36% de las paradas reales de Zandvoort
+#   ocurren bajo neutralización.
+# - **Una sola foto.** Todo se calcula desde la vuelta 30.
+# - **B6.3.8 no se verifica.** La foto no registra qué juegos usó cada auto antes.
 # - **El algoritmo es propio, no DEAP.** La cátedra recomienda DEAP para
 #   computación evolutiva y está entre las dependencias del proyecto. Los
 #   operadores acá son a medida porque el genoma es de largo variable con
-#   restricciones de reparación, pero portarlo a DEAP sería alinearlo con la
-#   herramienta esperada.
+#   reparación, pero portarlo sería alinearlo con la herramienta esperada.
