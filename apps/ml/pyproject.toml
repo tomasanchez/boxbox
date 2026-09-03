@@ -27,6 +27,7 @@ notebooks = [
     "jupyterlab>=4.2",
     "ipykernel>=6.29",
     "seaborn>=0.13",
+    "jupytext>=1.19.5",
 ]
 # Bayesian networks (Unit 4) — optional because it is a declared future line,
 # not a commitment. pgmpy is what the cátedra's demo uses, not GeNIe.
