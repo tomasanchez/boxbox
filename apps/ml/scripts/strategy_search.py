@@ -143,6 +143,7 @@ for index, car in enumerate(GRID, start=1):
         "sd_position": round(found.sd_position, 2),
         "decision_value": round(found.decision_value, 3),
         "mean_points": round(found.mean_points, 2),
+        "optimism": round(found.optimism, 3),
         "objective": found.objective.value,
         "alternatives": alternatives,
     }
@@ -151,6 +152,7 @@ for index, car in enumerate(GRID, start=1):
         f"P{index:<3}{car.code}  {found.best.describe(car, MODEL.total_laps):<16}"
         f" pos {found.mean_position:5.2f} +-{found.sd_position:4.2f}"
         f"  pts {found.mean_points:5.2f}  vale {found.decision_value:5.2f}"
+        f"  opt {found.optimism:+5.2f}"
         f"  [{found.objective.value[:3]}]   {spread}"
     )
 
