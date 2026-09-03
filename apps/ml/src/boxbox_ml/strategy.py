@@ -141,12 +141,28 @@ TRAFFIC_PENALTY_S = (0.544, 0.214, 0.086, 0.042, 0.0)
 #: being drawn, which is both more physical and self-limiting.
 TRAFFIC_EPISODE_CUTS_UNUSED = (1.0, 1.0, 1.0, 1.0, 2.0, 3.0, 4.0, 6.0, 10.0)
 
-#: Traffic hurts more where passing is hard. Measured at +0.713 s/lap on the five
-#: circuits that rank hardest and +0.485 on the five easiest, against the 0.544
-#: pooled figure — so the multiplier runs about 1.31 to 0.89. Zandvoort is in the
-#: hard group.
-TRAFFIC_SCALE_HARD = 0.713 / 0.544
-TRAFFIC_SCALE_EASY = 0.485 / 0.544
+#: No circuit scaling, and the reason is a correction.
+#:
+#: A first pass bucketed circuits by *overtaking difficulty* and found +0.713
+#: s/lap in the hard group against +0.485 in the easy one, and concluded that
+#: difficulty modulates the traffic cost. Measuring the penalty **per circuit**
+#: directly does not support that. Across the 24 circuits the two correlate at
+#: Pearson 0.384 — but at **0.157 with Monaco removed**. The apparent
+#: relationship was almost entirely one circuit being extreme on both axes.
+#:
+#: The per-circuit penalty does vary enormously — Monaco 1.379 s/lap against Miami
+#: 0.218 — but it does not replicate: correlating each circuit's 2022-23 estimate
+#: against its 2024-26 one gives **−0.042**. Same lesson as the overtaking
+#: difficulty and the race-progress coefficient: with four or five races per
+#: circuit, the spread is noise.
+#:
+#: The bucketed figure also assigned Zandvoort a 1.31x multiplier because it ranks
+#: fifth hardest to pass. Its own measured penalty is 0.369, a multiplier of 0.68 —
+#: the bucket nearly doubled it in the wrong direction.
+#:
+#: So the pooled 0.544 is used everywhere. Monaco is the one circuit where a
+#: per-circuit figure would be defensible, and it is not the one being simulated.
+TRAFFIC_SCALE = 1.0
 
 #: Longest stint the evidence covers, per compound: the 90th percentile of
 #: measured stint length over 2,002 hard, 2,240 medium and 1,152 soft stints.
@@ -209,9 +225,9 @@ class RaceModel:
     )
     #: How many laps it lasts. Zandvoort median 5.5; the global median is 4.
     sc_laps: int = 5
-    #: Multiplier on the traffic penalty for this circuit. Zandvoort ranks fifth
-    #: hardest of the twenty-four measured, so it takes the hard-circuit figure.
-    traffic_scale: float = TRAFFIC_SCALE_HARD
+    #: Multiplier on the traffic penalty. One, because the per-circuit estimates
+    #: do not replicate across eras — see :data:`TRAFFIC_SCALE`.
+    traffic_scale: float = TRAFFIC_SCALE
 
 
 class Objective(StrEnum):
