@@ -82,8 +82,10 @@ for name, part in (("train", train), ("test", test)):
         f"  {name:<10}{part['round'].nunique():>7}{len(part):>9,}"
         f"{int(part['strategic_stop'].sum()):>8}{part['strategic_stop'].mean():>11.4f}"
     )
-print(f"\n  test share of races: {len(TEST_ROUNDS) / 12:.0%}   "
-      f"of laps: {len(test) / len(model_frame):.1%}")
+print(
+    f"\n  test share of races: {len(TEST_ROUNDS) / 12:.0%}   "
+    f"of laps: {len(test) / len(model_frame):.1%}"
+)
 
 # ------------------------------------------------------- 1. degradation regressor
 print("\n" + "=" * 86)
@@ -104,8 +106,7 @@ for tr_idx, va_idx in GroupKFold(n_splits=4).split(
     reg_train, reg_train[TARGET], reg_train["round"]
 ):
     model = LGBMRegressor(n_estimators=400, learning_rate=0.05, verbose=-1, random_state=0)
-    model.fit(reg_train.iloc[tr_idx][reg_features],
-              reg_train.iloc[tr_idx][TARGET])
+    model.fit(reg_train.iloc[tr_idx][reg_features], reg_train.iloc[tr_idx][TARGET])
     pred = model.predict(reg_train.iloc[va_idx][reg_features])
     cv_scores.append(mean_absolute_error(reg_train.iloc[va_idx][TARGET], pred))
 
@@ -131,16 +132,24 @@ y_test = test["strategic_stop"].astype(int)
 weight = float((y_train == 0).sum() / max((y_train == 1).sum(), 1))
 
 classifier = LGBMClassifier(
-    n_estimators=300, learning_rate=0.05, num_leaves=31,
-    scale_pos_weight=weight, verbose=-1, random_state=0,
+    n_estimators=300,
+    learning_rate=0.05,
+    num_leaves=31,
+    scale_pos_weight=weight,
+    verbose=-1,
+    random_state=0,
 )
 classifier.fit(train[feature_columns], y_train)
 proba = classifier.predict_proba(test[feature_columns])[:, 1]
 
 ap = average_precision_score(y_test, proba)
 precision, recall, thresholds = precision_recall_curve(y_test, proba)
-f1 = np.divide(2 * precision * recall, precision + recall,
-               out=np.zeros_like(precision), where=(precision + recall) > 0)
+f1 = np.divide(
+    2 * precision * recall,
+    precision + recall,
+    out=np.zeros_like(precision),
+    where=(precision + recall) > 0,
+)
 best = int(np.argmax(f1))
 threshold = thresholds[best] if best < len(thresholds) else 0.5
 

@@ -46,6 +46,7 @@ def canonical_circuit(name: str) -> str:
     """Map a FastF1 ``Location`` onto a stable circuit key."""
     return CIRCUIT_ALIASES.get(str(name).strip(), str(name).strip())
 
+
 #: Columns describing one race's neutralisation.
 RACE_COLUMNS = [
     "year",
@@ -107,9 +108,7 @@ def summarise_race(laps: pd.DataFrame) -> dict:
 
 def summarise_races(frame: pd.DataFrame) -> pd.DataFrame:
     """Apply :func:`summarise_race` to every race in a multi-race frame."""
-    records = [
-        summarise_race(race) for _, race in frame.groupby(["year", "round"], dropna=False)
-    ]
+    records = [summarise_race(race) for _, race in frame.groupby(["year", "round"], dropna=False)]
     return pd.DataFrame(records, columns=RACE_COLUMNS)
 
 
@@ -139,9 +138,7 @@ def fit_beta_prior(successes: np.ndarray, trials: np.ndarray) -> tuple[float, fl
 
     def negative_log_likelihood(params: np.ndarray) -> float:
         alpha, beta = np.exp(params)  # keep both strictly positive
-        return -float(
-            np.sum(betaln(s + alpha, n - s + beta) - betaln(alpha, beta))
-        )
+        return -float(np.sum(betaln(s + alpha, n - s + beta) - betaln(alpha, beta)))
 
     mean = float(np.sum(s) / np.sum(n))
     mean = min(max(mean, 1e-3), 1 - 1e-3)

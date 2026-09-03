@@ -1,37 +1,38 @@
 {
   "ANT": {
     "from_position": 1,
-    "plan": "H16-H26",
+    "plan": "H21-H21",
     "stops": [
       {
-        "lap": 46,
+        "lap": 51,
         "compound": "HARD"
       }
     ],
     "stop_distribution": {
-      "1": 0.812,
-      "2": 0.188
+      "1": 0.875,
+      "2": 0.094,
+      "3": 0.031
     },
-    "mean_position": 1.5,
-    "sd_position": 0.74,
-    "decision_value": 6.173,
-    "mean_points": 22.03,
+    "mean_position": 1.59,
+    "sd_position": 0.73,
+    "decision_value": 8.473,
+    "mean_points": 21.44,
     "objective": "points",
     "alternatives": [
       {
+        "plan": "H16-H26",
+        "stops": 1,
+        "score": 21.717
+      },
+      {
         "plan": "H14-H28",
         "stops": 1,
-        "score": 22.04
+        "score": 21.67
       },
       {
-        "plan": "H10-H32",
+        "plan": "H20-H22",
         "stops": 1,
-        "score": 21.857
-      },
-      {
-        "plan": "H19-H23",
-        "stops": 1,
-        "score": 21.72
+        "score": 21.627
       }
     ]
   },
@@ -45,75 +46,38 @@
       }
     ],
     "stop_distribution": {
-      "1": 0.75,
-      "2": 0.219,
-      "3": 0.031
+      "1": 0.844,
+      "2": 0.156
     },
-    "mean_position": 1.93,
-    "sd_position": 0.94,
-    "decision_value": 8.637,
-    "mean_points": 19.81,
+    "mean_position": 1.9,
+    "sd_position": 0.95,
+    "decision_value": 5.433,
+    "mean_points": 20.0,
     "objective": "points",
     "alternatives": [
       {
         "plan": "H18-H24",
         "stops": 1,
-        "score": 20.447
+        "score": 20.637
       },
       {
         "plan": "H19-H23",
         "stops": 1,
-        "score": 20.377
+        "score": 20.61
       },
       {
-        "plan": "H21-H21",
+        "plan": "H20-H22",
         "stops": 1,
-        "score": 20.007
+        "score": 20.32
       }
     ]
   },
   "RUS": {
     "from_position": 3,
-    "plan": "H15-H27",
+    "plan": "H14-H28",
     "stops": [
       {
-        "lap": 45,
-        "compound": "HARD"
-      }
-    ],
-    "stop_distribution": {
-      "1": 0.781,
-      "2": 0.219
-    },
-    "mean_position": 3.59,
-    "sd_position": 1.22,
-    "decision_value": 3.957,
-    "mean_points": 13.72,
-    "objective": "points",
-    "alternatives": [
-      {
-        "plan": "H14-H28",
-        "stops": 1,
-        "score": 14.29
-      },
-      {
-        "plan": "H19-H23",
-        "stops": 1,
-        "score": 14.257
-      },
-      {
-        "plan": "H12-H30",
-        "stops": 1,
-        "score": 14.233
-      }
-    ]
-  },
-  "PIA": {
-    "from_position": 4,
-    "plan": "H13-H29",
-    "stops": [
-      {
-        "lap": 43,
+        "lap": 44,
         "compound": "HARD"
       }
     ],
@@ -121,137 +85,171 @@
       "1": 0.812,
       "2": 0.188
     },
-    "mean_position": 2.78,
-    "sd_position": 1.03,
-    "decision_value": 4.28,
-    "mean_points": 16.2,
+    "mean_position": 3.51,
+    "sd_position": 1.27,
+    "decision_value": 4.157,
+    "mean_points": 14.06,
     "objective": "points",
     "alternatives": [
       {
-        "plan": "H6-H36",
+        "plan": "H19-H23",
         "stops": 1,
-        "score": 16.7
+        "score": 14.747
+      },
+      {
+        "plan": "H17-H25",
+        "stops": 1,
+        "score": 14.64
+      },
+      {
+        "plan": "H18-H24",
+        "stops": 1,
+        "score": 14.633
+      }
+    ]
+  },
+  "PIA": {
+    "from_position": 4,
+    "plan": "H14-H28",
+    "stops": [
+      {
+        "lap": 44,
+        "compound": "HARD"
+      }
+    ],
+    "stop_distribution": {
+      "1": 0.812,
+      "2": 0.188
+    },
+    "mean_position": 2.82,
+    "sd_position": 1.07,
+    "decision_value": 3.65,
+    "mean_points": 16.07,
+    "objective": "points",
+    "alternatives": [
+      {
+        "plan": "H15-H27",
+        "stops": 1,
+        "score": 16.667
+      },
+      {
+        "plan": "H13-H29",
+        "stops": 1,
+        "score": 16.643
       },
       {
         "plan": "H11-H31",
         "stops": 1,
-        "score": 16.673
-      },
-      {
-        "plan": "H14-H28",
-        "stops": 1,
-        "score": 16.603
+        "score": 16.53
       }
     ]
   },
   "LEC": {
     "from_position": 5,
-    "plan": "M6-H36",
+    "plan": "M12-H30",
     "stops": [
       {
-        "lap": 36,
+        "lap": 42,
         "compound": "HARD"
       }
     ],
     "stop_distribution": {
-      "1": 0.719,
-      "2": 0.219,
-      "3": 0.062
+      "1": 0.812,
+      "2": 0.156,
+      "4": 0.031
     },
-    "mean_position": 2.31,
-    "sd_position": 1.13,
-    "decision_value": 7.137,
-    "mean_points": 18.37,
+    "mean_position": 2.4,
+    "sd_position": 1.07,
+    "decision_value": 8.473,
+    "mean_points": 17.83,
     "objective": "points",
     "alternatives": [
       {
+        "plan": "M8-H34",
+        "stops": 1,
+        "score": 18.4
+      },
+      {
         "plan": "M7-H35",
         "stops": 1,
-        "score": 18.873
+        "score": 18.35
       },
       {
         "plan": "M9-H33",
         "stops": 1,
-        "score": 18.667
-      },
-      {
-        "plan": "M8-H34",
-        "stops": 1,
-        "score": 18.43
+        "score": 17.783
       }
     ]
   },
   "HAM": {
     "from_position": 6,
-    "plan": "H6-H36",
+    "plan": "H9-H33",
     "stops": [
       {
-        "lap": 36,
+        "lap": 39,
         "compound": "HARD"
       }
     ],
     "stop_distribution": {
-      "1": 0.594,
-      "2": 0.25,
-      "3": 0.156
+      "1": 0.688,
+      "2": 0.312
     },
-    "mean_position": 4.54,
-    "sd_position": 1.06,
-    "decision_value": 3.933,
-    "mean_points": 11.17,
+    "mean_position": 4.47,
+    "sd_position": 1.16,
+    "decision_value": 2.69,
+    "mean_points": 11.41,
     "objective": "points",
     "alternatives": [
       {
-        "plan": "H7-H35",
+        "plan": "H14-H28",
         "stops": 1,
-        "score": 11.74
+        "score": 11.8
       },
       {
-        "plan": "H7-H20-H15",
-        "stops": 2,
-        "score": 9.817
+        "plan": "H12-H30",
+        "stops": 1,
+        "score": 11.763
       },
       {
-        "plan": "H7-H24-S11",
-        "stops": 2,
-        "score": 9.72
+        "plan": "H8-H34",
+        "stops": 1,
+        "score": 11.743
       }
     ]
   },
   "LAW": {
     "from_position": 7,
-    "plan": "M6-H36",
+    "plan": "M11-H31",
     "stops": [
       {
-        "lap": 36,
+        "lap": 41,
         "compound": "HARD"
       }
     ],
     "stop_distribution": {
       "1": 0.75,
-      "2": 0.219,
-      "3": 0.031
+      "2": 0.25
     },
-    "mean_position": 6.76,
-    "sd_position": 0.78,
-    "decision_value": 2.257,
-    "mean_points": 6.47,
+    "mean_position": 6.82,
+    "sd_position": 0.67,
+    "decision_value": 1.15,
+    "mean_points": 6.36,
     "objective": "points",
     "alternatives": [
       {
-        "plan": "M8-H34",
-        "stops": 1,
-        "score": 6.78
-      },
-      {
         "plan": "M10-H32",
         "stops": 1,
-        "score": 6.76
+        "score": 6.573
       },
       {
-        "plan": "M7-H35",
+        "plan": "M9-H33",
         "stops": 1,
-        "score": 6.597
+        "score": 6.56
+      },
+      {
+        "plan": "M12-H30",
+        "stops": 1,
+        "score": 6.433
       }
     ]
   },
@@ -265,29 +263,30 @@
       }
     ],
     "stop_distribution": {
-      "1": 0.781,
-      "2": 0.219
+      "1": 0.625,
+      "2": 0.344,
+      "3": 0.031
     },
-    "mean_position": 9.63,
-    "sd_position": 1.45,
-    "decision_value": 1.62,
-    "mean_points": 1.8,
+    "mean_position": 9.87,
+    "sd_position": 1.68,
+    "decision_value": 1.783,
+    "mean_points": 1.66,
     "objective": "points",
     "alternatives": [
       {
+        "plan": "S6-H24-H12",
+        "stops": 2,
+        "score": 1.053
+      },
+      {
         "plan": "S6-S25-S11",
         "stops": 2,
-        "score": 0.753
+        "score": 0.97
       },
       {
-        "plan": "S6-H28-M8",
+        "plan": "S6-H20-S16",
         "stops": 2,
-        "score": 0.743
-      },
-      {
-        "plan": "S6-H25-S11",
-        "stops": 2,
-        "score": 0.64
+        "score": 0.953
       }
     ]
   },
@@ -301,65 +300,65 @@
       }
     ],
     "stop_distribution": {
-      "1": 0.844,
-      "2": 0.156
+      "1": 0.906,
+      "2": 0.094
     },
-    "mean_position": 16.43,
-    "sd_position": 0.99,
-    "decision_value": 0.943,
+    "mean_position": 16.32,
+    "sd_position": 0.98,
+    "decision_value": 1.043,
     "mean_points": 0.0,
     "objective": "position",
     "alternatives": [
       {
+        "plan": "S13-H29",
+        "stops": 1,
+        "score": -16.323
+      },
+      {
+        "plan": "S11-H31",
+        "stops": 1,
+        "score": -16.477
+      },
+      {
         "plan": "S14-M28",
         "stops": 1,
-        "score": -16.5
-      },
-      {
-        "plan": "S14-S6-H22",
-        "stops": 2,
-        "score": -17.213
-      },
-      {
-        "plan": "S14-H6-H22",
-        "stops": 2,
-        "score": -17.227
+        "score": -16.483
       }
     ]
   },
   "TSU": {
     "from_position": 10,
-    "plan": "H29-M13",
+    "plan": "H29-H13",
     "stops": [
       {
         "lap": 59,
-        "compound": "MEDIUM"
+        "compound": "HARD"
       }
     ],
     "stop_distribution": {
       "1": 0.938,
       "2": 0.062
     },
-    "mean_position": 11.37,
-    "sd_position": 1.09,
-    "decision_value": 0.317,
-    "mean_points": 0.24,
+    "mean_position": 11.22,
+    "sd_position": 1.18,
+    "decision_value": 0.41,
+    "mean_points": 0.33,
     "objective": "points",
     "alternatives": [
       {
-        "plan": "H29-H13",
-        "stops": 1,
-        "score": 0.297
-      },
-      {
         "plan": "H29-S13",
         "stops": 1,
-        "score": 0.29
+        "score": 0.41
       },
       {
-        "plan": "H27-H15",
+        "plan": "H28-H14",
         "stops": 1,
-        "score": 0.283
+        "score": 0.4
+      },
+      {
+        "plan": "H29-M13",
+        "stops": 1,
+        "score": 0.397
       }
     ]
   },
@@ -373,66 +372,66 @@
       }
     ],
     "stop_distribution": {
-      "1": 0.688,
-      "2": 0.312
+      "1": 0.656,
+      "2": 0.344
     },
-    "mean_position": 8.39,
-    "sd_position": 0.92,
-    "decision_value": 1.48,
-    "mean_points": 3.35,
+    "mean_position": 8.5,
+    "sd_position": 1.02,
+    "decision_value": 1.027,
+    "mean_points": 3.2,
     "objective": "points",
     "alternatives": [
       {
+        "plan": "M6-H20-H16",
+        "stops": 2,
+        "score": 2.823
+      },
+      {
+        "plan": "M6-H23-H13",
+        "stops": 2,
+        "score": 2.773
+      },
+      {
         "plan": "M6-H25-S11",
         "stops": 2,
-        "score": 2.46
-      },
-      {
-        "plan": "M6-H15-H21",
-        "stops": 2,
-        "score": 2.457
-      },
-      {
-        "plan": "M6-H11-H25",
-        "stops": 2,
-        "score": 2.427
+        "score": 2.743
       }
     ]
   },
   "GAS": {
     "from_position": 12,
-    "plan": "H7-H35",
+    "plan": "H9-H33",
     "stops": [
       {
-        "lap": 37,
+        "lap": 39,
         "compound": "HARD"
       }
     ],
     "stop_distribution": {
-      "1": 0.719,
-      "2": 0.25,
-      "4": 0.031
+      "1": 0.844,
+      "2": 0.125,
+      "3": 0.031
     },
-    "mean_position": 9.04,
-    "sd_position": 1.04,
-    "decision_value": 2.457,
-    "mean_points": 2.35,
+    "mean_position": 9.12,
+    "sd_position": 1.13,
+    "decision_value": 1.83,
+    "mean_points": 2.27,
     "objective": "points",
     "alternatives": [
       {
-        "plan": "H6-H36",
+        "plan": "H12-H30",
         "stops": 1,
-        "score": 2.437
+        "score": 2.37
       },
       {
-        "plan": "H8-H34",
+        "plan": "H17-H25",
         "stops": 1,
-        "score": 2.393
+        "score": 2.143
       },
       {
-        "plan": "H6-H26-S10",
-        "stops": 2,
-        "score": 1.51
+        "plan": "H12-M30",
+        "stops": 1,
+        "score": 2.033
       }
     ]
   },
@@ -446,65 +445,66 @@
       }
     ],
     "stop_distribution": {
-      "1": 0.688,
-      "2": 0.312
+      "1": 0.719,
+      "2": 0.281
     },
-    "mean_position": 9.65,
-    "sd_position": 1.22,
-    "decision_value": 1.16,
-    "mean_points": 1.62,
+    "mean_position": 9.88,
+    "sd_position": 1.29,
+    "decision_value": 1.04,
+    "mean_points": 1.41,
     "objective": "points",
     "alternatives": [
       {
         "plan": "M7-H35",
         "stops": 1,
-        "score": 1.75
+        "score": 1.723
       },
       {
-        "plan": "M12-H30",
+        "plan": "M8-H34",
         "stops": 1,
-        "score": 1.423
+        "score": 1.463
       },
       {
-        "plan": "M12-M30",
-        "stops": 1,
-        "score": 1.213
+        "plan": "M7-H24-S11",
+        "stops": 2,
+        "score": 0.987
       }
     ]
   },
   "ALB": {
     "from_position": 14,
-    "plan": "H20-H22",
+    "plan": "H6-H36",
     "stops": [
       {
-        "lap": 50,
+        "lap": 36,
         "compound": "HARD"
       }
     ],
     "stop_distribution": {
-      "1": 0.781,
-      "2": 0.219
+      "1": 0.719,
+      "2": 0.25,
+      "3": 0.031
     },
-    "mean_position": 12.86,
-    "sd_position": 1.14,
-    "decision_value": 1.907,
-    "mean_points": 0.02,
-    "objective": "position",
+    "mean_position": 13.57,
+    "sd_position": 1.85,
+    "decision_value": 0.117,
+    "mean_points": 0.06,
+    "objective": "points",
     "alternatives": [
       {
-        "plan": "H15-H27",
+        "plan": "H10-H32",
         "stops": 1,
-        "score": -12.777
+        "score": 0.027
       },
       {
-        "plan": "H17-H25",
+        "plan": "H31-M11",
         "stops": 1,
-        "score": -12.787
+        "score": 0.01
       },
       {
-        "plan": "H13-H29",
+        "plan": "H28-S14",
         "stops": 1,
-        "score": -12.983
+        "score": 0.003
       }
     ]
   },
@@ -518,38 +518,38 @@
       }
     ],
     "stop_distribution": {
-      "1": 0.812,
-      "2": 0.188
+      "1": 0.781,
+      "2": 0.219
     },
-    "mean_position": 14.35,
-    "sd_position": 1.8,
-    "decision_value": 1.78,
-    "mean_points": 0.02,
+    "mean_position": 14.26,
+    "sd_position": 1.94,
+    "decision_value": 1.56,
+    "mean_points": 0.03,
     "objective": "position",
     "alternatives": [
       {
-        "plan": "S6-H21-M15",
+        "plan": "S6-H29-H7",
         "stops": 2,
-        "score": -15.41
+        "score": -15.363
       },
       {
         "plan": "S6-S25-S11",
         "stops": 2,
-        "score": -15.547
+        "score": -15.37
       },
       {
-        "plan": "S6-M6-H30",
+        "plan": "S6-M25-S11",
         "stops": 2,
-        "score": -15.627
+        "score": -15.537
       }
     ]
   },
   "OCO": {
     "from_position": 16,
-    "plan": "H27-H15",
+    "plan": "H21-H21",
     "stops": [
       {
-        "lap": 57,
+        "lap": 51,
         "compound": "HARD"
       }
     ],
@@ -557,171 +557,172 @@
       "1": 0.938,
       "2": 0.062
     },
-    "mean_position": 18.6,
-    "sd_position": 0.55,
-    "decision_value": 0.313,
+    "mean_position": 18.41,
+    "sd_position": 0.6,
+    "decision_value": 0.387,
     "mean_points": 0.0,
     "objective": "position",
     "alternatives": [
       {
-        "plan": "H24-H18",
+        "plan": "H22-H20",
         "stops": 1,
-        "score": -18.527
+        "score": -18.347
       },
       {
-        "plan": "H24-M18",
+        "plan": "H23-H19",
         "stops": 1,
-        "score": -18.537
+        "score": -18.36
       },
       {
-        "plan": "H25-S17",
+        "plan": "H16-H26",
         "stops": 1,
-        "score": -18.54
+        "score": -18.37
       }
     ]
   },
   "STR": {
     "from_position": 17,
-    "plan": "H24-H18",
+    "plan": "H20-H22",
     "stops": [
       {
-        "lap": 54,
-        "compound": "HARD"
-      }
-    ],
-    "stop_distribution": {
-      "1": 0.906,
-      "2": 0.062,
-      "3": 0.031
-    },
-    "mean_position": 14.27,
-    "sd_position": 1.13,
-    "decision_value": 2.73,
-    "mean_points": 0.0,
-    "objective": "position",
-    "alternatives": [
-      {
-        "plan": "H23-H19",
-        "stops": 1,
-        "score": -14.127
-      },
-      {
-        "plan": "H26-H16",
-        "stops": 1,
-        "score": -14.13
-      },
-      {
-        "plan": "H21-H21",
-        "stops": 1,
-        "score": -14.133
-      }
-    ]
-  },
-  "COL": {
-    "from_position": 18,
-    "plan": "H6-H36",
-    "stops": [
-      {
-        "lap": 36,
-        "compound": "HARD"
-      }
-    ],
-    "stop_distribution": {
-      "1": 0.812,
-      "2": 0.188
-    },
-    "mean_position": 15.82,
-    "sd_position": 1.28,
-    "decision_value": 1.25,
-    "mean_points": 0.0,
-    "objective": "position",
-    "alternatives": [
-      {
-        "plan": "H7-H35",
-        "stops": 1,
-        "score": -15.643
-      },
-      {
-        "plan": "H10-H32",
-        "stops": 1,
-        "score": -15.74
-      },
-      {
-        "plan": "H8-H34",
-        "stops": 1,
-        "score": -15.88
-      }
-    ]
-  },
-  "PER": {
-    "from_position": 19,
-    "plan": "H25-H17",
-    "stops": [
-      {
-        "lap": 55,
-        "compound": "HARD"
-      }
-    ],
-    "stop_distribution": {
-      "1": 0.844,
-      "2": 0.156
-    },
-    "mean_position": 18.99,
-    "sd_position": 0.83,
-    "decision_value": 0.89,
-    "mean_points": 0.0,
-    "objective": "position",
-    "alternatives": [
-      {
-        "plan": "H21-H21",
-        "stops": 1,
-        "score": -18.847
-      },
-      {
-        "plan": "H19-H23",
-        "stops": 1,
-        "score": -18.85
-      },
-      {
-        "plan": "H23-H19",
-        "stops": 1,
-        "score": -18.857
-      }
-    ]
-  },
-  "BOT": {
-    "from_position": 20,
-    "plan": "H15-H27",
-    "stops": [
-      {
-        "lap": 45,
+        "lap": 50,
         "compound": "HARD"
       }
     ],
     "stop_distribution": {
       "1": 0.875,
-      "2": 0.125
+      "2": 0.094,
+      "3": 0.031
     },
-    "mean_position": 18.09,
-    "sd_position": 0.56,
-    "decision_value": 0.707,
+    "mean_position": 14.31,
+    "sd_position": 1.18,
+    "decision_value": 2.643,
     "mean_points": 0.0,
     "objective": "position",
     "alternatives": [
       {
-        "plan": "H18-H24",
+        "plan": "H21-H21",
         "stops": 1,
-        "score": -18.023
+        "score": -14.03
+      },
+      {
+        "plan": "H26-H16",
+        "stops": 1,
+        "score": -14.04
       },
       {
         "plan": "H19-H23",
         "stops": 1,
-        "score": -18.073
+        "score": -14.05
+      }
+    ]
+  },
+  "COL": {
+    "from_position": 18,
+    "plan": "H13-H29",
+    "stops": [
+      {
+        "lap": 43,
+        "compound": "HARD"
+      }
+    ],
+    "stop_distribution": {
+      "1": 0.906,
+      "2": 0.094
+    },
+    "mean_position": 15.82,
+    "sd_position": 1.21,
+    "decision_value": 1.107,
+    "mean_points": 0.0,
+    "objective": "position",
+    "alternatives": [
+      {
+        "plan": "H9-H33",
+        "stops": 1,
+        "score": -15.67
+      },
+      {
+        "plan": "H11-H31",
+        "stops": 1,
+        "score": -15.697
+      },
+      {
+        "plan": "H10-H32",
+        "stops": 1,
+        "score": -15.71
+      }
+    ]
+  },
+  "PER": {
+    "from_position": 19,
+    "plan": "H19-H23",
+    "stops": [
+      {
+        "lap": 49,
+        "compound": "HARD"
+      }
+    ],
+    "stop_distribution": {
+      "1": 0.906,
+      "2": 0.094
+    },
+    "mean_position": 18.72,
+    "sd_position": 0.83,
+    "decision_value": 0.877,
+    "mean_points": 0.0,
+    "objective": "position",
+    "alternatives": [
+      {
+        "plan": "H21-H21",
+        "stops": 1,
+        "score": -18.67
+      },
+      {
+        "plan": "H20-H22",
+        "stops": 1,
+        "score": -18.673
       },
       {
         "plan": "H16-H26",
         "stops": 1,
-        "score": -18.087
+        "score": -18.743
+      }
+    ]
+  },
+  "BOT": {
+    "from_position": 20,
+    "plan": "H17-H25",
+    "stops": [
+      {
+        "lap": 47,
+        "compound": "HARD"
+      }
+    ],
+    "stop_distribution": {
+      "1": 0.938,
+      "2": 0.031,
+      "3": 0.031
+    },
+    "mean_position": 18.08,
+    "sd_position": 0.59,
+    "decision_value": 1.087,
+    "mean_points": 0.0,
+    "objective": "position",
+    "alternatives": [
+      {
+        "plan": "H19-H23",
+        "stops": 1,
+        "score": -18.033
+      },
+      {
+        "plan": "H15-H27",
+        "stops": 1,
+        "score": -18.067
+      },
+      {
+        "plan": "H14-H28",
+        "stops": 1,
+        "score": -18.073
       }
     ]
   }

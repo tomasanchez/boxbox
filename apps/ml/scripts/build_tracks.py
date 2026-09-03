@@ -30,7 +30,7 @@ WANTED = {
 
 OUT = Path(__file__).resolve().parents[2] / "web" / "src" / "tracks.ts"
 
-HEADER = '''/**
+HEADER = """/**
  * Geometría real de los circuitos.
  *
  * Fuente: bacinger/f1-circuits (GeoJSON, derivado de OpenStreetMap, ODbL).
@@ -50,7 +50,7 @@ export interface Track {
   path: string
 }
 
-export const TRACKS: Record<string, Track> = {'''
+export const TRACKS: Record<string, Track> = {"""
 
 
 def to_svg_path(coordinates: list[list[float]]) -> str:

@@ -72,18 +72,27 @@ const CUT_AT = [0.05, 0.15, 0.25, 0.35, 0.5, 0.65, 0.75, 0.85, 0.95]
 /**
  * Ritmo de caída por compuesto, en s/vuelta, como cortes de la distribución
  * medida en Zandvoort. El del medio de cada fila es la mediana.
+ *
+ * Vueltos a derivar después de ajustar la corrección por avance de carrera en
+ * 0,056 s/vuelta, contra los 0,035 que estaban asumidos. El efecto es exacto y
+ * uniforme: cada pendiente sube la diferencia, 0,021 s/vuelta, porque la
+ * corrección es lineal en el número de vuelta. La **forma** de la distribución
+ * no cambia, así que sigue en pie que no es normal — pero la mediana del
+ * desgaste pasa de 0,034-0,040 a 0,055-0,062, y el percentil 5 del medio y del
+ * duro se mueve de claramente negativo a casi cero. Casi todas las «tandas que
+ * mejoraban» eran la corrección quedándose corta.
  */
 const WEAR_CUTS: Record<Compound, number[]> = {
   // 98 tandas.
-  SOFT: [-0.184, -0.0213, 0.011, 0.0184, 0.0401, 0.0549, 0.0769, 0.0875, 0.1382],
+  SOFT: [-0.163, -0.0003, 0.032, 0.0394, 0.0611, 0.0759, 0.0979, 0.1085, 0.1592],
   // 79 tandas.
-  MEDIUM: [-0.0273, 0.0112, 0.0211, 0.0337, 0.0415, 0.0539, 0.0675, 0.08, 0.1067],
+  MEDIUM: [-0.0063, 0.0322, 0.0421, 0.0547, 0.0625, 0.0749, 0.0885, 0.101, 0.1277],
   // 80 tandas.
-  HARD: [-0.0353, 0.0009, 0.0132, 0.0217, 0.0344, 0.0436, 0.0498, 0.0637, 0.0966],
+  HARD: [-0.0143, 0.0219, 0.0342, 0.0427, 0.0554, 0.0646, 0.0708, 0.0847, 0.1176],
   // Mojados: 201 y 17 tandas en todo el conjunto, ninguna en Zandvoort seco. Se
   // presta la del blando, que es la más dispersa de las secas, y queda dicho.
-  INTERMEDIATE: [-0.184, -0.0213, 0.011, 0.0184, 0.0401, 0.0549, 0.0769, 0.0875, 0.1382],
-  WET: [-0.184, -0.0213, 0.011, 0.0184, 0.0401, 0.0549, 0.0769, 0.0875, 0.1382],
+  INTERMEDIATE: [-0.163, -0.0003, 0.032, 0.0394, 0.0611, 0.0759, 0.0979, 0.1085, 0.1592],
+  WET: [-0.163, -0.0003, 0.032, 0.0394, 0.0611, 0.0759, 0.0979, 0.1085, 0.1592],
 }
 
 /** Pérdida de boxes en verde en Zandvoort, en segundos. 164 paradas medidas. */

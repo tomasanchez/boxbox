@@ -120,8 +120,10 @@ def evaluate(x: pd.DataFrame, target: pd.Series, group: pd.Series, n_splits: int
     ap = average_precision_score(target, oof)
     precision, recall, thresholds = precision_recall_curve(target, oof)
     f1 = np.divide(
-        2 * precision * recall, precision + recall,
-        out=np.zeros_like(precision), where=(precision + recall) > 0,
+        2 * precision * recall,
+        precision + recall,
+        out=np.zeros_like(precision),
+        where=(precision + recall) > 0,
     )
     best = int(np.argmax(f1))
     return {
@@ -165,9 +167,12 @@ for n_races in (3, 6, 9, 12):
 print("\n" + "=" * 78)
 print("### 5. WHAT THE MODEL LEANS ON")
 final = LGBMClassifier(
-    n_estimators=300, learning_rate=0.05, num_leaves=31,
+    n_estimators=300,
+    learning_rate=0.05,
+    num_leaves=31,
     scale_pos_weight=float((y == 0).sum() / max((y == 1).sum(), 1)),
-    verbose=-1, random_state=0,
+    verbose=-1,
+    random_state=0,
 )
 final.fit(X, y)
 importance = (

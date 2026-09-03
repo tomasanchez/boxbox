@@ -58,14 +58,20 @@ discrepancia manda el cuaderno, que muestra el cálculo.
 Vale la pena adelantarlo, porque es fácil leer un cuaderno buscando sólo lo que
 salió bien:
 
-- el coeficiente de combustible (`0,035 s/vuelta`) **corrige de menos** en 2026,
-  y por eso la mitad de la parrilla aparece con degradación plana o mejorando
-  (cuaderno 1, §1.4);
+- ~~el coeficiente de combustible corrige de menos~~ **corregido**: se ajustó en
+  `0,056 s/vuelta` sobre 1.627 carreras-piloto, contra los `0,035` asumidos, que
+  sacaban el 63% del efecto. Eso desbloqueó el diferencial de ritmo entre
+  compuestos —que resultó no existir de forma medible— y bajó del 42% al 37% la
+  fracción de la parrilla sin ventana proyectable (cuaderno 1, §1.4);
 - el ritmo de caída que trae cada auto en la foto **casi no predice** lo que la
   tanda va a hacer: correlación 0,183 (cuaderno 3, §3.4);
 - el desgaste medido **se aplana y baja** después de la vuelta 25, que es sesgo
   de supervivencia y no comportamiento del neumático (cuaderno 2, §2.5);
 - el ranking de dificultad para adelantar tiene una fiabilidad de **0,35**: dos
   tercios de la diferencia entre circuitos es ruido (cuaderno 2, §2.8);
-- el algoritmo genético **no le gana a una regla de servilleta** (cuaderno 3,
-  §3.7). Ese es el resultado más importante del conjunto.
+- el algoritmo genético **casi no le gana a una regla de servilleta** (cuaderno
+  3, §3.7). Ése es el resultado más importante del conjunto. Ajustar el
+  coeficiente de avance de carrera triplicó su ventaja en la vuelta 30 —de +0,065
+  a +0,179 puntos— pero sigue siendo menos de dos décimas, así que ese
+  coeficiente era parte de la planitud y no toda. El principal sospechoso que
+  queda es que el modelo no tiene tráfico.

@@ -109,8 +109,17 @@ print("\n" + "=" * 90)
 print("### CIRCUITS ON THE REMAINING 2026 CALENDAR")
 print("  Shrunk SC rate for the circuits still to be raced this season.\n")
 remaining = [
-    "Monza", "Barcelona", "Baku", "Sakhir", "Marina Bay",
-    "Austin", "Mexico City", "São Paulo", "Las Vegas", "Lusail", "Yas Island",
+    "Monza",
+    "Barcelona",
+    "Baku",
+    "Sakhir",
+    "Marina Bay",
+    "Austin",
+    "Mexico City",
+    "São Paulo",
+    "Las Vegas",
+    "Lusail",
+    "Yas Island",
 ]
 known = sc.index.tolist()
 for name in remaining:

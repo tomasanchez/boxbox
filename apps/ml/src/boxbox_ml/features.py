@@ -16,9 +16,37 @@ import pandas as pd
 
 from boxbox_ml import track_status
 
-#: Seconds per lap of fuel burn. The field converges on roughly 0.03–0.04 s/lap;
-#: it is a constant here and a fitted parameter in the notebook.
-FUEL_EFFECT_S_PER_LAP = 0.035
+#: Seconds per lap that a race lap gets faster as the race runs on — **fitted**,
+#: over 1,627 driver-races. See ``scripts/fit_fuel_effect.py`` and
+#: ``scripts/fit_race_progress.py``.
+#:
+#: The name says "race progress" and not "fuel" on purpose. Two things make later
+#: laps faster: the tank emptying, and the circuit rubbering in. Within one race
+#: both are linear in the lap number, so they are **not separately identifiable
+#: from lap timing** — a first attempt to split them with a driver-race fixed
+#: effect returned beta = −0.043 s/lap, which would mean carrying fuel makes a car
+#: faster. The fixed effect absorbs the race length, which was the only variation
+#: telling the two apart.
+#:
+#: For measuring tyre wear the split does not matter: what has to come off the lap
+#: time is the whole race-progress effect, whatever its cause. That combined
+#: figure *is* identifiable and comes out at **0.056 s/lap** (median over
+#: driver-races; p25 0.078, p75 0.036; 0.047–0.062 across the five seasons).
+#:
+#: The previous value of 0.035 was borrowed from the earlier era and removed only
+#: about **63%** of the effect. That under-correction is what left half the grid
+#: reading as flat or improving degradation at mid-race, and what made the hard
+#: compound look faster than the medium — the hard runs 25 laps later on average,
+#: so an under-correction hands it a spurious 0.3 s/lap.
+#:
+#: It is deliberately **global, not per circuit**. Per-circuit estimates range
+#: from 0.031 to 0.093, but they correlate only **0.150** across eras, so almost
+#: all of that spread is race-to-race noise — the same lesson as the per-circuit
+#: overtaking difficulty.
+RACE_PROGRESS_S_PER_LAP = 0.056
+
+#: Kept as the old name so nothing breaks silently. It never was only fuel.
+FUEL_EFFECT_S_PER_LAP = RACE_PROGRESS_S_PER_LAP
 
 #: Which *settled* lap of a stint is the degradation baseline. Counting settled
 #: laps rather than raw lap numbers matters: lap 1 of a race carries a PitOutTime
@@ -57,16 +85,25 @@ def mark_representative(laps: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def add_fuel_correction(laps: pd.DataFrame, beta: float = FUEL_EFFECT_S_PER_LAP) -> pd.DataFrame:
-    """Remove the fuel-load effect from lap times.
+def add_fuel_correction(laps: pd.DataFrame, beta: float = RACE_PROGRESS_S_PER_LAP) -> pd.DataFrame:
+    """Put every lap of a race on a common footing by removing race progress.
 
-    A car carrying fuel for ``n`` more laps is roughly ``beta * n`` seconds slower.
-    Subtracting that term puts every lap of the race on a common, light-fuel
-    footing, which is what makes a lap-8 time comparable to a lap-45 one.
+    A lap run with ``n`` laps still to go is roughly ``beta * n`` seconds slower
+    than the same lap would be at the end: the car is heavier and the circuit has
+    had less rubber laid on it. Subtracting that term is what makes a lap-8 time
+    comparable to a lap-45 one, and without it tyre wear is invisible — the tyre
+    slows the car down at about the same rate that race progress speeds it up.
+
+    ``beta`` is :data:`RACE_PROGRESS_S_PER_LAP`, fitted rather than assumed, and
+    it covers fuel **and** track evolution together because lap timing cannot
+    separate them. See that constant for why, and for what the old 0.035 cost.
+
+    The output column keeps the name ``lap_time_fuel_corrected`` for
+    compatibility with the notebooks and scripts already written against it.
     """
     out = laps.copy()
-    fuel_remaining = out["total_laps"] - out["LapNumber"]
-    out["lap_time_fuel_corrected"] = out["LapTime"] - beta * fuel_remaining
+    laps_remaining = out["total_laps"] - out["LapNumber"]
+    out["lap_time_fuel_corrected"] = out["LapTime"] - beta * laps_remaining
     return out
 
 

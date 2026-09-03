@@ -81,7 +81,10 @@ print(f"  {len(stops)} strategic stops across {stops.groupby(['year', 'round']).
 print("  Red-flag stops excluded — those are free and were measured separately.\n")
 
 table = stops.groupby("condition")["pit_loss"].agg(
-    stops="count", median="median", mean="mean", p25=lambda s: s.quantile(0.25),
+    stops="count",
+    median="median",
+    mean="mean",
+    p25=lambda s: s.quantile(0.25),
     p75=lambda s: s.quantile(0.75),
 )
 print(table.round(2).to_string())

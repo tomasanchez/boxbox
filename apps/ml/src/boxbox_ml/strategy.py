@@ -112,10 +112,18 @@ MAX_STINT: dict[str, int] = {"HARD": 41, "MEDIUM": 31, "SOFT": 25}
 
 #: Wear rate per compound, as cuts of the measured Zandvoort stint-slope
 #: distribution. 98, 79 and 80 stints. See ``docs/research/pace-noise.md``.
+#:
+#: Re-derived after ``RACE_PROGRESS_S_PER_LAP`` was fitted at 0.056 instead of the
+#: asserted 0.035. The effect is exact and uniform: every slope moves up by the
+#: difference, 0.021 s/lap, because the correction is linear in the lap number.
+#: The distribution's *shape* is untouched, so the non-normality finding stands —
+#: but the median wear rate goes from 0.034-0.040 to 0.055-0.062, and the fifth
+#: percentile of the medium and the hard moves from clearly negative to about
+#: zero. Most of the "stints that get faster" were the under-correction.
 WEAR_CUTS: dict[str, tuple[float, ...]] = {
-    "SOFT": (-0.184, -0.0213, 0.011, 0.0184, 0.0401, 0.0549, 0.0769, 0.0875, 0.1382),
-    "MEDIUM": (-0.0273, 0.0112, 0.0211, 0.0337, 0.0415, 0.0539, 0.0675, 0.08, 0.1067),
-    "HARD": (-0.0353, 0.0009, 0.0132, 0.0217, 0.0344, 0.0436, 0.0498, 0.0637, 0.0966),
+    "SOFT": (-0.163, -0.0003, 0.032, 0.0394, 0.0611, 0.0759, 0.0979, 0.1085, 0.1592),
+    "MEDIUM": (-0.0063, 0.0322, 0.0421, 0.0547, 0.0625, 0.0749, 0.0885, 0.101, 0.1277),
+    "HARD": (-0.0143, 0.0219, 0.0342, 0.0427, 0.0554, 0.0646, 0.0708, 0.0847, 0.1176),
 }
 
 

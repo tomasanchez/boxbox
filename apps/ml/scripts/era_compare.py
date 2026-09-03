@@ -81,15 +81,23 @@ stints["stops"] = stints["stints"] - 1
 print(stints.groupby("era")["stops"].agg(["count", "mean", "median"]).round(3).to_string())
 print("\n  distribution of stop counts (% of driver-races):")
 dist = (
-    stints.groupby("era")["stops"].value_counts(normalize=True).mul(100).round(1).unstack().fillna(0)
+    stints.groupby("era")["stops"]
+    .value_counts(normalize=True)
+    .mul(100)
+    .round(1)
+    .unstack()
+    .fillna(0)
 )
 print(dist.to_string())
 
 print(f"\n{'=' * 78}")
 print("### LABEL BALANCE (the positive class)")
-print(frame.groupby("era")["boxed"].agg(laps="count", boxed="sum").assign(
-    pct=lambda d: (100 * d["boxed"] / d["laps"]).round(2)
-).to_string())
+print(
+    frame.groupby("era")["boxed"]
+    .agg(laps="count", boxed="sum")
+    .assign(pct=lambda d: (100 * d["boxed"] / d["laps"]).round(2))
+    .to_string()
+)
 
 print(f"\n{'=' * 78}")
 print("### NEUTRALISED LAPS (SC / VSC) — the cheap-stop windows")

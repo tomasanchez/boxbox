@@ -184,14 +184,54 @@ print(
 )
 
 # %% [markdown]
-# ## 1.4 Corrección de combustible
+# ## 1.4 Corrección por avance de carrera
 #
-# Un auto que lleva combustible para `n` vueltas más es aproximadamente
-# `beta * n` segundos más lento. Sin descontarlo, toda vuelta tardía parece
-# rápida y toda vuelta temprana parece lenta, y la degradación queda enmascarada.
+# Una vuelta corrida con `n` vueltas por delante es aproximadamente `beta * n`
+# segundos más lenta que la misma vuelta al final. Sin descontarlo, la
+# degradación queda **invisible**: el neumático frena al auto a más o menos el
+# mismo ritmo al que el avance de la carrera lo acelera.
 #
-# **Es la suposición más débil del proyecto.** `beta = 0,035 s/vuelta` es una
-# constante calibrada sobre la era anterior, no un parámetro ajustado a 2026.
+# El nombre dice «avance de carrera» y no «combustible» a propósito, y esa es la
+# historia de esta sección.
+
+# %% [markdown]
+# ### Por qué no se puede separar el combustible de la evolución de la pista
+#
+# Dos cosas hacen que las vueltas tardías sean más rápidas: el tanque que se
+# vacía y la pista que se va engomando. Dentro de una misma carrera **las dos son
+# lineales en el número de vuelta**, así que son indistinguibles.
+#
+# Lo que las separaría es el largo de la carrera: en la vuelta 30 de una de 44
+# quedan 14 vueltas de combustible con la pista al 68% de su evolución, y en la
+# vuelta 30 de una de 78 quedan 48 con la pista al 38%.
+#
+# El primer intento fue meter un efecto fijo por carrera-piloto y regresar contra
+# las dos variables juntas. **No funciona, y no falla a los gritos**: devuelve un
+# número confiado e imposible. Con el largo de carrera fijo dentro de una
+# carrera-piloto, `vueltas_restantes = L − L·fracción`, o sea que los dos
+# regresores son afines: su correlación intra-carrera es exactamente −1,000. El
+# efecto fijo absorbe `L`, que era justamente la variación que los identificaba.
+# El ajuste devolvió **beta = −0,043 s/vuelta** —llevar combustible te haría más
+# rápido— y estimaciones por temporada desparramadas de −0,12 a −0,02.
+#
+# Para medir desgaste la separación **no hace falta**: lo que hay que sacarle al
+# tiempo de vuelta es el efecto completo, sea cual sea su causa. Y ese efecto
+# combinado sí se identifica, ajustando dentro de cada carrera-piloto la
+# pendiente contra el número de vuelta usando las vueltas de goma nueva de tandas
+# distintas.
+#
+# El resultado, sobre **1.627 carreras-piloto**: `beta = 0,056 s/vuelta`
+# (p25 0,078, p75 0,036), estable entre 0,047 y 0,062 en las cinco temporadas.
+# Los 0,035 que estaban asumidos sacaban apenas el **63%** del efecto.
+#
+# Se usa un número **global y no por circuito**: las estimaciones por circuito van
+# de 0,031 a 0,093, pero correlacionan sólo **0,150** entre eras, así que casi
+# toda esa diferencia es ruido. Reproducible con
+# `scripts/fit_fuel_effect.py` y `scripts/fit_race_progress.py`.
+
+# %%
+print(f"beta en uso: {features.RACE_PROGRESS_S_PER_LAP} s/vuelta")
+print("antes:       0.035 s/vuelta (asumido, prestado de la era anterior)")
 
 # %%
 fuelled = features.add_fuel_correction(marked)
@@ -219,10 +259,40 @@ for columna, etiqueta in (("LapTime", "sin corregir"), ("lap_time_fuel_corrected
     pendiente = np.polyfit(tendencia.index, tendencia.to_numpy(), 1)[0]
     print(f"{etiqueta:12s} pendiente {pendiente:+.4f} s por vuelta de carrera")
 
-print("\nSi la corrección fuera exacta, la pendiente corregida sería del orden del")
-print("desgaste medio y positiva. Que quede cerca de cero o negativa es la señal")
-print("de que beta corrige de menos, y es la causa de que la mitad de la parrilla")
-print("aparezca con degradación plana o mejorando a mitad de carrera.")
+print("\ncon los 0,035 asumidos la corregida quedaba en +0,0013 s/vuelta, o sea plana:")
+print("esa es la firma de una corrección que se queda corta. Con el beta ajustado")
+print("queda claramente positiva, del orden del desgaste medio.")
+
+# %% [markdown]
+# ### Qué desbloqueó el ajuste, medido
+#
+# Dos cosas estaban bloqueadas por esta constante, y una se arregló del todo.
+#
+# **El diferencial de ritmo entre compuestos.** Comparando dentro del mismo
+# piloto y la misma carrera, con goma joven:
+#
+# | | Con 0,035 | Con 0,056 |
+# |---|---|---|
+# | medio − duro | **+0,189** | −0,024 |
+# | blando − medio | −0,160 | −0,015 |
+# | blando − duro | +0,187 | +0,040 |
+#
+# Con la constante vieja el duro salía sistemáticamente el más rápido de los
+# tres, en las cinco temporadas. No era un dato del neumático: el duro se corre
+# en la mediana del 61% de la carrera y el medio en el 26%, veinticinco vueltas
+# de diferencia, y una corrección que se queda corta le regala esa ventaja al que
+# corre más tarde. Con el beta ajustado los tres quedan **a menos de 0,04 s/vuelta
+# entre sí, con los cuartiles cruzando el cero**: no hay diferencia de ritmo
+# medible entre compuestos secos. Difieren en desgaste y en vida, no en ritmo con
+# goma nueva.
+#
+# **Las ventanas de parada, a medias.** Los autos con ritmo de caída plano o
+# negativo —para los que `insights.pit_window` no puede proyectar nada— bajan del
+# **42,3% al 36,8%** de las vueltas, y la mediana del ritmo pasa de +0,028 a
+# +0,049. En la vuelta 30 de Zandvoort 2026, 13 de 18 autos cronometrados tienen
+# ventana proyectable donde antes era cerca de la mitad. El 37% que queda es otra
+# causa: la pendiente rodante de cinco vueltas es ruidosa de por sí, con un
+# desvío de 0,466 contra 0,127 de lo que realmente pasa (cuaderno 3, §3.4).
 
 # %% [markdown]
 # ## 1.5 La fuga de datos que hubo que tapar

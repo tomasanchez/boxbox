@@ -88,8 +88,10 @@ def evaluate(target: pd.Series) -> dict:
 
     precision, recall, _ = precision_recall_curve(target, oof)
     f1 = np.divide(
-        2 * precision * recall, precision + recall,
-        out=np.zeros_like(precision), where=(precision + recall) > 0,
+        2 * precision * recall,
+        precision + recall,
+        out=np.zeros_like(precision),
+        where=(precision + recall) > 0,
     )
     best = int(np.argmax(f1))
     return {
@@ -103,8 +105,10 @@ def evaluate(target: pd.Series) -> dict:
 
 print("=" * 78)
 print("### TARGET HORIZON SWEEP — identical features, only the label changes")
-print(f"\n  {'horizon':>8} {'pos rate':>9} {'PR-AUC':>8} {'chance':>8} {'lift':>6} "
-      f"{'best F1':>8} {'prec':>7} {'recall':>7}")
+print(
+    f"\n  {'horizon':>8} {'pos rate':>9} {'PR-AUC':>8} {'chance':>8} {'lift':>6} "
+    f"{'best F1':>8} {'prec':>7} {'recall':>7}"
+)
 for horizon in HORIZONS:
     target = model_frame[f"box_within_{horizon}"].astype(int)
     scores = evaluate(target)

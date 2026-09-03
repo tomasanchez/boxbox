@@ -41,9 +41,7 @@ print(f"  {total_laps} laps  |  {frame['Driver'].nunique()} drivers  |  {len(fra
 print("\n" + "=" * 78)
 print("### 1. WHAT ACTUALLY HAPPENED — neutralisation timeline")
 
-by_lap = (
-    frame.groupby("LapNumber")[["yellow", "sc", "vsc", "vsc_ending", "red"]].max().astype(int)
-)
+by_lap = frame.groupby("LapNumber")[["yellow", "sc", "vsc", "vsc_ending", "red"]].max().astype(int)
 active = by_lap[by_lap.sum(axis=1) > 0]
 
 
@@ -67,9 +65,11 @@ for flag in ("red", "sc", "vsc", "yellow"):
     label = {"red": "RED FLAG", "sc": "Safety Car", "vsc": "VSC", "yellow": "Yellow"}[flag]
     print(f"  {label:<12} {len(spans):>2} period(s)  laps: {', '.join(spans) if spans else '-'}")
 
-neutralised_laps = set(by_lap[(by_lap['sc'] | by_lap['vsc'] | by_lap['red']) > 0].index.astype(int))
-print(f"\n  laps under some neutralisation: {len(neutralised_laps)}/{total_laps} "
-      f"({100 * len(neutralised_laps) / total_laps:.0f}%)")
+neutralised_laps = set(by_lap[(by_lap["sc"] | by_lap["vsc"] | by_lap["red"]) > 0].index.astype(int))
+print(
+    f"\n  laps under some neutralisation: {len(neutralised_laps)}/{total_laps} "
+    f"({100 * len(neutralised_laps) / total_laps:.0f}%)"
+)
 
 print("\n  --- race control messages mentioning the red flag / SC / VSC ---")
 rcm = session.race_control_messages
@@ -114,8 +114,10 @@ boxed = frame[frame["boxed"]].copy()
 boxed["on_neutralised"] = boxed["LapNumber"].astype(int).isin(neutralised_laps)
 share = boxed["on_neutralised"].mean()
 print(f"  pit stops at Zandvoort:                 {len(boxed)}")
-print(f"  taken on a neutralised lap:             {int(boxed['on_neutralised'].sum())} "
-      f"({100 * share:.0f}%)")
+print(
+    f"  taken on a neutralised lap:             {int(boxed['on_neutralised'].sum())} "
+    f"({100 * share:.0f}%)"
+)
 print(f"  neutralised share of all laps:          {100 * len(neutralised_laps) / total_laps:.0f}%")
 print("\n  If stops were tyre-driven they would land on neutralised laps at roughly")
 print("  the background rate. Landing far above it means the field is reacting to")

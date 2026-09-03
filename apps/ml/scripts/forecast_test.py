@@ -102,9 +102,7 @@ print("### STINT LENGTH, LEAVE-ONE-RACE-OUT (MAE in laps, lower is better)")
 
 base = leave_one_race_out(BASE).rename(columns={"mae": "mae_base"})
 with_fp = leave_one_race_out(WITH_FP).rename(columns={"mae": "mae_with_fp"})
-merged = base.merge(
-    with_fp[["round", "mae_with_fp"]], on="round"
-)
+merged = base.merge(with_fp[["round", "mae_with_fp"]], on="round")
 merged["fp_helps"] = merged["mae_with_fp"] < merged["mae_base"]
 print(merged.round(2).to_string(index=False))
 
@@ -128,11 +126,15 @@ per_driver = (
     .reset_index()
 )
 per_driver["stops"] -= 1
-fp_race = fp.groupby(["year", "round"]).agg(
-    fp_deg_mean=("fp_deg_slope", "mean"),
-    fp_deg_spread=("fp_deg_slope", lambda s: s.max() - s.min()),
-    fp_runs=("fp_runs", "sum"),
-).reset_index()
+fp_race = (
+    fp.groupby(["year", "round"])
+    .agg(
+        fp_deg_mean=("fp_deg_slope", "mean"),
+        fp_deg_spread=("fp_deg_slope", lambda s: s.max() - s.min()),
+        fp_runs=("fp_runs", "sum"),
+    )
+    .reset_index()
+)
 per_driver = per_driver.merge(fp_race, on=["year", "round"], how="left")
 
 rows = []

@@ -101,17 +101,30 @@ def score_classifier(train: pd.DataFrame, cols: list[str], label: str) -> dict:
     y_train = train["strategic_stop"].astype(int)
     y_test = test["strategic_stop"].astype(int)
     model = LGBMClassifier(
-        n_estimators=300, learning_rate=0.05, num_leaves=31, verbose=-1, random_state=0,
+        n_estimators=300,
+        learning_rate=0.05,
+        num_leaves=31,
+        verbose=-1,
+        random_state=0,
         scale_pos_weight=float((y_train == 0).sum() / max((y_train == 1).sum(), 1)),
     )
     model.fit(train[cols], y_train)
     proba = model.predict_proba(test[cols])[:, 1]
     ap = average_precision_score(y_test, proba)
     precision, recall, _ = precision_recall_curve(y_test, proba)
-    f1 = np.divide(2 * precision * recall, precision + recall,
-                   out=np.zeros_like(precision), where=(precision + recall) > 0)
-    return {"modelo": label, "vueltas": len(train), "PR-AUC": ap,
-            "lift": ap / y_test.mean(), "F1": f1.max()}
+    f1 = np.divide(
+        2 * precision * recall,
+        precision + recall,
+        out=np.zeros_like(precision),
+        where=(precision + recall) > 0,
+    )
+    return {
+        "modelo": label,
+        "vueltas": len(train),
+        "PR-AUC": ap,
+        "lift": ap / y_test.mean(),
+        "F1": f1.max(),
+    }
 
 
 def score_regressor(train: pd.DataFrame, cols: list[str], label: str) -> dict:
@@ -123,8 +136,13 @@ def score_regressor(train: pd.DataFrame, cols: list[str], label: str) -> dict:
     model.fit(tr[cols], tr[target])
     mae = mean_absolute_error(te[target], model.predict(te[cols]))
     naive = mean_absolute_error(te[target], np.full(len(te), tr[target].median()))
-    return {"modelo": label, "vueltas": len(tr), "MAE": mae, "MAE ingenuo": naive,
-            "gana": mae < naive}
+    return {
+        "modelo": label,
+        "vueltas": len(tr),
+        "MAE": mae,
+        "MAE ingenuo": naive,
+        "gana": mae < naive,
+    }
 
 
 era_features = [*base_features, "season", "nueva_era"]
