@@ -210,7 +210,73 @@ class RaceModel:
     #: The same under a safety car. 264 stops, and far wider: timing matters.
     pit_loss_sc: tuple[float, float, float] = (7.5, 19.5, 31.5)
     #: Probability a race sees at least one safety car. 103 races; Zandvoort 0.600.
+    #: Kept for the older single-period draw; the richer model below supersedes it.
     p_safety_car: float = 0.600
+
+    #: How many periods of each kind a race sees, as probabilities over 0, 1, 2
+    #: and 3+. Measured over 103 races, wet ones included — a safety car is a
+    #: safety car whether it rains or not.
+    #:
+    #: The single most important number here is not any one of these: it is that
+    #: **44.7% of races see two or more neutralisation periods**, and the previous
+    #: model drew exactly one. Monza 2026 had a red flag on lap 3 and a VSC on lap
+    #: 27, and the model could represent neither the pair nor the red flag.
+    n_red: tuple[float, ...] = (0.883, 0.107, 0.000, 0.010)
+    n_sc: tuple[float, ...] = (0.456, 0.427, 0.087, 0.030)
+    n_vsc: tuple[float, ...] = (0.524, 0.320, 0.126, 0.030)
+
+    #: Where each kind starts, as cuts of the share-of-distance distribution.
+    #:
+    #: Red flags and safety cars are **front-loaded**: half of each begins in the
+    #: first third of the race, and the lower quartile of a red flag is lap 3 of
+    #: 100. That is where the cars are packed and where they crash. VSC is much
+    #: flatter — 36% first third, 29% middle, 36% last — because it is called for
+    #: debris and stopped cars, which happen anywhere.
+    red_start_cuts: tuple[float, ...] = (
+        0.017,
+        0.019,
+        0.028,
+        0.051,
+        0.286,
+        0.465,
+        0.764,
+        0.878,
+        0.949,
+    )
+    sc_start_cuts_full: tuple[float, ...] = (
+        0.014,
+        0.018,
+        0.033,
+        0.120,
+        0.306,
+        0.457,
+        0.619,
+        0.744,
+        0.877,
+    )
+    vsc_start_cuts: tuple[float, ...] = (
+        0.027,
+        0.102,
+        0.218,
+        0.314,
+        0.414,
+        0.667,
+        0.715,
+        0.792,
+        0.937,
+    )
+
+    #: Median duration in laps: a red flag stops the race for one lap of racing,
+    #: a safety car eats four, a VSC three.
+    red_laps: int = 1
+    vsc_laps: int = 3
+
+    #: What a stop costs under a red flag. The race is stopped and the tyres are
+    #: changed in the pit lane at no cost in track position — this is the case the
+    #: model was missing entirely, and at Monza 2026 it applied to 22 of 32 stops.
+    pit_loss_red: tuple[float, float, float] = (0.0, 0.0, 0.5)
+    #: And under a VSC. 199 stops measured.
+    pit_loss_vsc: tuple[float, float, float] = (14.8, 18.8, 27.1)
     #: Where it starts, as cuts of the share-of-distance distribution. 72 periods.
     sc_start_cuts: tuple[float, ...] = (
         0.014,
@@ -389,13 +455,78 @@ def _traffic_penalty(
     return np.where(np.isfinite(gap), penalty, 0.0)
 
 
+#: Codes for what flag a lap is run under, ordered by how cheap a stop is on it.
+GREEN, VSC_FLAG, SC_FLAG, RED_FLAG = 0, 1, 2, 3
+
+
+def _draw_count(weights: Sequence[float], rng: np.random.Generator, draws: int) -> np.ndarray:
+    """How many periods of one kind each drawn race gets."""
+    return rng.choice(len(weights), size=draws, p=np.asarray(weights) / np.sum(weights))
+
+
+def draw_neutralisations(model: RaceModel, rng: np.random.Generator, draws: int) -> np.ndarray:
+    """What flag every lap of every drawn race is run under.
+
+    Replaces the old single-safety-car draw. Each race gets its own number of red
+    flags, safety cars and VSCs from the measured distributions, each starting
+    where they actually start and lasting as long as they actually last.
+
+    That matters more than it sounds. Nearly half of real races see two or more
+    periods, and the previous model drew one; and red flags were not represented
+    at all, though a red-flag tyre change is **free** and is the single cheapest
+    thing that can happen to a strategy. Monza 2026 turned on exactly that.
+
+    Where periods overlap, the cheaper flag wins: a lap under both a safety car
+    and a red flag is a red-flag lap, because that is what the stop costs.
+
+    Returns:
+        ``(total_laps + 1, draws)`` of flag codes, indexed by lap number.
+    """
+    flags = np.zeros((model.total_laps + 1, draws), dtype=np.int8)
+
+    for weights, cuts, length, code in (
+        (model.n_vsc, model.vsc_start_cuts, model.vsc_laps, VSC_FLAG),
+        (model.n_sc, model.sc_start_cuts_full, model.sc_laps, SC_FLAG),
+        (model.n_red, model.red_start_cuts, model.red_laps, RED_FLAG),
+    ):
+        counts = _draw_count(weights, rng, draws)
+        for period in range(int(counts.max()) if counts.size else 0):
+            active = counts > period
+            if not active.any():
+                continue
+            share = _from_cuts(cuts, rng.random(draws))
+            start = np.clip(np.rint(share * model.total_laps).astype(int), 1, model.total_laps)
+            for offset in range(length):
+                lap = np.clip(start + offset, 0, model.total_laps)
+                # The cheaper flag wins where they overlap.
+                np.maximum.at(flags, (lap[active], np.flatnonzero(active)), code)
+
+    return flags
+
+
+def _pit_cost(
+    flags: np.ndarray, lap: int, model: RaceModel, rng: np.random.Generator, draws: int
+) -> np.ndarray:
+    """What a stop on ``lap`` costs in each drawn race, given the flag it meets."""
+    green = _triangular(rng, model.pit_loss_green, draws)
+    vsc = _triangular(rng, model.pit_loss_vsc, draws)
+    sc = _triangular(rng, model.pit_loss_sc, draws)
+    red = _triangular(rng, model.pit_loss_red, draws)
+
+    at_lap = flags[min(lap, flags.shape[0] - 1)]
+    cost = green.copy()
+    cost = np.where(at_lap == VSC_FLAG, vsc, cost)
+    cost = np.where(at_lap == SC_FLAG, sc, cost)
+    return np.where(at_lap == RED_FLAG, red, cost)
+
+
 def race_trace(
     plan: Plan,
     car: Car,
     model: RaceModel,
     rng: np.random.Generator,
     draws: int,
-    sc_lap: np.ndarray | None = None,
+    flags: np.ndarray | None = None,
     rival_trace: np.ndarray | None = None,
 ) -> np.ndarray:
     """Cumulative time at the end of every remaining lap, across ``draws`` races.
@@ -416,10 +547,10 @@ def race_trace(
         model: The measured distributions to draw from.
         rng: Generator, so a reported plan is reproducible.
         draws: How many races to run.
-        sc_lap: Lap the safety car starts on in each draw, ``-1`` for none. Shared
-            across cars so every car in a given draw meets the *same* race — a
-            safety car that helps one hurts another, and drawing it per car would
-            wash that out.
+        flags: ``(total_laps + 1, draws)`` from :func:`draw_neutralisations`.
+            Shared across cars so every car in a given draw meets the *same* race
+            — a safety car that helps one hurts another, and drawing it per car
+            would wash that out. ``None`` runs every race green.
         rival_trace: ``(rivals, laps + 1, draws)`` for pricing traffic. Omit to
             leave the traffic term out entirely.
 
@@ -456,14 +587,7 @@ def race_trace(
 
         stop = stop_at.get(lap + 1)
         if stop is not None:
-            under_sc = (
-                np.zeros(draws, dtype=bool)
-                if sc_lap is None
-                else (sc_lap >= 0) & (stop.lap >= sc_lap) & (stop.lap < sc_lap + model.sc_laps)
-            )
-            green = _triangular(rng, model.pit_loss_green, draws)
-            neutral = _triangular(rng, model.pit_loss_sc, draws)
-            total = total + np.where(under_sc, neutral, green)
+            total = total + _pit_cost(flags, stop.lap, model, rng, draws)
 
             # Fresh rubber: the deficit restarts, which is the gain from stopping.
             rate = _from_cuts(model.wear_cuts[stop.compound], rng.random(draws))
@@ -480,11 +604,11 @@ def race_time(
     model: RaceModel,
     rng: np.random.Generator,
     draws: int,
-    sc_lap: np.ndarray | None = None,
+    flags: np.ndarray | None = None,
     rival_trace: np.ndarray | None = None,
 ) -> np.ndarray:
     """Finishing time only. See :func:`race_trace` for what it is made of."""
-    return race_trace(plan, car, model, rng, draws, sc_lap, rival_trace)[-1]
+    return race_trace(plan, car, model, rng, draws, flags, rival_trace)[-1]
 
 
 def _repair(stops: Sequence[Stop], car: Car, model: RaceModel) -> tuple[Stop, ...]:
@@ -752,8 +876,8 @@ def optimise(
     if objective is Objective.ADAPTIVE:
         objective = Objective.POINTS
 
-    # One safety car per drawn race, shared by everyone in it.
-    sc_lap = draw_safety_car(model, rng, draws)
+    # Every neutralisation the race throws, shared by everyone in it.
+    flags = draw_neutralisations(model, rng, draws)
 
     # Rivals get the full lap-by-lap trace, not only a finishing time, because
     # pricing traffic needs to know where they are on the lap the focal car stops.
@@ -762,7 +886,7 @@ def optimise(
     rival_trace = (
         np.stack(
             [
-                race_trace(plan, rival, model, rng, draws, sc_lap)
+                race_trace(plan, rival, model, rng, draws, flags)
                 for rival, plan in zip(rivals, rival_plans, strict=True)
             ]
         )
@@ -787,7 +911,7 @@ def optimise(
         # reduces the error on the *difference* between two plans, which is the
         # only quantity a search actually uses.
         common = np.random.default_rng(seed + 4441)
-        times = race_time(plan, car, model, common, draws, sc_lap, rival_trace)
+        times = race_time(plan, car, model, common, draws, flags, rival_trace)
         return _score(times, rival_times, objective)
 
     # Seed the population with the obvious plans as well as random ones.
@@ -832,18 +956,18 @@ def optimise(
     # maximum of many noisy estimates is biased upward, so the in-sample figure
     # flatters whatever won — exactly like scoring a model on its training set.
     holdout = np.random.default_rng(seed + 9973)
-    holdout_sc = draw_safety_car(model, holdout, draws)
+    holdout_flags = draw_neutralisations(model, holdout, draws)
     holdout_rivals = (
         np.stack(
             [
-                race_trace(plan, rival, model, holdout, draws, holdout_sc)
+                race_trace(plan, rival, model, holdout, draws, holdout_flags)
                 for rival, plan in zip(rivals, rival_plans, strict=True)
             ]
         )
         if rivals
         else np.empty((0, model.total_laps - car.from_lap + 1, draws))
     )
-    holdout_times = race_time(best, car, model, holdout, draws, holdout_sc, holdout_rivals)
+    holdout_times = race_time(best, car, model, holdout, draws, holdout_flags, holdout_rivals)
     holdout_rival_times = holdout_rivals[:, -1, :] if rivals else np.empty((0, draws))
     score = _score(holdout_times, holdout_rival_times, objective)
 
@@ -867,7 +991,7 @@ def optimise(
     for plan, _ in scored:
         counts[plan.count] = counts.get(plan.count, 0.0) + 1.0 / len(scored)
 
-    position = _positions(race_time(best, car, model, rng, draws, sc_lap, rival_trace), rival_times)
+    position = _positions(race_time(best, car, model, rng, draws, flags, rival_trace), rival_times)
 
     seen = {best.stops}
     alternatives: list[tuple[Plan, float]] = []

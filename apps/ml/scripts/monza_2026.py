@@ -45,8 +45,8 @@ def plan_of(*stops: tuple[int, str]) -> Plan:
 
 def score(plan: Plan, model: RaceModel, draws: int = 8000) -> float:
     gen = np.random.default_rng(4242)
-    sc = strategy.draw_safety_car(model, gen, draws)
-    return float(strategy.race_time(plan, ant, model, gen, draws, sc).mean())
+    flags = strategy.draw_neutralisations(model, gen, draws)
+    return float(strategy.race_time(plan, ant, model, gen, draws, flags).mean())
 
 
 print(SEP)

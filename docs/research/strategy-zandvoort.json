@@ -1,234 +1,47 @@
 {
   "ANT": {
     "from_position": 1,
-    "plan": "H16-H26",
+    "plan": "H20-H22",
     "stops": [
       {
-        "lap": 46,
+        "lap": 50,
         "compound": "HARD"
       }
     ],
     "stop_distribution": {
-      "1": 0.938,
-      "2": 0.062
+      "1": 0.844,
+      "2": 0.156
     },
-    "mean_position": 1.85,
-    "sd_position": 0.91,
-    "decision_value": 4.493,
-    "mean_points": 20.16,
-    "optimism": 0.2,
+    "mean_position": 1.86,
+    "sd_position": 0.88,
+    "decision_value": 5.097,
+    "mean_points": 20.09,
+    "optimism": -0.177,
     "objective": "points",
     "alternatives": [
       {
-        "plan": "H22-H20",
+        "plan": "H21-H21",
         "stops": 1,
-        "score": 20.177
+        "score": 20.28
       },
       {
-        "plan": "H14-H28",
+        "plan": "H17-H25",
         "stops": 1,
-        "score": 20.165
+        "score": 20.172
       },
       {
-        "plan": "H16-M26",
+        "plan": "H20-S22",
         "stops": 1,
-        "score": 19.603
+        "score": 19.826
       }
     ]
   },
   "NOR": {
     "from_position": 2,
-    "plan": "H16-H26",
+    "plan": "H20-H22",
     "stops": [
       {
-        "lap": 46,
-        "compound": "HARD"
-      }
-    ],
-    "stop_distribution": {
-      "1": 0.875,
-      "2": 0.125
-    },
-    "mean_position": 2.16,
-    "sd_position": 1.04,
-    "decision_value": 5.2,
-    "mean_points": 18.86,
-    "optimism": 0.394,
-    "objective": "points",
-    "alternatives": [
-      {
-        "plan": "H17-H25",
-        "stops": 1,
-        "score": 18.992
-      },
-      {
-        "plan": "H19-H23",
-        "stops": 1,
-        "score": 18.946
-      },
-      {
-        "plan": "H22-H20",
-        "stops": 1,
-        "score": 18.806
-      }
-    ]
-  },
-  "RUS": {
-    "from_position": 3,
-    "plan": "H16-H26",
-    "stops": [
-      {
-        "lap": 46,
-        "compound": "HARD"
-      }
-    ],
-    "stop_distribution": {
-      "1": 0.625,
-      "2": 0.312,
-      "4": 0.062
-    },
-    "mean_position": 3.74,
-    "sd_position": 1.19,
-    "decision_value": 5.598,
-    "mean_points": 13.29,
-    "optimism": 0.242,
-    "objective": "points",
-    "alternatives": [
-      {
-        "plan": "H20-H22",
-        "stops": 1,
-        "score": 13.33
-      },
-      {
-        "plan": "H18-H24",
-        "stops": 1,
-        "score": 13.271
-      },
-      {
-        "plan": "H10-H32",
-        "stops": 1,
-        "score": 13.02
-      }
-    ]
-  },
-  "PIA": {
-    "from_position": 4,
-    "plan": "H12-H30",
-    "stops": [
-      {
-        "lap": 42,
-        "compound": "HARD"
-      }
-    ],
-    "stop_distribution": {
-      "1": 0.938,
-      "2": 0.062
-    },
-    "mean_position": 3.02,
-    "sd_position": 1.07,
-    "decision_value": 2.707,
-    "mean_points": 15.41,
-    "optimism": 0.228,
-    "objective": "points",
-    "alternatives": [
-      {
-        "plan": "H15-H27",
-        "stops": 1,
-        "score": 15.309
-      },
-      {
-        "plan": "H10-H32",
-        "stops": 1,
-        "score": 15.159
-      },
-      {
-        "plan": "H18-H24",
-        "stops": 1,
-        "score": 15.023
-      }
-    ]
-  },
-  "LEC": {
-    "from_position": 5,
-    "plan": "M12-H30",
-    "stops": [
-      {
-        "lap": 42,
-        "compound": "HARD"
-      }
-    ],
-    "stop_distribution": {
-      "1": 0.938,
-      "2": 0.062
-    },
-    "mean_position": 2.73,
-    "sd_position": 1.07,
-    "decision_value": 2.319,
-    "mean_points": 16.45,
-    "optimism": 0.41,
-    "objective": "points",
-    "alternatives": [
-      {
-        "plan": "M6-H36",
-        "stops": 1,
-        "score": 16.529
-      },
-      {
-        "plan": "M15-H27",
-        "stops": 1,
-        "score": 16.225
-      },
-      {
-        "plan": "M10-H32",
-        "stops": 1,
-        "score": 16.222
-      }
-    ]
-  },
-  "HAM": {
-    "from_position": 6,
-    "plan": "H12-H30",
-    "stops": [
-      {
-        "lap": 42,
-        "compound": "HARD"
-      }
-    ],
-    "stop_distribution": {
-      "1": 0.688,
-      "2": 0.281,
-      "3": 0.031
-    },
-    "mean_position": 4.61,
-    "sd_position": 1.02,
-    "decision_value": 3.047,
-    "mean_points": 11.0,
-    "optimism": 0.342,
-    "objective": "points",
-    "alternatives": [
-      {
-        "plan": "H15-H27",
-        "stops": 1,
-        "score": 11.072
-      },
-      {
-        "plan": "H11-H31",
-        "stops": 1,
-        "score": 10.974
-      },
-      {
-        "plan": "H18-H24",
-        "stops": 1,
-        "score": 10.893
-      }
-    ]
-  },
-  "LAW": {
-    "from_position": 7,
-    "plan": "M12-H30",
-    "stops": [
-      {
-        "lap": 42,
+        "lap": 50,
         "compound": "HARD"
       }
     ],
@@ -236,27 +49,212 @@
       "1": 0.906,
       "2": 0.094
     },
-    "mean_position": 6.85,
-    "sd_position": 0.67,
-    "decision_value": 0.752,
-    "mean_points": 6.29,
-    "optimism": 0.033,
+    "mean_position": 2.14,
+    "sd_position": 1.0,
+    "decision_value": 5.255,
+    "mean_points": 18.9,
+    "optimism": -0.019,
     "objective": "points",
     "alternatives": [
       {
-        "plan": "M10-H32",
+        "plan": "H21-H21",
         "stops": 1,
-        "score": 6.257
+        "score": 18.944
       },
       {
-        "plan": "M6-H36",
+        "plan": "H17-H25",
         "stops": 1,
-        "score": 6.221
+        "score": 18.857
       },
       {
-        "plan": "M15-H27",
+        "plan": "H20-S22",
         "stops": 1,
-        "score": 6.183
+        "score": 18.562
+      }
+    ]
+  },
+  "RUS": {
+    "from_position": 3,
+    "plan": "H14-H28",
+    "stops": [
+      {
+        "lap": 44,
+        "compound": "HARD"
+      }
+    ],
+    "stop_distribution": {
+      "1": 0.812,
+      "2": 0.188
+    },
+    "mean_position": 3.74,
+    "sd_position": 1.24,
+    "decision_value": 2.591,
+    "mean_points": 13.36,
+    "optimism": 0.286,
+    "objective": "points",
+    "alternatives": [
+      {
+        "plan": "H20-H22",
+        "stops": 1,
+        "score": 13.348
+      },
+      {
+        "plan": "H10-H32",
+        "stops": 1,
+        "score": 13.342
+      },
+      {
+        "plan": "H19-H23",
+        "stops": 1,
+        "score": 13.315
+      }
+    ]
+  },
+  "PIA": {
+    "from_position": 4,
+    "plan": "H10-H32",
+    "stops": [
+      {
+        "lap": 40,
+        "compound": "HARD"
+      }
+    ],
+    "stop_distribution": {
+      "1": 0.812,
+      "2": 0.188
+    },
+    "mean_position": 3.06,
+    "sd_position": 1.15,
+    "decision_value": 2.696,
+    "mean_points": 15.36,
+    "optimism": 0.543,
+    "objective": "points",
+    "alternatives": [
+      {
+        "plan": "H14-H28",
+        "stops": 1,
+        "score": 15.389
+      },
+      {
+        "plan": "H11-H31",
+        "stops": 1,
+        "score": 15.307
+      },
+      {
+        "plan": "H16-H26",
+        "stops": 1,
+        "score": 15.077
+      }
+    ]
+  },
+  "LEC": {
+    "from_position": 5,
+    "plan": "M10-H32",
+    "stops": [
+      {
+        "lap": 40,
+        "compound": "HARD"
+      }
+    ],
+    "stop_distribution": {
+      "1": 0.781,
+      "2": 0.219
+    },
+    "mean_position": 2.74,
+    "sd_position": 1.12,
+    "decision_value": 3.021,
+    "mean_points": 16.55,
+    "optimism": 0.43,
+    "objective": "points",
+    "alternatives": [
+      {
+        "plan": "M11-H31",
+        "stops": 1,
+        "score": 16.549
+      },
+      {
+        "plan": "M9-H33",
+        "stops": 1,
+        "score": 16.2
+      },
+      {
+        "plan": "M16-H26",
+        "stops": 1,
+        "score": 15.933
+      }
+    ]
+  },
+  "HAM": {
+    "from_position": 6,
+    "plan": "H10-H32",
+    "stops": [
+      {
+        "lap": 40,
+        "compound": "HARD"
+      }
+    ],
+    "stop_distribution": {
+      "1": 0.781,
+      "2": 0.219
+    },
+    "mean_position": 4.58,
+    "sd_position": 1.15,
+    "decision_value": 1.96,
+    "mean_points": 11.13,
+    "optimism": 0.118,
+    "objective": "points",
+    "alternatives": [
+      {
+        "plan": "H13-H29",
+        "stops": 1,
+        "score": 11.06
+      },
+      {
+        "plan": "H16-H26",
+        "stops": 1,
+        "score": 10.858
+      },
+      {
+        "plan": "H7-H35",
+        "stops": 1,
+        "score": 10.814
+      }
+    ]
+  },
+  "LAW": {
+    "from_position": 7,
+    "plan": "M10-H32",
+    "stops": [
+      {
+        "lap": 40,
+        "compound": "HARD"
+      }
+    ],
+    "stop_distribution": {
+      "1": 0.812,
+      "2": 0.188
+    },
+    "mean_position": 6.82,
+    "sd_position": 0.73,
+    "decision_value": 0.838,
+    "mean_points": 6.35,
+    "optimism": 0.056,
+    "objective": "points",
+    "alternatives": [
+      {
+        "plan": "M14-H28",
+        "stops": 1,
+        "score": 6.25
+      },
+      {
+        "plan": "M22-S20",
+        "stops": 1,
+        "score": 5.929
+      },
+      {
+        "plan": "M10-H13-M19",
+        "stops": 2,
+        "score": 5.616
       }
     ]
   },
@@ -270,30 +268,31 @@
       }
     ],
     "stop_distribution": {
-      "1": 0.781,
-      "2": 0.219
+      "1": 0.844,
+      "2": 0.125,
+      "3": 0.031
     },
-    "mean_position": 10.31,
-    "sd_position": 1.81,
-    "decision_value": 0.903,
+    "mean_position": 10.38,
+    "sd_position": 1.88,
+    "decision_value": 1.3,
     "mean_points": 1.3,
-    "optimism": -0.019,
+    "optimism": 0.062,
     "objective": "points",
     "alternatives": [
       {
+        "plan": "S6-H25-H11",
+        "stops": 2,
+        "score": 0.629
+      },
+      {
         "plan": "S6-S25-S11",
         "stops": 2,
-        "score": 0.589
+        "score": 0.603
       },
       {
-        "plan": "S6-H25-S11",
+        "plan": "S6-H6-H30",
         "stops": 2,
-        "score": 0.583
-      },
-      {
-        "plan": "S6-H18-M18",
-        "stops": 2,
-        "score": 0.557
+        "score": 0.431
       }
     ]
   },
@@ -307,67 +306,67 @@
       }
     ],
     "stop_distribution": {
-      "1": 0.875,
-      "2": 0.125
+      "1": 0.969,
+      "2": 0.031
     },
-    "mean_position": 16.68,
-    "sd_position": 0.84,
-    "decision_value": 0.575,
+    "mean_position": 16.63,
+    "sd_position": 0.87,
+    "decision_value": 0.537,
     "mean_points": 0.0,
-    "optimism": 0.026,
+    "optimism": -0.034,
     "objective": "position",
     "alternatives": [
       {
+        "plan": "S13-H29",
+        "stops": 1,
+        "score": -16.686
+      },
+      {
         "plan": "S14-M28",
         "stops": 1,
-        "score": -16.738
+        "score": -16.768
       },
       {
-        "plan": "S11-H31",
+        "plan": "S12-M30",
         "stops": 1,
-        "score": -16.754
-      },
-      {
-        "plan": "S8-H34",
-        "stops": 1,
-        "score": -16.871
+        "score": -16.863
       }
     ]
   },
   "TSU": {
     "from_position": 10,
-    "plan": "H29-H13",
+    "plan": "H28-H14",
     "stops": [
       {
-        "lap": 59,
+        "lap": 58,
         "compound": "HARD"
       }
     ],
     "stop_distribution": {
-      "1": 0.938,
-      "2": 0.062
+      "1": 0.906,
+      "2": 0.094
     },
-    "mean_position": 11.52,
-    "sd_position": 1.3,
-    "decision_value": 0.243,
-    "mean_points": 0.26,
-    "optimism": 0.014,
+    "mean_position": 11.58,
+    "sd_position": 1.28,
+    "decision_value": 0.257,
+    "mean_points": 0.23,
+    "optimism": -0.015,
     "objective": "points",
     "alternatives": [
       {
-        "plan": "H29-S13",
-        "stops": 1,
-        "score": 0.252
-      },
-      {
-        "plan": "H29-M13",
+        "plan": "H27-H15",
         "stops": 1,
         "score": 0.247
       },
       {
-        "plan": "H25-H17",
+        "plan": "H29-H13",
         "stops": 1,
-        "score": 0.243
+        "score": 0.244
+      },
+      {
+        "plan": "H29-S13",
+        "stops": 1,
+        "score": 0.235
       }
     ]
   },
@@ -381,30 +380,30 @@
       }
     ],
     "stop_distribution": {
-      "1": 0.75,
-      "2": 0.25
+      "1": 0.844,
+      "2": 0.156
     },
     "mean_position": 8.67,
-    "sd_position": 1.05,
-    "decision_value": 0.714,
-    "mean_points": 2.94,
-    "optimism": 0.147,
+    "sd_position": 1.09,
+    "decision_value": 0.789,
+    "mean_points": 2.96,
+    "optimism": -0.022,
     "objective": "points",
     "alternatives": [
       {
-        "plan": "M6-H14-H22",
+        "plan": "M6-H17-M19",
         "stops": 2,
-        "score": 2.592
-      },
-      {
-        "plan": "M6-H24-S12",
-        "stops": 2,
-        "score": 2.547
+        "score": 2.518
       },
       {
         "plan": "M6-S25-S11",
         "stops": 2,
-        "score": 2.322
+        "score": 2.277
+      },
+      {
+        "plan": "M6-H6-H30",
+        "stops": 2,
+        "score": 2.127
       }
     ]
   },
@@ -418,30 +417,30 @@
       }
     ],
     "stop_distribution": {
-      "1": 0.688,
-      "2": 0.312
+      "1": 0.75,
+      "2": 0.25
     },
-    "mean_position": 9.53,
-    "sd_position": 1.5,
-    "decision_value": 0.925,
-    "mean_points": 1.94,
-    "optimism": 0.071,
+    "mean_position": 9.57,
+    "sd_position": 1.61,
+    "decision_value": 1.295,
+    "mean_points": 1.97,
+    "optimism": 0.019,
     "objective": "points",
     "alternatives": [
       {
-        "plan": "H8-H34",
+        "plan": "H10-H32",
         "stops": 1,
-        "score": 1.992
+        "score": 1.893
       },
       {
-        "plan": "H9-H33",
+        "plan": "H7-H35",
         "stops": 1,
-        "score": 1.938
+        "score": 1.843
       },
       {
-        "plan": "H6-H23-H13",
-        "stops": 2,
-        "score": 1.382
+        "plan": "H12-H30",
+        "stops": 1,
+        "score": 1.825
       }
     ]
   },
@@ -455,39 +454,39 @@
       }
     ],
     "stop_distribution": {
-      "1": 0.844,
-      "2": 0.156
+      "1": 0.75,
+      "2": 0.25
     },
-    "mean_position": 10.18,
-    "sd_position": 1.57,
-    "decision_value": 0.728,
-    "mean_points": 1.27,
-    "optimism": 0.044,
+    "mean_position": 10.25,
+    "sd_position": 1.69,
+    "decision_value": 0.835,
+    "mean_points": 1.28,
+    "optimism": -0.008,
     "objective": "points",
     "alternatives": [
       {
-        "plan": "M7-H35",
-        "stops": 1,
-        "score": 1.228
-      },
-      {
-        "plan": "M9-H33",
-        "stops": 1,
-        "score": 1.163
-      },
-      {
         "plan": "M10-H32",
         "stops": 1,
-        "score": 1.144
+        "score": 1.116
+      },
+      {
+        "plan": "M12-M30",
+        "stops": 1,
+        "score": 0.806
+      },
+      {
+        "plan": "M6-H17-M19",
+        "stops": 2,
+        "score": 0.598
       }
     ]
   },
   "ALB": {
     "from_position": 14,
-    "plan": "H16-H26",
+    "plan": "H20-H22",
     "stops": [
       {
-        "lap": 46,
+        "lap": 50,
         "compound": "HARD"
       }
     ],
@@ -495,27 +494,27 @@
       "1": 0.906,
       "2": 0.094
     },
-    "mean_position": 13.54,
-    "sd_position": 1.32,
-    "decision_value": 1.358,
+    "mean_position": 13.53,
+    "sd_position": 1.21,
+    "decision_value": 1.623,
     "mean_points": 0.01,
-    "optimism": 0.051,
+    "optimism": -0.023,
     "objective": "position",
     "alternatives": [
       {
-        "plan": "H19-H23",
+        "plan": "H15-H27",
         "stops": 1,
-        "score": -13.494
+        "score": -13.529
       },
       {
-        "plan": "H18-H24",
+        "plan": "H14-H28",
         "stops": 1,
-        "score": -13.552
+        "score": -13.553
       },
       {
-        "plan": "H22-H20",
+        "plan": "H20-S22",
         "stops": 1,
-        "score": -13.569
+        "score": -13.655
       }
     ]
   },
@@ -529,189 +528,150 @@
       }
     ],
     "stop_distribution": {
-      "1": 0.75,
-      "2": 0.25
+      "1": 0.781,
+      "2": 0.219
     },
-    "mean_position": 14.88,
-    "sd_position": 1.7,
-    "decision_value": 0.997,
+    "mean_position": 14.87,
+    "sd_position": 1.69,
+    "decision_value": 1.032,
     "mean_points": 0.01,
-    "optimism": -0.015,
+    "optimism": -0.027,
     "objective": "position",
     "alternatives": [
       {
-        "plan": "S6-H25-M11",
+        "plan": "S6-H12-S24",
         "stops": 2,
-        "score": -15.68
+        "score": -15.672
       },
       {
-        "plan": "S6-H12-M24",
+        "plan": "S6-H25-S11",
         "stops": 2,
-        "score": -15.72
+        "score": -15.721
       },
       {
         "plan": "S6-S25-S11",
         "stops": 2,
-        "score": -15.773
+        "score": -15.817
       }
     ]
   },
   "OCO": {
     "from_position": 16,
-    "plan": "H23-H19",
+    "plan": "H25-H17",
     "stops": [
       {
-        "lap": 53,
+        "lap": 55,
         "compound": "HARD"
       }
     ],
     "stop_distribution": {
-      "1": 0.938,
-      "2": 0.062
+      "1": 0.875,
+      "2": 0.125
     },
-    "mean_position": 18.45,
-    "sd_position": 0.59,
-    "decision_value": 0.421,
+    "mean_position": 18.46,
+    "sd_position": 0.58,
+    "decision_value": 0.427,
     "mean_points": 0.0,
-    "optimism": 0.028,
+    "optimism": -0.002,
     "objective": "position",
     "alternatives": [
       {
-        "plan": "H25-H17",
+        "plan": "H21-H21",
         "stops": 1,
-        "score": -18.442
+        "score": -18.464
       },
       {
-        "plan": "H26-H16",
+        "plan": "H27-H15",
         "stops": 1,
-        "score": -18.462
+        "score": -18.488
       },
       {
-        "plan": "H18-H24",
+        "plan": "H25-M17",
         "stops": 1,
-        "score": -18.469
+        "score": -18.492
       }
     ]
   },
   "STR": {
     "from_position": 17,
-    "plan": "H22-H20",
+    "plan": "H20-H22",
     "stops": [
       {
-        "lap": 52,
+        "lap": 50,
         "compound": "HARD"
       }
     ],
     "stop_distribution": {
-      "1": 0.938,
-      "2": 0.062
+      "1": 0.875,
+      "2": 0.125
     },
-    "mean_position": 14.46,
-    "sd_position": 1.14,
-    "decision_value": 1.338,
+    "mean_position": 14.48,
+    "sd_position": 1.11,
+    "decision_value": 1.447,
     "mean_points": 0.0,
-    "optimism": 0.047,
+    "optimism": -0.043,
     "objective": "position",
     "alternatives": [
       {
         "plan": "H24-H18",
         "stops": 1,
-        "score": -14.48
+        "score": -14.517
       },
       {
-        "plan": "H22-S20",
+        "plan": "H20-S22",
         "stops": 1,
-        "score": -14.52
+        "score": -14.557
       },
       {
-        "plan": "H25-H17",
+        "plan": "H20-M22",
         "stops": 1,
-        "score": -14.522
+        "score": -14.606
       }
     ]
   },
   "COL": {
     "from_position": 18,
-    "plan": "H6-H36",
+    "plan": "H10-H32",
     "stops": [
       {
-        "lap": 36,
+        "lap": 40,
         "compound": "HARD"
       }
     ],
     "stop_distribution": {
-      "1": 0.75,
-      "2": 0.219,
-      "3": 0.031
+      "1": 0.688,
+      "2": 0.312
     },
-    "mean_position": 16.07,
-    "sd_position": 1.3,
-    "decision_value": 1.035,
+    "mean_position": 16.03,
+    "sd_position": 1.15,
+    "decision_value": 0.725,
     "mean_points": 0.0,
-    "optimism": 0.018,
+    "optimism": 0.081,
     "objective": "position",
     "alternatives": [
       {
-        "plan": "H9-H33",
-        "stops": 1,
-        "score": -16.058
+        "plan": "H10-H10-H22",
+        "stops": 2,
+        "score": -16.554
       },
       {
-        "plan": "H6-H14-H22",
+        "plan": "H6-H26-S10",
         "stops": 2,
-        "score": -16.511
+        "score": -16.563
       },
       {
-        "plan": "H6-H24-S12",
+        "plan": "H10-H22-S10",
         "stops": 2,
-        "score": -16.55
+        "score": -16.566
       }
     ]
   },
   "PER": {
     "from_position": 19,
-    "plan": "H21-H21",
+    "plan": "H20-H22",
     "stops": [
       {
-        "lap": 51,
-        "compound": "HARD"
-      }
-    ],
-    "stop_distribution": {
-      "1": 0.844,
-      "2": 0.125,
-      "3": 0.031
-    },
-    "mean_position": 18.9,
-    "sd_position": 0.83,
-    "decision_value": 0.948,
-    "mean_points": 0.0,
-    "optimism": 0.04,
-    "objective": "position",
-    "alternatives": [
-      {
-        "plan": "H23-H19",
-        "stops": 1,
-        "score": -18.902
-      },
-      {
-        "plan": "H19-H23",
-        "stops": 1,
-        "score": -18.908
-      },
-      {
-        "plan": "H25-H17",
-        "stops": 1,
-        "score": -18.926
-      }
-    ]
-  },
-  "BOT": {
-    "from_position": 20,
-    "plan": "H21-H21",
-    "stops": [
-      {
-        "lap": 51,
+        "lap": 50,
         "compound": "HARD"
       }
     ],
@@ -719,27 +679,64 @@
       "1": 0.938,
       "2": 0.062
     },
-    "mean_position": 18.22,
-    "sd_position": 0.59,
-    "decision_value": 0.6,
+    "mean_position": 18.9,
+    "sd_position": 0.84,
+    "decision_value": 0.686,
     "mean_points": 0.0,
-    "optimism": 0.023,
+    "optimism": 0.027,
     "objective": "position",
     "alternatives": [
       {
-        "plan": "H18-H24",
+        "plan": "H21-H21",
         "stops": 1,
-        "score": -18.205
-      },
-      {
-        "plan": "H15-H27",
-        "stops": 1,
-        "score": -18.209
+        "score": -18.882
       },
       {
         "plan": "H23-H19",
         "stops": 1,
-        "score": -18.23
+        "score": -18.887
+      },
+      {
+        "plan": "H19-H23",
+        "stops": 1,
+        "score": -18.891
+      }
+    ]
+  },
+  "BOT": {
+    "from_position": 20,
+    "plan": "H20-H22",
+    "stops": [
+      {
+        "lap": 50,
+        "compound": "HARD"
+      }
+    ],
+    "stop_distribution": {
+      "1": 0.938,
+      "2": 0.062
+    },
+    "mean_position": 18.18,
+    "sd_position": 0.59,
+    "decision_value": 0.537,
+    "mean_points": 0.0,
+    "optimism": 0.019,
+    "objective": "position",
+    "alternatives": [
+      {
+        "plan": "H14-H28",
+        "stops": 1,
+        "score": -18.21
+      },
+      {
+        "plan": "H23-H19",
+        "stops": 1,
+        "score": -18.233
+      },
+      {
+        "plan": "H20-S22",
+        "stops": 1,
+        "score": -18.236
       }
     ]
   }

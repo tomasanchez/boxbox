@@ -49,11 +49,14 @@ def drawn(car: Car) -> Plan:
 
 def score(car, plan, rest, plans):
     gen = np.random.default_rng(SEARCH["seed"])
-    sc = strategy.draw_safety_car(MODEL, gen, DRAWS)
+    flags = strategy.draw_neutralisations(MODEL, gen, DRAWS)
     riv = np.vstack(
-        [strategy.race_time(p, c, MODEL, gen, DRAWS, sc) for c, p in zip(rest, plans, strict=True)]
+        [
+            strategy.race_time(p, c, MODEL, gen, DRAWS, flags)
+            for c, p in zip(rest, plans, strict=True)
+        ]
     )
-    mine = strategy.race_time(plan, car, MODEL, gen, DRAWS, sc)
+    mine = strategy.race_time(plan, car, MODEL, gen, DRAWS, flags)
     pos = 1 + (riv < mine).sum(axis=0)
     return float(strategy._points(pos).mean())
 

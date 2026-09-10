@@ -60,8 +60,8 @@ def even_plan(car: Car, stops: int, onto: str) -> Plan:
 def score(car: Car, plan: Plan) -> float:
     """Mean race time over a fixed, shared set of drawn races."""
     gen = np.random.default_rng(4242)
-    sc = strategy.draw_safety_car(MODEL, gen, DRAWS)
-    return float(strategy.race_time(plan, car, MODEL, gen, DRAWS, sc).mean())
+    flags = strategy.draw_neutralisations(MODEL, gen, DRAWS)
+    return float(strategy.race_time(plan, car, MODEL, gen, DRAWS, flags).mean())
 
 
 print(SEP)

@@ -137,8 +137,8 @@ def at_tyre_life(car: Car) -> Plan:
 def score(car: Car, plan: Plan) -> float:
     """Mean finishing time over common random numbers."""
     gen = np.random.default_rng(SEARCH["seed"])
-    sc = strategy.draw_safety_car(MODEL, gen, DRAWS)
-    return float(strategy.race_time(plan, car, MODEL, gen, DRAWS, sc).mean())
+    flags = strategy.draw_neutralisations(MODEL, gen, DRAWS)
+    return float(strategy.race_time(plan, car, MODEL, gen, DRAWS, flags).mean())
 
 
 print("\n" + SEP)
