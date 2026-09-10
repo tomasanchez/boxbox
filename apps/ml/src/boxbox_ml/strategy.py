@@ -97,6 +97,16 @@ DRY = ("HARD", "MEDIUM", "SOFT")
 #: Laps a stint has to run before it counts as one.
 MIN_STINT = 6
 
+#: How many distinct dry compounds a dry race must use. FIA 2026 Sporting
+#: Regulations, article B6.3.8: at least two specifications of dry-weather tyre
+#: must be used, and not doing so is a disqualification — the harshest constraint
+#: in the whole problem, and the only one where breaking it costs everything.
+#:
+#: It is only checkable for a plan that starts from lap 1. A plan that picks up
+#: mid-race cannot be verified, because the snapshot does not record which sets
+#: the car already used; those are left alone rather than guessed at.
+REQUIRED_COMPOUNDS = 2
+
 #: Probabilities at which every measured distribution below is cut.
 CUT_AT = np.array([0.05, 0.15, 0.25, 0.35, 0.5, 0.65, 0.75, 0.85, 0.95])
 
@@ -611,6 +621,34 @@ def race_time(
     return race_trace(plan, car, model, rng, draws, flags, rival_trace)[-1]
 
 
+def _enforce_two_compounds(stops: tuple[Stop, ...], car: Car, model: RaceModel) -> tuple[Stop, ...]:
+    """Make a plan legal under B6.3.8 by changing what the last stop fits.
+
+    Only applies to a plan that starts on lap 1, because only then is the full
+    set of compounds known. A plan taken up mid-race cannot be checked and is
+    returned untouched.
+
+    The repair is deliberately minimal: change the compound of the final stop to
+    something the car has not used. Adding a stop would be cheaper to write and
+    much more expensive to run, and a team facing this problem changes what it
+    fits rather than stopping again.
+
+    A plan with no stops at all cannot be made legal, and is returned as it is —
+    the fitness will price it, and it will lose.
+    """
+    if car.from_lap > 1 or not stops:
+        return stops
+
+    used = {car.compound, *(stop.compound for stop in stops)}
+    if len(used) >= REQUIRED_COMPOUNDS:
+        return stops
+
+    # Everything so far is the same compound. Swap the last stop for the most
+    # durable alternative, which is the one least likely to cost time.
+    alternative = next(c for c in DRY if c not in used)
+    return (*stops[:-1], replace(stops[-1], compound=alternative))
+
+
 def _repair(stops: Sequence[Stop], car: Car, model: RaceModel) -> tuple[Stop, ...]:
     """Turn any stop list into a plan the evidence can actually price.
 
@@ -663,7 +701,7 @@ def _repair(stops: Sequence[Stop], car: Car, model: RaceModel) -> tuple[Stop, ..
         fixed.append(Stop(lap, nxt))
         previous, compound, age = lap, nxt, 0
 
-    return tuple(fixed)
+    return _enforce_two_compounds(tuple(fixed), car, model)
 
 
 def _heuristic_plan(car: Car, model: RaceModel, stops: int) -> Plan:
