@@ -40,7 +40,12 @@ plt.rcParams.update({"figure.figsize": (9, 3.4), "figure.dpi": 110, "font.size":
 CIRCUITO = "Zandvoort"
 CORTES = [0.05, 0.15, 0.25, 0.35, 0.5, 0.65, 0.75, 0.85, 0.95]
 
-raw = pd.read_parquet(cache.cache_dir().parent / "laps_overtaking.parquet")
+partes = [pd.read_parquet(cache.cache_dir().parent / "laps_overtaking.parquet")]
+# Monza 2026 se ingirió aparte, después de la carrera del 6 de septiembre.
+_monza = cache.cache_dir().parent / "monza2026.parquet"
+if _monza.exists():
+    partes.append(pd.read_parquet(_monza))
+raw = pd.concat(partes, ignore_index=True)
 raw["circuit"] = raw["circuit"].map(lambda c: neutralisation.CIRCUIT_ALIASES.get(c, c))
 base = features.add_labels(
     features.add_degradation(
@@ -604,3 +609,136 @@ print("ranking y no como medición del circuito.")
 # | Tanda más larga admitida | 41 duro · 31 medio · 25 blando | p90 medido |
 #
 # El uso de todo esto está en `03-busqueda-genetica.ipynb`.
+
+# %% [markdown]
+# ## 2.10 Los circuitos de 2026, uno por uno
+#
+# Todo lo anterior se midió sobre el conjunto o sobre Zandvoort. Acá está el
+# desgaste de cada compuesto en cada circuito del calendario 2026 — que es lo que
+# el simulador debería usar para cada carrera, y hoy no usa: corre todo con los
+# números de Zandvoort.
+#
+# Cuánto importa: en **Monza el medio degrada 0,035 s/vuelta y en Zandvoort
+# 0,064**, casi el doble. Peor: en Monza el medio degrada **menos que el duro**,
+# y en Zandvoort más. Con los parámetros de Zandvoort, un plan al medio en Monza
+# nunca puede ganar — y Antonelli ganó la carrera con dos tandas al medio.
+
+# %%
+CALENDARIO_2026 = [
+    "Melbourne", "Shanghai", "Suzuka", "Miami", "Montréal", "Monaco",
+    "Barcelona", "Spielberg", "Silverstone", "Spa-Francorchamps", "Budapest",
+    "Zandvoort", "Monza", "Madrid", "Baku", "Marina Bay", "Austin",
+    "Mexico City", "São Paulo", "Las Vegas", "Lusail", "Yas Island",
+]
+
+por_circuito = (
+    secas.groupby(["circuit", "compound"])["pendiente"]
+    .agg(["median", "size"])
+    .unstack()
+)
+tabla = pd.DataFrame(index=CALENDARIO_2026)
+for compuesto in ("SOFT", "MEDIUM", "HARD"):
+    tabla[compuesto] = por_circuito["median"].get(compuesto)
+    tabla[f"n_{compuesto[0]}"] = por_circuito["size"].get(compuesto)
+tabla.index.name = "circuito"
+tabla.round(4)
+
+# %% [markdown]
+# La lista de arriba usa **nuestros** nombres canónicos, así que sólo falta el
+# circuito genuinamente nuevo.
+
+# %%
+faltantes = tabla[tabla[["SOFT", "MEDIUM", "HARD"]].isna().all(axis=1)]
+print("circuitos del calendario 2026 sin desgaste medido:", list(faltantes.index))
+
+# %% [markdown]
+# Pero si en vez de la lista canónica se cruza el calendario **tal como lo
+# devuelve FastF1** contra los datos, aparecen tres huecos y sólo uno es real.
+# Es la trampa de los alias del cuaderno 1, mordiendo otra vez — ahora sobre el
+# calendario futuro, que es donde más caro sale.
+
+# %%
+CALENDARIO_CRUDO = {  # Location tal como lo devuelve get_event_schedule(2026)
+    14: "Madrid",
+    16: "Kuala Lumpur",
+    23: "Yas Marina",
+}
+medidos = set(secas["circuit"].unique())
+for ronda, nombre in CALENDARIO_CRUDO.items():
+    canonico = neutralisation.CIRCUIT_ALIASES.get(nombre, nombre)
+    estado = "medido" if canonico in medidos else "SIN DATOS"
+    print(f"  R{ronda:02d} {nombre:<14} -> alias '{canonico}': {estado}")
+print()
+print("Yas Marina es Yas Island, que sí tenemos, y le falta la entrada en")
+print("CIRCUIT_ALIASES. Kuala Lumpur figura como sede del Gran Premio de Bahréin,")
+print("que es un artefacto del calendario provisorio. El único circuito realmente")
+print("nuevo es Madrid.")
+
+# %% [markdown]
+# ### ¿Y un circuito nuevo? Lo que se puede hacer con Madrid
+#
+# Madrid es la fecha 14, el 13 de septiembre, y nunca se corrió. El modelo pide
+# desgaste por circuito y no hay. La pregunta honesta es qué usar en su lugar y
+# cuánto cuesta ese reemplazo, y se responde con un **leave-one-circuit-out**:
+# se esconde un circuito que sí conocemos, se predice sin él, y se mide el error.
+#
+# Se probaron tres reemplazos, y los resultados están en
+# `scripts/new_circuit.py`:
+#
+# | Compuesto | Promedio global | Con velocidad media | Con tiempo de vuelta | Desvío entre circuitos |
+# |---|---|---|---|---|
+# | Blando | **0,0408** | 0,0443 | 0,0433 | 0,0551 |
+# | Medio | 0,0316 | **0,0315** | 0,0329 | 0,0373 |
+# | Duro | **0,0249** | 0,0267 | 0,0257 | 0,0322 |
+#
+# **La forma del circuito no predice el desgaste.** La correlación entre la
+# velocidad media y el desgaste va de +0,09 a −0,29, y meterla como predictor no
+# mejora nada: el promedio global gana o empata en los tres compuestos.
+#
+# Peor todavía, el error se parece al **desvío entre circuitos**: predecir un
+# circuito nuevo es apenas mejor que no saber nada sobre la dispersión.
+
+# %% [markdown]
+# ### Los entrenamientos: la mejor señal que encontramos, y no alcanza
+#
+# Queda un recurso que para Madrid sí existirá: las prácticas del viernes y
+# sábado. Se midió si la degradación observada ahí predice la de la carrera,
+# sobre 25 pares compuesto-carrera de 2026:
+#
+# | | Correlación con la carrera |
+# |---|---|
+# | Medio | **+0,608** |
+# | Blando | +0,497 |
+# | Duro | +0,082 |
+# | Global | **+0,455** |
+#
+# Es la correlación por-circuito más alta de todo el trabajo — más que la
+# dificultad para adelantar (0,209) o el propio desgaste entre eras (0,26-0,45).
+#
+# Pero lleva señal sin escala. Usar el número de práctica directamente da un
+# error de **0,2018 s/vuelta** contra 0,0412 del promedio global: cinco veces
+# peor, porque una tanda larga de práctica corre con otra carga de combustible y
+# otra pista. Calibrándolo —ajustando `carrera = b · práctica + a`— la recta le
+# hace caso al entrenamiento sólo en un **11,8%**, y fuera de muestra sigue
+# perdiendo: 0,0440 contra 0,0412.
+#
+# Con veinticinco pares, la calibración es tan ruidosa como lo que corrige.
+
+# %% [markdown]
+# ### Entonces, ¿en qué se basaría AWS?
+#
+# En cosas que nosotros no tenemos, y conviene decirlo así:
+#
+# - **El modelo de Pirelli.** Pirelli hace simulación de neumáticos y ensayo de
+#   banco para cada evento, y publica una asignación de compuestos y una
+#   estimación de degradación antes de correr. Eso es física y laboratorio, no
+#   historia de carreras: funciona en un circuito nuevo justamente porque no
+#   necesita que se haya corrido.
+# - **Datos de simulador de los equipos**, que modelan el trazado antes de pisarlo.
+# - **Telemetría**, 1,1 millones de puntos por segundo, que permite estimar carga
+#   sobre el neumático curva por curva en vez de inferirla del tiempo de vuelta.
+#
+# Nuestra respuesta honesta para Madrid es el **promedio global con la
+# incertidumbre declarada**: blando 0,072 ± 0,041, medio 0,056 ± 0,032, duro
+# 0,050 ± 0,025 s/vuelta. El error es del tamaño del efecto, así que la
+# recomendación para Madrid sale, pero débil, y hay que presentarla como tal.

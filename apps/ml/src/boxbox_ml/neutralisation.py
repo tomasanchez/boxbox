@@ -39,6 +39,11 @@ CIRCUIT_ALIASES = {
     "Sao Paulo": "São Paulo",
     "Mexico": "Mexico City",
     "Abu Dhabi": "Yas Island",
+    # Found on the *forward* 2026 calendar, not in the historical data: the
+    # schedule calls round 23 "Yas Marina" while every past season records it as
+    # "Yas Island". Without this the circuit reads as brand new and the model
+    # falls back to the global average for a track it has four races of.
+    "Yas Marina": "Yas Island",
 }
 
 
