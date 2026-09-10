@@ -118,6 +118,70 @@ RATE_SHRINK = 0.05
 #: Median of that rolling slope across the field, which the shrinkage centres on.
 ROLLING_MEDIAN_S = 0.022
 
+#: Cuánto más lento es cada compuesto con goma nueva, en segundos por vuelta,
+#: respecto del duro. **La pieza que faltaba**, y la que le da al duro una razón
+#: de existir que no sea sólo el reglamento.
+#:
+#: No se puede medir dentro de una carrera. Los compuestos se corren en momentos
+#: distintos —el medio en la mediana del 26% de la distancia, el duro en el 61%—
+#: y separar el neumático de veinticinco vueltas de combustible y evolución de
+#: pista pide una corrección más fina de la que existe. Medido así daba 0,02 a
+#: 0,04 s/vuelta entre compuestos, y de ahí salió la conclusión equivocada de que
+#: no había diferencia medible.
+#:
+#: Sí se puede en las prácticas: mismo piloto, misma sesión, poco combustible,
+#: tandas cortas separadas por minutos. Sobre 8.422 vueltas de 2026 en 26
+#: sesiones, comparando la mejor vuelta de cada piloto en cada compuesto:
+#:
+#:     blando - medio   -0,947 s/vuelta   (n=279)
+#:     medio  - duro    -0,957            (n= 44)
+#:     blando - duro    -1,027            (n=115)
+#:
+#: Un segundo entre compuestos vecinos, treinta veces lo que daba la carrera.
+#:
+#: Los tres pares no son transitivos, así que estos valores salen de un ajuste
+#: ponderado por tamaño de muestra sobre los tres a la vez.
+#:
+#: **Dos advertencias que van con el número.** Una vuelta de práctica es lanzada
+#: y con poco combustible, y en carrera los escalones se achican: esto es una
+#: cota superior. Y el eslabón medio-duro descansa en 44 observaciones porque
+#: casi nadie prueba los dos en la misma sesión — es justamente el par que decide
+#: si el duro sirve, y es el peor medido. Un ajuste alternativo sobre los niveles
+#: en vez de las medianas llega a poner el medio *más lento* que el duro, lo que
+#: da la medida de cuán poco determinado está.
+#: **Y por qué está en cero.** Meter el número medido produce disparates: con el
+#: blando a −1,245 s/vuelta el optimizador recomienda tandas de blando para toda
+#: la carrera, que es algo que ningún equipo hace. Se probó bajando la escala
+#: hasta el 10% y sigue eligiendo blando; se probó además apretando el tope de
+#: tanda de la vida p90 a la mediana, y entonces elige blando con cuatro paradas.
+#:
+#: El motivo es que una vuelta de práctica mide el pico de agarre con poco
+#: combustible, y esa ventaja se derrite con carga y con vueltas. El modelo la
+#: aplicaría como una ventaja constante durante veinticinco vueltas, que es
+#: exactamente lo que no es.
+#:
+#: O sea que hay dos afirmaciones y las dos son ciertas: la conclusión anterior
+#: de que «no hay diferencia medible entre compuestos secos» era **falsa**, y
+#: meter la diferencia medida en práctica también da mal. Lo que falta es el
+#: escalón *en condiciones de carrera*, y eso pide o telemetría o un modelo de
+#: combustible bastante mejor que el que hay.
+#:
+#: Se deja definido y en cero: el número queda documentado para quien lo
+#: necesite, y el modelo no lo usa hasta que se pueda transferir. Poner la cifra
+#: de práctica sería peor que no tener ninguna.
+COMPOUND_OFFSET_S: dict[str, float] = {
+    "HARD": 0.0,
+    "MEDIUM": 0.0,
+    "SOFT": 0.0,
+}
+
+#: Lo medido en práctica, conservado para cuando se pueda calibrar a carrera.
+COMPOUND_OFFSET_PRACTICE_S: dict[str, float] = {
+    "HARD": 0.0,
+    "MEDIUM": -0.388,
+    "SOFT": -1.245,
+}
+
 #: Largest per-lap deficit versus fresh rubber that has been measured, in seconds:
 #: the 99th percentile late in a stint. Past this the set gets changed.
 MAX_DEFICIT_S = 4.4
@@ -585,10 +649,15 @@ def race_trace(
         car.degradation_rate - ROLLING_MEDIAN_S
     )
     deficit = np.full(draws, current)
+    # El escalón entra RELATIVO al compuesto que el auto lleva ahora, igual que
+    # todo lo demás en esta función: el gap actual ya refleja con qué anda, así
+    # que la tanda en curso aporta cero y sólo se cobran los cambios.
+    own_offset = COMPOUND_OFFSET_S.get(car.compound, 0.0)
+    step = 0.0
 
     for offset in range(laps_left):
         lap = car.from_lap + offset
-        total = total + baseline + deficit
+        total = total + baseline + deficit + step
         # A tyre never gets faster than new, and never worse than the measured
         # 99th percentile, so the deficit is clamped at both ends.
         deficit = np.clip(deficit + rate, 0.0, MAX_DEFICIT_S)
@@ -602,6 +671,7 @@ def race_trace(
             # Fresh rubber: the deficit restarts, which is the gain from stopping.
             rate = _from_cuts(model.wear_cuts[stop.compound], rng.random(draws))
             deficit = np.zeros(draws)
+            step = COMPOUND_OFFSET_S.get(stop.compound, 0.0) - own_offset
 
         trace[offset + 1] = total
 

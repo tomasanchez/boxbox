@@ -127,3 +127,54 @@ print("Si los números de práctica son mucho mayores, la conclusión de que «n
 print("diferencia medible entre compuestos secos» era un artefacto de intentar")
 print("medirla dentro de la carrera, y el duro tiene una razón propia de existir")
 print("además del reglamento.")
+
+
+print("")
+print(SEP)
+print("### UN ESCALON CONSISTENTE, PARA METER EN EL MODELO")
+print("Los tres pares de arriba no son transitivos, porque cada uno sale de un")
+print("conjunto distinto de sesiones. Un ajuste por minimos cuadrados sobre TODAS")
+print("las observaciones a la vez da tres numeros que si cierran entre si:")
+print()
+print("    tiempo = (efecto de la sesion y el piloto) + (escalon del compuesto)")
+print()
+practice["key"] = (
+    practice["round"].astype(str) + "-" + practice["session"] + "-" + practice["driver"]
+)
+fastest = practice.groupby(["key", "compound"])["seconds"].min().unstack()
+usable = fastest[fastest.notna().sum(axis=1) >= 2]
+keys = list(usable.index)
+position = {key: index for index, key in enumerate(keys)}
+free = ["MEDIUM", "SOFT"]  # el duro es la referencia: su escalon es cero por definicion
+
+design, target = [], []
+for key in keys:
+    for compound in DRY:
+        value = usable.loc[key, compound]
+        if pd.isna(value):
+            continue
+        row = [0.0] * (len(keys) + len(free))
+        row[position[key]] = 1.0
+        if compound in free:
+            row[len(keys) + free.index(compound)] = 1.0
+        design.append(row)
+        target.append(float(value))
+
+design = np.array(design)
+target = np.array(target)
+coefficients, *_ = np.linalg.lstsq(design, target, rcond=None)
+offsets = {"HARD": 0.0, "MEDIUM": float(coefficients[-2]), "SOFT": float(coefficients[-1])}
+
+print(f"sesiones-piloto con dos o mas compuestos: {len(keys)}   observaciones: {len(target)}")
+residual = target - design @ coefficients
+print(f"desvio del residuo: {residual.std():.3f} s")
+print()
+for compound in DRY:
+    print(f"  {compound:7s} {offsets[compound]:+.3f} s/vuelta respecto del duro")
+paso = offsets["SOFT"] - offsets["MEDIUM"]
+print("")
+print(f"  blando respecto del medio: {paso:+.3f}")
+print()
+print("Estos son los que entran al modelo. La advertencia va con ellos: una")
+print("vuelta de practica es lanzada y con poco combustible, y en carrera los")
+print("escalones se achican. Son una cota superior, no el numero de carrera.")
