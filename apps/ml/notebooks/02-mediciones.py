@@ -742,3 +742,127 @@ print("nuevo es Madrid.")
 # incertidumbre declarada**: blando 0,072 ± 0,041, medio 0,056 ± 0,032, duro
 # 0,050 ± 0,025 s/vuelta. El error es del tamaño del efecto, así que la
 # recomendación para Madrid sale, pero débil, y hay que presentarla como tal.
+
+# %% [markdown]
+# ## 2.11 El escalón de ritmo entre compuestos
+#
+# Un compuesto tiene **tres** propiedades: ritmo con goma nueva, ritmo de caída, y
+# vida. Las secciones anteriores midieron las dos últimas. Falta la primera, y su
+# ausencia dejaba una pregunta sin respuesta: si en Monza el medio degrada menos
+# que el duro, ¿por qué alguien calzaría el duro?
+#
+# Medido **dentro de la carrera**, el escalón daba 0,02 a 0,04 s/vuelta entre
+# compuestos, y de ahí salió la conclusión de que no había diferencia medible.
+# Esa conclusión era falsa, y el motivo es el confundidor de siempre: el medio se
+# corre en la mediana del 26% de la carrera y el duro en el 61%, veinticinco
+# vueltas de diferencia que la corrección por avance no separa con la precisión
+# necesaria.
+#
+# **En las prácticas sí se puede.** Mismo piloto, misma sesión, poco combustible,
+# tandas cortas separadas por minutos. Sobre 8.422 vueltas de 2026 en 26
+# sesiones, comparando la mejor vuelta de cada piloto en cada compuesto:
+#
+# | Par | n | Mediana |
+# |---|---|---|
+# | blando − medio | 279 | **−0,947 s/vuelta** |
+# | medio − duro | 44 | **−0,957** |
+# | blando − duro | 115 | −1,027 |
+#
+# Un segundo entre compuestos vecinos: **treinta veces** lo que daba la carrera.
+# Reproducible con `scripts/compound_offset.py`.
+#
+# Los tres pares no cierran entre sí —−0,95 y −0,96 deberían sumar −1,9 y el
+# directo da −1,03— porque cada uno sale de sesiones distintas. Un ajuste
+# ponderado por tamaño de muestra da, respecto del duro: **medio −0,388, blando
+# −1,245**. El eslabón medio-duro descansa en 44 observaciones porque casi nadie
+# prueba los dos en la misma sesión, y es justamente el par que decide si el duro
+# sirve.
+
+# %% [markdown]
+# ### Y sin embargo no entra al modelo
+#
+# Meterlo produce disparates. Con el blando a −1,245 el optimizador recomienda
+# blando para toda la carrera, cosa que no hace ningún equipo:
+#
+# | Escala del escalón | Mejor plan |
+# |---|---|
+# | 0,00 | M23-H24-H24 |
+# | 0,10 | M23-S24-S24 |
+# | 1,00 | M23-S24-S24 |
+#
+# Bajando al 10% sigue eligiendo blando. Apretando además el tope de tanda de la
+# vida p90 a la mediana —de 25 a 15 vueltas en blando— elige blando con cuatro
+# paradas.
+#
+# El motivo es que una vuelta de práctica mide el **pico de agarre con poco
+# combustible**, y esa ventaja se derrite con carga y con vueltas. El modelo la
+# aplicaría como ventaja constante durante veinticinco vueltas, que es justamente
+# lo que no es.
+#
+# Las dos afirmaciones son ciertas a la vez: «no hay diferencia medible» era
+# falso, y meter la diferencia medida en práctica también da mal. La constante
+# queda definida y **en cero**, con el número guardado aparte. Poner la cifra de
+# práctica sería peor que no tener ninguna.
+
+# %% [markdown]
+# ## 2.12 Cuántos juegos tiene un auto
+#
+# El buscador trata los compuestos como recurso infinito y recomienda tres tandas
+# al duro. Un equipo no tiene tres duros nuevos.
+
+# %%
+juegos = (
+    base.groupby([*features.STINT_KEYS], dropna=False)
+    .agg(compound=("Compound", "first"), fresh=("FreshTyre", "first"))
+    .reset_index()
+)
+juegos = juegos[juegos["compound"].isin(["SOFT", "MEDIUM", "HARD"])]
+frescos = (
+    juegos[juegos["fresh"].eq(True)]
+    .groupby([*features.RACE_KEYS, "Driver", "compound"])
+    .size()
+    .unstack(fill_value=0)
+)
+por_carrera = juegos.groupby([*features.RACE_KEYS, "Driver"]).agg(
+    montados=("Stint", "size"), frescos=("fresh", "sum")
+)
+print(f"juegos montados por carrera: media {por_carrera['montados'].mean():.2f}")
+print(f"de esos, frescos:            media {por_carrera['frescos'].mean():.2f}")
+usados = 1 - por_carrera["frescos"].sum() / por_carrera["montados"].sum()
+print(f"o sea que el {usados:.1%} de los juegos montados en carrera ya venía usado")
+print()
+print("juegos FRESCOS de cada compuesto, reparto sobre los autos:")
+for compuesto in ("SOFT", "MEDIUM", "HARD"):
+    if compuesto not in frescos:
+        continue
+    dist = frescos[compuesto].value_counts(normalize=True).sort_index()
+    reparto = "  ".join(f"{k}:{v:.3f}" for k, v in dist.items())
+    print(f"  {compuesto:7s} media {frescos[compuesto].mean():.2f}   {reparto}")
+
+# %%
+dos_duros = (frescos["HARD"] >= 2).mean() if "HARD" in frescos else 0.0
+print(f"autos que montan DOS O MÁS duros frescos: {dos_duros:.1%}")
+print()
+print("La recomendación del optimizador para toda la parrilla es H23-H24-H24:")
+print("tres tandas al duro, que necesita dos duros frescos además del de salida.")
+print("Para el 85% de los autos ese plan no es ejecutable, y el modelo no tiene")
+print("forma de saberlo.")
+
+# %% [markdown]
+# Cuánto cuesta la restricción, para un auto que larga en medio en Zandvoort:
+#
+# | Plan | Tiempo | Contra el ideal |
+# |---|---|---|
+# | H-H (dos duros frescos) | 91,32 s | ideal |
+# | H-S (duro + blando) | 93,83 | +2,51 |
+# | H-M (duro + medio) | 94,16 | +2,84 |
+# | M-M (dos medios) | 96,99 | +5,67 |
+#
+# Entre 2,5 y 5,7 segundos. No es enorme, pero a diferencia de todo lo demás que
+# medimos **es una restricción dura**: el plan directamente no existe.
+#
+# Un juego usado dura unas dos vueltas menos —duro 25 nuevo contra 23 usado,
+# medio 18 contra 16—. Su castigo de ritmo no se puede medir con lo que hay: la
+# pendiente sale más plana en el usado, que es selección y no física, porque un
+# juego ya rodado pasó su caída inicial. El castigo vive en el **nivel**, que
+# `degradation_s` no ve por ser relativa a la propia tanda.

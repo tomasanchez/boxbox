@@ -564,3 +564,255 @@ pd.DataFrame(sonda)
 #   computación evolutiva y está entre las dependencias del proyecto. Los
 #   operadores acá son a medida porque el genoma es de largo variable con
 #   reparación, pero portarlo sería alinearlo con la herramienta esperada.
+
+# %% [markdown]
+# ## 3.9 Cuatro errores de método, y el resultado cambia
+#
+# Todo lo anterior de este cuaderno se escribió con una búsqueda que tenía cuatro
+# defectos de método. Corregidos, la conclusión de que «el algoritmo apenas le
+# gana a una servilleta» **cambia**. Los cuatro se documentan porque son errores
+# de los que se aprende algo general, no despistes.
+
+# %% [markdown]
+# ### 1 · El hueco de la grilla se cobraba cada vuelta
+#
+# El ritmo base de un auto se estima de cuánto viene perdiendo por vuelta:
+# `gap_leader / (from_lap − 1)`. Con `from_lap = 1` eso divide por
+# `max(1, 0) = 1`, así que un auto 19.º en la grilla quedaba **4,75 s/vuelta**
+# atrás — cinco minutos y medio sobre la carrera.
+#
+# Antes de largar no hay historia de la que inferir ritmo, y un hueco de grilla es
+# un desplazamiento único, no una tasa. Corregido, el ritmo base es cero en la
+# vuelta 1.
+
+# %%
+for gap in (0.0, 2.0):
+    coche = Car("X", "HARD", 0, 0.0, strategy.ROLLING_MEDIAN_S, gap, 1)
+    plan = Plan(strategy._repair([Stop(36, "HARD")], coche, MODELO))
+    gen = np.random.default_rng(1)
+    banderas = strategy.draw_neutralisations(MODELO, gen, 2000)
+    t = strategy.race_time(plan, coche, MODELO, gen, 2000, banderas).mean()
+    print(f"  hueco de grilla {gap} s  ->  tiempo {t:.1f} s")
+print("\nDos segundos de grilla cuestan dos segundos de carrera. Antes costaban 144.")
+
+# %% [markdown]
+# ### 2 · Se reportaba el puntaje en muestra
+#
+# El máximo de muchas estimaciones ruidosas está sesgado hacia arriba, igual que
+# evaluar un modelo sobre su conjunto de entrenamiento. Medido: **8,0 s** de
+# optimismo con 200 sorteos, 1,6 s con 1.500.
+#
+# Ahora el mejor plan se reevalúa sobre sorteos que la búsqueda nunca vio, y la
+# diferencia queda expuesta en `Search.optimism`.
+
+# %%
+coche = Car("MED", "MEDIUM", 0, 0.0, strategy.ROLLING_MEDIAN_S, 0.5, 1)
+for sorteos in (200, 1200):
+    h = optimise(
+        coche, [], [], MODELO, objective=Objective.TIME,
+        population=40, generations=25, draws=sorteos, seed=11,
+    )
+    print(
+        f"  {sorteos:5d} sorteos   en muestra {-h.score_in_sample:7.1f}"
+        f"   fuera {-h.score:7.1f}   optimismo {h.optimism:+.1f} s"
+    )
+
+# %% [markdown]
+# ### 3 · Los planes no se comparaban contra las mismas carreras
+#
+# El generador se compartía y avanzaba, así que cada candidato veía un sorteo
+# distinto y la comparación cargaba el ruido dos veces. **El mismo plan puntuaba
+# entre 126,6 y 136,0 s.**
+#
+# Con números aleatorios comunes no baja el error de cada estimación: baja el
+# error de la **diferencia** entre planes, que es lo único que una búsqueda usa.
+
+# %%
+plan = Plan(strategy._repair([Stop(31, "HARD")], coche, MODELO))
+for sorteos in (200, 1200):
+    muestras = []
+    for semilla in range(20):
+        gen = np.random.default_rng(1000 + semilla)
+        banderas = strategy.draw_neutralisations(MODELO, gen, sorteos)
+        muestras.append(strategy.race_time(plan, coche, MODELO, gen, sorteos, banderas).mean())
+    print(
+        f"  {sorteos:5d} sorteos: el MISMO plan puntúa entre {min(muestras):.1f}"
+        f" y {max(muestras):.1f} s   (desvío {np.std(muestras):.2f})"
+    )
+
+# %% [markdown]
+# ### 4 · La población inicial era toda al azar
+#
+# Un plan tiene que acertar las vueltas **y** los compuestos a la vez, y con tres
+# compuestos por parada sólo una combinación de nueve sirve. Medido: 118 planes
+# de dos paradas generados al azar, el mejor puntuaba 93,3 s contra 91,0 de una
+# división pareja hecha a mano. El espacio contenía la respuesta y las semillas
+# nunca caían cerca.
+#
+# Ahora se siembra con las heurísticas. Eso además vuelve honesta la comparación:
+# la búsqueda **arranca desde la regla de servilleta**, así que sólo puede
+# igualarla o mejorarla, y la pregunta pasa a ser si encuentra algo mejor en vez
+# de si redescubre lo obvio.
+
+# %% [markdown]
+# ### El efecto conjunto
+#
+# Ventaja media sobre la mejor regla, antes de correr desde la vuelta 1:
+#
+# | Sorteos en la búsqueda | Ventaja |
+# |---|---|
+# | 400 | **−0,71 s** |
+# | 1.200 | +0,12 s |
+# | 3.000 | +0,08 s |
+#
+# El «no le gana a una servilleta» era en buena parte método. El piso de sorteos
+# por defecto subió de 400 a 1.200, documentado como piso y no como preferencia.
+
+# %% [markdown]
+# ## 3.10 La comparación estaba amañada, y a favor de la regla
+#
+# Hay un quinto error, y es el más importante porque invalida la conclusión
+# principal del cuaderno.
+#
+# La «regla de servilleta» contra la que se comparaba tomaba el **mínimo sobre
+# una, dos y tres paradas** y siempre calzaba duro. Eso no es una regla que
+# alguien pueda seguir antes de una carrera: es un oráculo al que ya le dijeron
+# las dos respuestas difíciles —cuántas paradas y a qué compuesto— dejándole a la
+# búsqueda sólo las vueltas.
+#
+# Separadas las tres decisiones, con el modelo completo:
+#
+# **Cuántas paradas** vale 12,5 s de carrera, y el número correcto no es el mismo
+# para todos:
+#
+# | Larga en | 1 parada | 2 paradas | 3 paradas | Óptimo |
+# |---|---|---|---|---|
+# | Blando | 107,6 | **91,6** | 101,7 | dos |
+# | Medio | 94,9 | **91,9** | 101,9 | dos |
+# | Duro | **89,0** | 89,4 | 100,5 | una |
+#
+# **A qué compuesto** vale 5,7 s entre la mejor y la peor combinación, pero 0,0
+# sobre defaultear al duro: duro-duro resulta la mejor para los tres compuestos de
+# salida, coherente con que en 2026 los compuestos no difieran en ritmo dentro del
+# modelo, sólo en vida.
+#
+# **En qué vuelta** vale 0,30 s una vez resueltas las otras dos — y eso es lo
+# único que la comparación anterior estaba midiendo. Con razón parecía plano.
+
+# %% [markdown]
+# ### Contra reglas que sí se pueden enunciar de antemano
+#
+# | Regla | Ventaja del algoritmo |
+# |---|---|
+# | «siempre 1 parada, duro» | **+6,93 s** |
+# | «siempre 2 paradas, duro» | +0,00 |
+# | «siempre 3 paradas, duro» | **+10,65 s** |
+# | el oráculo | +0,00 |
+#
+# El algoritmo le gana a **cualquier regla enunciable**, y lo que gana es
+# exactamente el valor de acertar la cantidad de paradas. Contra el oráculo
+# empata, y ésa era la comparación que se venía reportando como si fuera la
+# relevante.
+#
+# Matiz honesto: «siempre dos paradas al duro» queda a nada del algoritmo, porque
+# dos paradas es correcto para dos de los tres compuestos de salida. Lo que el
+# algoritmo agrega sobre eso es **acertar el caso del duro**, donde la respuesta
+# cambia — y en una parrilla real con compuestos de salida repartidos, eso son
+# varios autos.
+#
+# Reproducible con `scripts/decision_value.py`.
+
+# %% [markdown]
+# ## 3.11 Monza 2026: el modelo contra una carrera de verdad
+#
+# La mejor prueba que tuvo el trabajo, y el modelo la falla de una forma que
+# enseña algo. Antonelli largó 19.º con duro, paró dos veces y ganó con medio.
+# El modelo, preguntado antes de largar, recomienda **una parada al duro** para
+# un auto que larga en duro.
+#
+# ### Lo que pasó
+#
+# Bandera roja en la vuelta 3: los 22 autos entran y cambian gomas gratis. VSC en
+# las vueltas 27 a 29: ahí paran los diez que hicieron una segunda. **El 90,6% de
+# las paradas estratégicas de esa carrera fueron bajo neutralización**, contra el
+# 23% medido sobre 103 carreras. Casi nadie pagó por parar.
+#
+# ### Los dos planes, según lo que costaron las paradas
+#
+# | Escenario | Recomendado | Lo de ANT | Diferencia |
+# |---|---|---|---|
+# | Precio normal, 22,6 s | 57,95 | 78,96 | **+21,01** |
+# | Paradas gratis | 35,34 | 33,84 | **−1,50** |
+#
+# El vuelco vale 22,5 s de carrera. Y la cantidad óptima se invierte del todo: a
+# precio normal 1 parada (61,1) le gana a 2 (71,2) y a 3 (87,1); con las paradas
+# gratis el orden es 3 (19,4) mejor que 2 (26,1) mejor que 1 (38,5).
+#
+# Reproducible con `scripts/monza_2026.py`.
+
+# %% [markdown]
+# ### Por qué el duro, si en Monza el medio degrada menos
+#
+# En Monza el medio degrada **0,0331 s/vuelta y el duro 0,0463**: el medio es el
+# mejor neumático. Así que la pregunta es por qué once autos corrieron cincuenta
+# vueltas con duro.
+#
+# No porque sea mejor. Porque **B6.3.8 obliga a usar dos compuestos secos**, y el
+# duro es donde gastaron la obligación. La elección no es «cuál es más rápido»
+# sino **en qué tanda tiro la regla**.
+#
+# La bandera roja hizo eso visible: los veintidós corrieron una tanda de dos o
+# tres vueltas y cambiaron gratis. Esa tanda corta **es la tanda de
+# cumplimiento**, y ahí se partieron las estrategias:
+#
+# | | Secuencia |
+# |---|---|
+# | **ANT** | **H3-M25-M25** |
+# | RUS, NOR, PIA, GAS, LIN, COL | M3-H50 |
+# | HAM, BOR | S3-M50 |
+#
+# Antonelli puso el compuesto obligatorio en la tanda descartable y corrió el
+# bueno dos veces. Seis autos gastaron su medio ahí y después tuvieron que vivir
+# cincuenta vueltas con el duro.
+#
+# **Con B6.3.8 aplicado, la bandera roja en el sorteo y el desgaste propio de
+# Monza, el modelo pone el orden bien**: H6-M21-M25 (69,09 s) por delante de
+# M6-H21-H25 (69,26). Es la primera vez que reproduce una decisión estratégica
+# real, y hicieron falta las tres cosas juntas. Ver `scripts/compliance_stint.py`.
+
+# %% [markdown]
+# ### Y por qué dos paradas y no una
+#
+# ANT y Hamilton corrieron los dos con medio. HAM hizo **cincuenta vueltas con un
+# solo juego**; ANT hizo dos tandas de veinticinco, parando bajo el VSC.
+#
+# El medio en Monza degrada poco, pero no cero:
+#
+# | Edad del juego | Más lento que uno nuevo |
+# |---|---|
+# | 25 vueltas | 0,83 s/vuelta |
+# | 50 vueltas | **1,65 s/vuelta** |
+#
+# En la vuelta 37 la goma de HAM tenía 33 vueltas y la de ANT 8: **0,83 s/vuelta**
+# de ventaja. ANT cayó de 2.º a 6.º al parar y en ocho vueltas estaba de nuevo
+# 2.º con HAM 5.º.
+#
+# Degradar poco no es lo mismo que no degradar. Que el medio sea el mejor
+# compuesto de Monza es la razón para tener **dos juegos frescos**, no para
+# estirar uno.
+
+# %% [markdown]
+# ### Lo que le faltaba al modelo para haber acertado
+#
+# 1. **Sorteaba un solo safety car** por carrera al 60%. Monza tuvo bandera roja
+#    en la 3 y VSC en la 27. Ya está: se sortean las tres banderas por separado,
+#    con cantidad y momento medidos. El 44,7% de las carreras tiene dos o más
+#    períodos.
+# 2. **No modelaba banderas rojas**, donde el cambio es gratis y donde cayeron 22
+#    de las 32 paradas de Monza. Ya está.
+# 3. **Usaba el desgaste de Zandvoort para correr Monza.** No está: el simulador
+#    sigue con los parámetros de Zandvoort para todos los circuitos, y Monza
+#    demuestra que eso da la respuesta equivocada. Es lo próximo.
+# 4. **`MIN_STINT` son seis vueltas**, así que las reglas de reparación no pueden
+#    representar la parada de la vuelta 3 que hicieron los veintidós. La
+#    reconstrucción sale H6-M21-M25 en vez de H3-M25-M25.
