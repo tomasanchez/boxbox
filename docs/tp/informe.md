@@ -252,6 +252,16 @@ usan el generador global de `random`, que nunca sembrábamos**, así que el moto
 determinístico y dos corridas idénticas daban planes distintos. Está sembrado desde el mismo
 generador que ya comparte la búsqueda.
 
+Verificado sobre 75 problemas —tres compuestos de salida, cuatro posiciones de grilla, tres
+apetitos de riesgo, cinco semillas— comparando el puntaje fuera de muestra: **DEAP gana 7, el
+motor propio 6, empatan 62**, con una diferencia absoluta media de 0,02 y el mismo plan exacto en
+el 74,7% de los casos. Ninguno le gana al otro; DEAP cuesta 6,9 s por búsqueda contra 5,2 s.
+
+Una lección de método salió del propio experimento: **«mismo plan» sólo es una métrica válida
+donde la aptitud discrimina.** El auto vigésimo con apetito conservador tiene 0% de acuerdo entre
+motores y puntaje idéntico −20,000 en los dos — termina vigésimo haga lo que haga, así que todos
+los planes empatan y cada motor se queda con uno distinto.
+
 **3. Agente de Aprendizaje por Refuerzo (comparación — Unidad 5).**
 
 El algoritmo genético arma el plan **antes de largar**. Pero en una carrera real las cosas
