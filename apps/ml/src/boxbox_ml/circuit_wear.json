@@ -1,71 +1,224 @@
 {
-  "confiabilidad": 0.892,
-  "confiabilidad_entre_eras": 0.143,
-  "metodo": "desviacion respecto de la mediana de la temporada, encogida por la confiabilidad de particion por mitades corregida con Spearman-Brown",
-  "pares_entre_eras": 27,
-  "circuitos": 13,
-  "mediana_temporada_s_vuelta": {
-    "SOFT": 0.06781,
-    "MEDIUM": 0.06103,
-    "HARD": 0.06322
+  "metodo": "encogimiento jerarquico: w = entre / (entre + dentro/n), por celda",
+  "tandas_para_medio_peso": 2.3,
+  "dispersion_entre_circuitos": 0.002106,
+  "ruido_de_una_tanda": 0.006995,
+  "nivel_temporada_s_vuelta": {
+    "SOFT": 0.06767,
+    "MEDIUM": 0.05954,
+    "HARD": 0.06849
   },
-  "desviacion_encogida_s_vuelta": {
+  "celdas": {
     "Barcelona": {
-      "HARD": 0.0662,
-      "MEDIUM": 0.1238,
-      "SOFT": 0.1588
+      "HARD": {
+        "n": 34,
+        "peso": 0.938,
+        "encogido": 0.06169
+      },
+      "MEDIUM": {
+        "n": 18,
+        "peso": 0.889,
+        "encogido": 0.11857
+      },
+      "SOFT": {
+        "n": 9,
+        "peso": 0.8,
+        "encogido": 0.14426
+      }
     },
     "Budapest": {
-      "HARD": 0.0339,
-      "MEDIUM": 0.0268,
-      "SOFT": -0.0041
+      "HARD": {
+        "n": 28,
+        "peso": 0.926,
+        "encogido": 0.02736
+      },
+      "MEDIUM": {
+        "n": 19,
+        "peso": 0.894,
+        "encogido": 0.02205
+      },
+      "SOFT": {
+        "n": 16,
+        "peso": 0.877,
+        "encogido": -0.00203
+      }
     },
     "Melbourne": {
-      "HARD": 0.005,
-      "MEDIUM": -0.0974,
-      "SOFT": 0.0019
+      "HARD": {
+        "n": 20,
+        "peso": 0.899,
+        "encogido": -0.0025
+      },
+      "MEDIUM": {
+        "n": 18,
+        "peso": 0.889,
+        "encogido": -0.10183
+      },
+      "SOFT": {
+        "n": 7,
+        "peso": 0.757,
+        "encogido": 0.00338
+      }
     },
     "Miami": {
-      "HARD": 0.0089,
-      "MEDIUM": 0.0
+      "HARD": {
+        "n": 15,
+        "peso": 0.87,
+        "encogido": 0.0014
+      },
+      "MEDIUM": {
+        "n": 17,
+        "peso": 0.883,
+        "encogido": -0.00471
+      },
+      "SOFT": {
+        "n": 4,
+        "peso": 0.64,
+        "encogido": 0.00755
+      }
     },
     "Monaco": {
-      "HARD": -0.044,
-      "MEDIUM": 0.0134
+      "HARD": {
+        "n": 12,
+        "peso": 0.842,
+        "encogido": -0.04861
+      },
+      "MEDIUM": {
+        "n": 17,
+        "peso": 0.883,
+        "encogido": 0.00851
+      },
+      "SOFT": {
+        "n": 4,
+        "peso": 0.64,
+        "encogido": -0.01918
+      }
     },
     "Montréal": {
-      "MEDIUM": -0.046,
-      "SOFT": -0.0823
+      "HARD": {
+        "n": 2,
+        "peso": 0.471,
+        "encogido": -0.02376
+      },
+      "MEDIUM": {
+        "n": 22,
+        "peso": 0.907,
+        "encogido": -0.05161
+      },
+      "SOFT": {
+        "n": 19,
+        "peso": 0.894,
+        "encogido": -0.08041
+      }
     },
     "Monza": {
-      "HARD": -0.0263,
-      "MEDIUM": -0.0161
+      "HARD": {
+        "n": 13,
+        "peso": 0.852,
+        "encogido": -0.03226
+      },
+      "MEDIUM": {
+        "n": 12,
+        "peso": 0.842,
+        "encogido": -0.01965
+      },
+      "SOFT": {
+        "n": 3,
+        "peso": 0.571,
+        "encogido": 0.01158
+      }
     },
     "Shanghai": {
-      "HARD": -0.0395,
-      "MEDIUM": -0.0562
+      "HARD": {
+        "n": 18,
+        "peso": 0.889,
+        "encogido": -0.04683
+      },
+      "MEDIUM": {
+        "n": 12,
+        "peso": 0.842,
+        "encogido": -0.05753
+      }
     },
     "Silverstone": {
-      "HARD": -0.0024,
-      "MEDIUM": -0.0068
+      "HARD": {
+        "n": 21,
+        "peso": 0.903,
+        "encogido": -0.01
+      },
+      "MEDIUM": {
+        "n": 21,
+        "peso": 0.903,
+        "encogido": -0.01172
+      },
+      "SOFT": {
+        "n": 1,
+        "peso": 0.308,
+        "encogido": 0.0351
+      }
     },
     "Spa-Francorchamps": {
-      "HARD": -0.0073,
-      "MEDIUM": 0.0146
+      "HARD": {
+        "n": 23,
+        "peso": 0.911,
+        "encogido": -0.01508
+      },
+      "MEDIUM": {
+        "n": 13,
+        "peso": 0.852,
+        "encogido": 0.00938
+      },
+      "SOFT": {
+        "n": 3,
+        "peso": 0.571,
+        "encogido": -0.01118
+      }
     },
     "Spielberg": {
-      "HARD": 0.0357,
-      "MEDIUM": 0.0478,
-      "SOFT": 0.003
+      "HARD": {
+        "n": 24,
+        "peso": 0.914,
+        "encogido": 0.02886
+      },
+      "MEDIUM": {
+        "n": 29,
+        "peso": 0.928,
+        "encogido": 0.0448
+      },
+      "SOFT": {
+        "n": 8,
+        "peso": 0.78,
+        "encogido": 0.00442
+      }
     },
     "Suzuka": {
-      "HARD": -0.0292,
-      "MEDIUM": -0.0049
+      "HARD": {
+        "n": 19,
+        "peso": 0.894,
+        "encogido": -0.03677
+      },
+      "MEDIUM": {
+        "n": 23,
+        "peso": 0.911,
+        "encogido": -0.00986
+      }
     },
     "Zandvoort": {
-      "HARD": 0.0024,
-      "MEDIUM": 0.0412,
-      "SOFT": -0.0019
+      "HARD": {
+        "n": 28,
+        "peso": 0.926,
+        "encogido": -0.00533
+      },
+      "MEDIUM": {
+        "n": 11,
+        "peso": 0.83,
+        "encogido": 0.0339
+      },
+      "SOFT": {
+        "n": 20,
+        "peso": 0.899,
+        "encogido": 0.00013
+      }
     }
   }
 }

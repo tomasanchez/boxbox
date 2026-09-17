@@ -282,6 +282,18 @@ MAX_STINT: dict[str, int] = {"HARD": 41, "MEDIUM": 31, "SOFT": 25}
 #: Wear rate per compound, as cuts of the measured Zandvoort stint-slope
 #: distribution. 98, 79 and 80 stints. See ``docs/research/pace-noise.md``.
 #:
+#: **Those counts are across every season, not 2026.** It is worth being explicit
+#: because it was not: 2026 alone has 20, 11 and 28 stints here, and its medium
+#: wears 0.1004 s/lap against the 0.0625 these cuts carry — a 60% difference
+#: between two numbers both called "Zandvoort". The generator
+#: (``scripts/zandvoort_distributions.py``) filters by circuit and not by year.
+#:
+#: That pooling contradicts the project's own stated policy, which measures wear
+#: per compound on **2026 only**, because this is the season the compound order
+#: inverted. :meth:`RaceModel.for_circuit` does follow that policy, which is why
+#: the two disagree. Changing these cuts would move every published figure, so it
+#: is a decision on its own and not a side effect of documenting the conflict.
+#:
 #: Re-derived after ``RACE_PROGRESS_S_PER_LAP`` was fitted at 0.056 instead of the
 #: asserted 0.035. The effect is exact and uniform: every slope moves up by the
 #: difference, 0.021 s/lap, because the correction is linear in the lap number.
@@ -307,7 +319,7 @@ def circuit_wear_table() -> dict:
         try:
             _circuit_wear = json.loads(_CIRCUIT_WEAR_PATH.read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            _circuit_wear = {"desviacion_encogida_s_vuelta": {}, "mediana_temporada_s_vuelta": {}}
+            _circuit_wear = {"celdas": {}, "nivel_temporada_s_vuelta": {}}
     return _circuit_wear
 
 
@@ -322,7 +334,10 @@ WEAR_CUTS: dict[str, tuple[float, ...]] = {
 class RaceModel:
     """Everything drawn during a simulated race, all of it measured.
 
-    Defaults are 2026 Zandvoort. See ``docs/research/strategy-search.md``.
+    Defaults are Zandvoort pooled across every season — **not 2026**, which the
+    docstring claimed for a while and which :data:`WEAR_CUTS` explains. For a
+    circuit the current season has visited, :meth:`for_circuit` is the one that
+    follows the project's policy. See ``docs/research/strategy-search.md``.
     """
 
     total_laps: int = 72
@@ -424,10 +439,8 @@ class RaceModel:
     def for_circuit(cls, circuit: str, **overrides) -> RaceModel:
         """A model carrying that circuit's own measured wear, where it exists.
 
-        The defaults are Zandvoort's, and running every circuit on them is what
-        made the model recommend the wrong tyre at Monza — there the medium wears
-        0.0331 s/lap against Zandvoort's 0.0640, and less than Monza's own hard,
-        which inverts the answer.
+        The defaults are Zandvoort's pooled across seasons, and running every
+        circuit on them is what made the model recommend the wrong tyre at Monza.
 
         Two questions hide here and they have opposite answers, which is why this
         looked harder than it is. Measured in ``scripts/circuit_wear.py``:
@@ -454,14 +467,16 @@ class RaceModel:
             A model with ``wear_cuts`` rescaled to that circuit, or the plain
             defaults when the circuit has no measurement.
         """
-        deviations = circuit_wear_table()["desviacion_encogida_s_vuelta"].get(circuit)
-        if not deviations:
+        table = circuit_wear_table()
+        cells = table.get("celdas", {}).get(circuit)
+        if not cells:
             return cls(**overrides)
 
-        level = circuit_wear_table()["mediana_temporada_s_vuelta"]
+        level = table.get("nivel_temporada_s_vuelta", {})
         cuts = {}
         for compound, base in WEAR_CUTS.items():
-            target = level.get(compound, base[4]) + deviations.get(compound, 0.0)
+            shrunk = cells.get(compound, {}).get("encogido", 0.0)
+            target = level.get(compound, base[4]) + shrunk
             # Rescale the whole measured shape, so the spread travels with the
             # median instead of being pinned to Zandvoort's.
             factor = target / base[4] if base[4] else 1.0

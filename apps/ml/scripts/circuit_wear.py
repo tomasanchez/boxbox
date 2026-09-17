@@ -47,9 +47,6 @@ Correr con ``uv run python scripts/circuit_wear.py``.
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 
@@ -259,39 +256,25 @@ shrunk["encogido"] = RELIABILITY * shrunk["deviation"]
 wide = shrunk.pivot_table(index="circuit", columns="compound", values="encogido").round(4)
 print(wide.sort_values("MEDIUM").to_string())
 
-level_2026 = stints[stints["era"] == "2026"].groupby("compound")["slope"].median()
-payload = {
-    "confiabilidad": round(RELIABILITY, 3),
-    "confiabilidad_entre_eras": round(ERA_TRANSFER, 3),
-    "metodo": (
-        "desviacion respecto de la mediana de la temporada, encogida por la "
-        "confiabilidad de particion por mitades corregida con Spearman-Brown"
-    ),
-    "pares_entre_eras": len(paired),
-    "circuitos": len(wide),
-    "mediana_temporada_s_vuelta": {
-        c: round(float(level_2026[c]), 5) for c in DRY if c in level_2026
-    },
-    "desviacion_encogida_s_vuelta": {
-        circuit: {c: round(float(v), 5) for c, v in row.dropna().items()}
-        for circuit, row in wide.iterrows()
-    },
-}
-out = Path(__file__).resolve().parents[1] / "src" / "boxbox_ml" / "circuit_wear.json"
-out.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
-print(f"\nescrito en {out.name} — lo consume RaceModel.for_circuit()")
+# **Este script ya no escribe la tabla que consume el simulador.** La escribe
+# ``scripts/wear_shrinkage.py``, que encoge cada celda según cuántas tandas la
+# respaldan en vez de aplicar un factor único. El factor único que salía de acá le
+# daba el mismo crédito a Silverstone en blando —UNA tanda— que a Spielberg en
+# medio, con veintinueve. Lo que queda acá es el análisis entre eras, que sigue
+# valiendo y que la otra no repite.
+print()
+print("  NOTA: la tabla que consume RaceModel.for_circuit() la escribe ahora")
+print("  scripts/wear_shrinkage.py, con encogimiento que depende de n.")
 
 # ------------------------------------------------------------- 5. ¿y cambia algo?
 
 print("\n" + SEP)
 print("### 5. ¿CAMBIA LA RECOMENDACION?")
-print("La misma búsqueda, con los números de Zandvoort contra los del propio circuito.")
+print("La misma búsqueda, con los defaults contra la tabla que escribe wear_shrinkage.")
 print()
 
 from boxbox_ml import strategy  # noqa: E402 - después de escribir la tabla que lee
 from boxbox_ml.strategy import Car, Objective, RaceModel, optimise  # noqa: E402
-
-strategy._circuit_wear = payload  # la recién calculada, sin releer del disco
 
 LAPS = {
     "Zandvoort": 72,
