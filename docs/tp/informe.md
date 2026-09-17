@@ -37,12 +37,12 @@ de paradas.
 
 Ese resultado corrige una versión anterior de este informe, que reportaba que el algoritmo apenas
 le ganaba a una regla simple. Esa conclusión salía de una comparación mal armada, a favor de la
-regla, y de cuatro defectos de método en la búsqueda. Las secciones 4 y 5 documentan los siete
+regla, y de cuatro defectos de método en la búsqueda. Las secciones 4, 5 y 6 documentan los ocho
 errores propios que se encontraron y corrigieron, porque todos daban números confiados y plausibles
 hasta que algo aguas abajo salió absurdo.
 
 La prueba más dura la dio Monza 2026, cuatro fechas después de la carrera sobre la que está armado
-el simulador: **el modelo se equivocó por veintiún segundos**, y por qué se equivocó es el
+el simulador: **el modelo se equivocó por dieciocho segundos**, y por qué se equivocó es el
 resultado más útil del trabajo. Está en la sección 6.
 
 ---
@@ -670,12 +670,29 @@ neutralización, contra el 23% medido sobre 103 carreras.
 
 | Escenario | Plan recomendado | Lo que hizo ANT | Diferencia |
 |---|---|---|---|
-| Paradas a 22,6 s | 57,95 s | 78,96 s | **+21,01** |
-| Paradas gratis | 35,34 s | 33,84 s | **−1,50** |
+| Paradas a 22,6 s | 60,51 s | 78,91 s | **+18,40** |
+| Paradas gratis | 38,37 s | 35,16 s | **−3,21** |
 
-El vuelco vale **22,5 segundos** de carrera, y la cantidad óptima se invierte: a
+El vuelco vale **21,6 segundos** de carrera, y la cantidad óptima se invierte: a
 precio de lista una parada le gana a dos y a tres; con las paradas gratis el
 orden se da vuelta por completo.
+
+> **Cómo se corrigió esta tabla, porque es el octavo error de la lista.** Una
+> versión anterior decía 57,95 / 78,96 / +21,01, y un vuelco de 22,5 s. Esos
+> números se midieron cuando se escribió `scripts/monza_2026.py` y **nunca se
+> volvieron a medir después de aplicar B6.3.8**. Trazado commit por commit: al
+> crear el script daba 21,01; al meter las tres banderas al sorteo, 20,74; al
+> obligar los dos compuestos secos, 18,40, y ahí se quedó.
+>
+> Tiene sentido que baje: la obligación reglamentaria **empeora el plan
+> recomendado** (57,95 → 60,51) porque le saca libertad, y eso achica la
+> distancia contra lo que hizo Antonelli. La conclusión no cambia — el vuelco
+> sigue valiendo más de veinte segundos y la cantidad óptima de paradas se sigue
+> invirtiendo — pero la cifra estaba rancia.
+>
+> Lo incómodo es de dónde venía: esta misma sección usa B6.3.8 como su
+> explicación central mientras citaba un número medido antes de que B6.3.8
+> existiera en el modelo.
 
 ### Por qué se calza el duro si el medio degrada menos
 
@@ -783,7 +800,7 @@ detalle que acá se aproxima con un promedio. Su metodología no está publicada
 3. **El plan óptimo depende de cuándo salen las neutralizaciones, y eso no se
    sabe.** Monza 2026 lo muestra en un caso concreto: el 90,6% de sus paradas
    fueron bajo bandera o safety car, y con las paradas gratis la cantidad óptima
-   de paradas se invierte. Un número puntual habría estado mal por 21 segundos.
+   de paradas se invierte. Un número puntual habría estado mal por 18 segundos.
 
 4. **El reglamento no es una molestia: es el que manda.** B6.3.8 obliga a usar
    dos compuestos, y la decisión estratégica real no es cuál es más rápido sino
@@ -795,9 +812,12 @@ detalle que acá se aproxima con un promedio. Su metodología no está publicada
    hacía ganar a un auto desde noveno; el hueco de grilla cobrado cada vuelta; la
    referencia de pérdida de boxes que hacía parecer cara la parada bajo safety
    car; el escalado por circuito que duplicaba el tráfico de Zandvoort al revés;
-   los planes comparados contra carreras distintas; y una comparación amañada a
-   favor de la regla que invertía la conclusión principal. Todos daban números
-   confiados y plausibles hasta que algo aguas abajo salió absurdo.
+   los planes comparados contra carreras distintas; una comparación amañada a
+   favor de la regla que invertía la conclusión principal; y una cifra de este
+   mismo informe que quedó rancia al aplicar B6.3.8 y que nadie volvió a medir.
+   Todos daban números confiados y plausibles hasta que algo aguas abajo salió
+   absurdo. El último es el más aleccionador: no hubo ningún error de cálculo, y
+   el número siguió pareciendo correcto durante una semana.
 
 6. **La granularidad por circuito casi nunca la sostienen los datos, pero la
    pregunta estaba mal planteada.** Cuatro cantidades, cuatro correlaciones entre
@@ -835,7 +855,7 @@ seguidos son suficiente señal.
 
 **Riesgo que se asume:** publicar una predicción antes de la carrera puede salir
 mal en público. Es a propósito, y ya pasó: la predicción para Monza estuvo mal
-por 21 segundos. Se evalúa si el rango estaba bien calculado, no si se acertó
+por 18 segundos. Se evalúa si el rango estaba bien calculado, no si se acertó
 justo — y el caso enseñó más que un acierto.
 
 ---
