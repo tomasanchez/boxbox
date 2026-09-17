@@ -5,7 +5,7 @@ Inteligencia Artificial Avanzada — UTN FRBA — 2do Cuatrimestre 2026
 
 | Apellido y Nombres | E-Mail | Aporte |
 |---|---|---|
-| Sánchez, Tomás Agustín | _(completar)_ | 100% |
+| Sánchez, Tomás Agustín | tosanchez@frba.utn.edu.ar | 100% |
 
 **Fecha de Presentación:** _(completar)_
 
@@ -494,6 +494,31 @@ Cuatro cantidades medidas por circuito, y su correlación entre la era 2022-23 y
 | Costo del tráfico | −0,042 |
 | **Desgaste, por compuesto** | **0,26 a 0,45** |
 
+> **Actualización.** Esa tabla compara la era 2022-23 con la 2024-26, y mezcla el reset de
+> reglamento en el segundo bloque. Midiendo el corte donde de verdad está — todo lo previo contra
+> 2026 — el desgaste tampoco cruza: **r = 0,143** sobre 27 pares circuito-compuesto, y usar la
+> medición vieja da 3,4% **más** error que el promedio de la temporada.
+>
+> Pero ésa no es la pregunta que el simulador tiene que contestar, y confundirlas es lo que hacía
+> parecer difícil este problema. Cuando el simulador corre Monza 2026 tiene los datos de Monza 2026:
+> no hay nada que transferir, sólo hay que saber si esa medición es señal o ruido. Partiendo las
+> tandas de cada circuito en dos mitades al azar, las mitades correlacionan 0,81, que corregido por
+> Spearman-Brown da **0,89** para la medición completa — 0,95 en el medio y 0,96 en el duro.
+>
+> Conclusión práctica, y ya implementada en `RaceModel.for_circuit()`: **circuito con datos del año
+> en curso, se le cree casi entero; circuito sin datos, promedio de la temporada.** Lo segundo es
+> exactamente lo que se hizo con Madrid.
+>
+> Con eso, el plan recomendado cambia en **10 de 12 casos** probados, y la cantidad de paradas en 2:
+> Barcelona pasa de una parada a tres, porque su medio degrada 0,19 s/vuelta, el triple que el de
+> Zandvoort.
+>
+> Una corrección al párrafo que sigue: las cifras de Monza salen de **todas las eras juntas**.
+> Restringido a 2026 el orden entre compuestos se da vuelta — duro 0,0306 contra medio 0,0362, con
+> trece y doce tandas detrás. La explicación del compuesto obligatorio no depende de cuál degrada
+> menos, así que sigue en pie; la premisa «el medio es el mejor neumático de Monza» es dependiente
+> de la era.
+
 Las tres primeras se resolvieron usando un número global. La cuarta es la que más se acerca a ser
 usable, y es justamente la que más importa: en **Monza el medio degrada 0,0331 s/vuelta y en
 Zandvoort 0,0640**, casi el doble, y en Monza degrada **menos que el duro** mientras que en
@@ -774,11 +799,15 @@ detalle que acá se aproxima con un promedio. Su metodología no está publicada
    favor de la regla que invertía la conclusión principal. Todos daban números
    confiados y plausibles hasta que algo aguas abajo salió absurdo.
 
-6. **La granularidad por circuito casi nunca la sostienen los datos.** Cuatro
-   cantidades, cuatro correlaciones entre eras: dificultad para adelantar 0,21,
-   avance de carrera 0,15, tráfico −0,04, y desgaste 0,26 a 0,45. Sólo la última
-   se acerca a ser usable — y es justamente la que más importa, porque en Monza el
-   medio degrada la mitad que en Zandvoort e invierte la recomendación.
+6. **La granularidad por circuito casi nunca la sostienen los datos, pero la
+   pregunta estaba mal planteada.** Cuatro cantidades, cuatro correlaciones entre
+   eras: dificultad para adelantar 0,21, avance de carrera 0,15, tráfico −0,04, y
+   desgaste 0,14 medido contra el reset de 2026. Ninguna cruza un cambio de
+   reglamento. Pero el simulador nunca necesita cruzarlo: simula circuitos que la
+   temporada ya visitó, y **dentro de la temporada la medición del desgaste tiene
+   confiabilidad 0,89**. Se le cree casi entera, y el plan recomendado cambia en
+   diez de doce casos. La lección no es «por circuito no se puede» sino «hay que
+   preguntar contra qué se va a usar».
 
 7. **Los datos tienen un techo y conviene nombrarlo.** El desgaste medido se
    aplana por supervivencia; el tráfico de rezagados queda afuera por
@@ -791,7 +820,7 @@ detalle que acá se aproxima con un promedio. Su metodología no está publicada
 
 | Acción | Por qué | ¿Se puede? |
 |---|---|---|
-| **Desgaste por circuito**, encogido por la confiabilidad medida | Monza demuestra que correr todo con los números de Zandvoort da la respuesta equivocada | Sí, y es lo más urgente |
+| ~~**Desgaste por circuito**, encogido por la confiabilidad medida~~ | Monza demuestra que correr todo con los números de Zandvoort da la respuesta equivocada | **Hecho.** `RaceModel.for_circuit()`, encogido por 0,89 |
 | El escalón de ritmo entre compuestos **en condiciones de carrera** | Sin él, el duro sólo existe por el reglamento | Necesita telemetría o un modelo de combustible mejor |
 | Restricción de **asignación de neumáticos** | Sólo el 15% de los autos monta dos duros frescos, y la recomendación los pide | Sí, hay que decidir de dónde sale la asignación |
 | Bajar **`MIN_STINT`** de seis vueltas | No puede representar la parada de bandera roja temprana, que hicieron los 22 autos de Monza | Sí |

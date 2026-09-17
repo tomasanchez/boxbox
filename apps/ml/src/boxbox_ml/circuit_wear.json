@@ -1,0 +1,71 @@
+{
+  "confiabilidad": 0.892,
+  "confiabilidad_entre_eras": 0.143,
+  "metodo": "desviacion respecto de la mediana de la temporada, encogida por la confiabilidad de particion por mitades corregida con Spearman-Brown",
+  "pares_entre_eras": 27,
+  "circuitos": 13,
+  "mediana_temporada_s_vuelta": {
+    "SOFT": 0.06781,
+    "MEDIUM": 0.06103,
+    "HARD": 0.06322
+  },
+  "desviacion_encogida_s_vuelta": {
+    "Barcelona": {
+      "HARD": 0.0662,
+      "MEDIUM": 0.1238,
+      "SOFT": 0.1588
+    },
+    "Budapest": {
+      "HARD": 0.0339,
+      "MEDIUM": 0.0268,
+      "SOFT": -0.0041
+    },
+    "Melbourne": {
+      "HARD": 0.005,
+      "MEDIUM": -0.0974,
+      "SOFT": 0.0019
+    },
+    "Miami": {
+      "HARD": 0.0089,
+      "MEDIUM": 0.0
+    },
+    "Monaco": {
+      "HARD": -0.044,
+      "MEDIUM": 0.0134
+    },
+    "Montréal": {
+      "MEDIUM": -0.046,
+      "SOFT": -0.0823
+    },
+    "Monza": {
+      "HARD": -0.0263,
+      "MEDIUM": -0.0161
+    },
+    "Shanghai": {
+      "HARD": -0.0395,
+      "MEDIUM": -0.0562
+    },
+    "Silverstone": {
+      "HARD": -0.0024,
+      "MEDIUM": -0.0068
+    },
+    "Spa-Francorchamps": {
+      "HARD": -0.0073,
+      "MEDIUM": 0.0146
+    },
+    "Spielberg": {
+      "HARD": 0.0357,
+      "MEDIUM": 0.0478,
+      "SOFT": 0.003
+    },
+    "Suzuka": {
+      "HARD": -0.0292,
+      "MEDIUM": -0.0049
+    },
+    "Zandvoort": {
+      "HARD": 0.0024,
+      "MEDIUM": 0.0412,
+      "SOFT": -0.0019
+    }
+  }
+}

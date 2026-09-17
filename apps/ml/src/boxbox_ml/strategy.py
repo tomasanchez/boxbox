@@ -81,9 +81,11 @@ exactly the case where two cars are fighting each other directly.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
+from pathlib import Path
 
 import numpy as np
 
@@ -287,6 +289,28 @@ MAX_STINT: dict[str, int] = {"HARD": 41, "MEDIUM": 31, "SOFT": 25}
 #: but the median wear rate goes from 0.034-0.040 to 0.055-0.062, and the fifth
 #: percentile of the medium and the hard moves from clearly negative to about
 #: zero. Most of the "stints that get faster" were the under-correction.
+#: Per-circuit wear, measured and shrunk. Written by ``scripts/circuit_wear.py``
+#: and read lazily, because most callers never ask for a circuit.
+_CIRCUIT_WEAR_PATH = Path(__file__).with_name("circuit_wear.json")
+_circuit_wear: dict | None = None
+
+
+def circuit_wear_table() -> dict:
+    """The measured per-circuit wear table, loaded once.
+
+    Returns an empty table if the file is missing, so a checkout that has not run
+    the measurement still works — on the season average, which is the honest
+    fallback anyway.
+    """
+    global _circuit_wear
+    if _circuit_wear is None:
+        try:
+            _circuit_wear = json.loads(_CIRCUIT_WEAR_PATH.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            _circuit_wear = {"desviacion_encogida_s_vuelta": {}, "mediana_temporada_s_vuelta": {}}
+    return _circuit_wear
+
+
 WEAR_CUTS: dict[str, tuple[float, ...]] = {
     "SOFT": (-0.163, -0.0003, 0.032, 0.0394, 0.0611, 0.0759, 0.0979, 0.1085, 0.1592),
     "MEDIUM": (-0.0063, 0.0322, 0.0421, 0.0547, 0.0625, 0.0749, 0.0885, 0.101, 0.1277),
@@ -395,6 +419,54 @@ class RaceModel:
     #: Multiplier on the traffic penalty. One, because the per-circuit estimates
     #: do not replicate across eras — see :data:`TRAFFIC_SCALE`.
     traffic_scale: float = TRAFFIC_SCALE
+
+    @classmethod
+    def for_circuit(cls, circuit: str, **overrides) -> RaceModel:
+        """A model carrying that circuit's own measured wear, where it exists.
+
+        The defaults are Zandvoort's, and running every circuit on them is what
+        made the model recommend the wrong tyre at Monza — there the medium wears
+        0.0331 s/lap against Zandvoort's 0.0640, and less than Monza's own hard,
+        which inverts the answer.
+
+        Two questions hide here and they have opposite answers, which is why this
+        looked harder than it is. Measured in ``scripts/circuit_wear.py``:
+
+        * Does a circuit's wear carry across a **regulation change**? Barely —
+          r = 0.143 over 27 circuit-compound pairs, and using the old figure is
+          3.4% worse than the season average. So a circuit with no data from the
+          current season gets the average, which is what Madrid got.
+        * Is a circuit's measurement reliable **within** the current season? Very
+          — split-half gives 0.81, which Spearman-Brown corrects to **0.89** for
+          the full measurement, 0.95 on the medium and 0.96 on the hard.
+
+        The simulator always faces the second question, because a circuit it is
+        simulating is one the season has already visited. So the circuit's own
+        number is used, shrunk by the measured reliability rather than believed
+        whole.
+
+        Args:
+            circuit: Circuit key as :func:`boxbox_ml.neutralisation.canonical_circuit`
+                spells it — "Monza", "Zandvoort", "Barcelona".
+            **overrides: Any other field, ``total_laps`` above all.
+
+        Returns:
+            A model with ``wear_cuts`` rescaled to that circuit, or the plain
+            defaults when the circuit has no measurement.
+        """
+        deviations = circuit_wear_table()["desviacion_encogida_s_vuelta"].get(circuit)
+        if not deviations:
+            return cls(**overrides)
+
+        level = circuit_wear_table()["mediana_temporada_s_vuelta"]
+        cuts = {}
+        for compound, base in WEAR_CUTS.items():
+            target = level.get(compound, base[4]) + deviations.get(compound, 0.0)
+            # Rescale the whole measured shape, so the spread travels with the
+            # median instead of being pinned to Zandvoort's.
+            factor = target / base[4] if base[4] else 1.0
+            cuts[compound] = tuple(value * factor for value in base)
+        return cls(wear_cuts=cuts, **overrides)
 
 
 class Objective(StrEnum):
