@@ -1056,6 +1056,25 @@ def _positions(times: np.ndarray, rival_times: np.ndarray) -> np.ndarray:
     return 1 + (rival_times < times).sum(axis=0)
 
 
+def _position_histogram(position: np.ndarray) -> dict[int, int]:
+    """En cuántas de las carreras sorteadas el plan terminó en cada puesto.
+
+    Las muestras de posición ya están: la media y el desvío salen de ellas y
+    después se tiraban. Conservarlas contadas es lo que permite responder
+    P(podio) o P(zona de puntos) sin volver a sortear — y volver a sortear daría
+    otro número, porque serían otras carreras que las que eligieron el plan.
+
+    Args:
+        position: Puesto de llegada por sorteo, como lo devuelve :func:`_positions`.
+
+    Returns:
+        Puesto -> cantidad de carreras que terminaron ahí, ordenado por puesto y
+        sin los puestos que no ocurrieron. La suma es la cantidad de sorteos.
+    """
+    places, races = np.unique(position, return_counts=True)
+    return {int(place): int(count) for place, count in zip(places, races, strict=True)}
+
+
 def _points(position: np.ndarray) -> np.ndarray:
     """Championship points for a finishing position, zero from eleventh."""
     table = np.array((*POINTS, *([0] * 60)), dtype=float)
@@ -1143,6 +1162,64 @@ class Engine(StrEnum):
     DEAP = "deap"
 
 
+@dataclass(frozen=True)
+class Generation:
+    """La población en un momento de la evolución, para ver cómo converge.
+
+    Lo que hace visible que esto es un algoritmo genético y no una tabla de
+    consulta no es el plan que sale al final: es la población moviéndose. Arranca
+    sembrada con las heurísticas y termina concentrada en una cantidad de paradas
+    — o no termina de concentrarse, que también dice algo, y está medido acá
+    mismo: un auto decimoctavo bajo ``POINTS`` se queda repartido entre una y
+    cuatro paradas en partes casi iguales, y bajo ``POSITION`` converge a una sola
+    en 0,87. Ver :class:`Objective`.
+
+    Se anota una generación **más** que las que se corren, porque la cero es la
+    población sembrada —las heurísticas y los planes al azar— antes de la primera
+    selección. Sin ella no se ve desde dónde arrancó la búsqueda, que es contra lo
+    que hay que medir lo que encontró.
+    """
+
+    #: Número de generación. La cero es la población sembrada.
+    index: int
+    #: Mejor aptitud de la generación, **en muestra**: sobre los mismos sorteos
+    #: contra los que corre la búsqueda. No es comparable con :attr:`Search.score`,
+    #: que se mide sobre sorteos retenidos, y por la misma razón de siempre: el
+    #: máximo de muchas estimaciones ruidosas se elige en parte por suerte.
+    best: float
+    #: Cómo se reparte la población entre cantidades de parada, en el mismo formato
+    #: que :attr:`Search.stop_distribution`.
+    stop_distribution: dict[int, float]
+
+
+def _stop_shares(plans: Sequence[Plan]) -> dict[int, float]:
+    """Cómo se reparte una población entre cantidades de parada.
+
+    Acumula ``1/n`` una vez por plan en lugar de dividir el conteo al final. Es lo
+    mismo salvo por el último bit de coma flotante, y ese bit está en cifras ya
+    publicadas en ``docs/tp/informe.md``.
+
+    Args:
+        plans: La población, en el orden en que venga.
+
+    Returns:
+        Cantidad de paradas -> fracción de la población, ordenado por paradas.
+    """
+    shares: dict[int, float] = {}
+    for plan in plans:
+        shares[plan.count] = shares.get(plan.count, 0.0) + 1.0 / len(plans)
+    return dict(sorted(shares.items()))
+
+
+def _generation(index: int, scored: Sequence[tuple[Plan, float]]) -> Generation:
+    """Anotar el estado de una población sin exigirle que venga ordenada."""
+    return Generation(
+        index=index,
+        best=max(value for _, value in scored),
+        stop_distribution=_stop_shares([plan for plan, _ in scored]),
+    )
+
+
 def _evolve(
     scored: list[tuple[Plan, float]],
     fitness: Callable[[Plan], float],
@@ -1151,9 +1228,31 @@ def _evolve(
     rng: np.random.Generator,
     population: int,
     generations: int,
-) -> list[tuple[Plan, float]]:
-    """The hand-written loop: elitist, with one parent always from the elite."""
-    for _ in range(generations):
+    history: bool = False,
+) -> tuple[list[tuple[Plan, float]], tuple[Generation, ...]]:
+    """The hand-written loop: elitist, with one parent always from the elite.
+
+    Args:
+        scored: Población inicial ya evaluada.
+        fitness: La aptitud, con números aleatorios comunes.
+        car: El auto que se optimiza.
+        model: Distribuciones medidas de la carrera.
+        rng: Generador, compartido con los operadores.
+        population: Individuos por generación.
+        generations: Rondas de selección.
+        history: Anotar cada generación. Apagado por defecto porque son
+            ``generations + 1`` registros que casi ninguna llamada mira. Anotar no
+            toca el generador aleatorio ni el orden en que se lo consume, así que
+            encenderlo no cambia el plan que sale.
+
+    Returns:
+        La población final puntuada y el registro por generación, vacío si no se
+        pidió.
+    """
+    log: list[Generation] = []
+    for index in range(generations):
+        if history:
+            log.append(_generation(index, scored))
         scored.sort(key=lambda pair: pair[1], reverse=True)
         # Elitism on the top quarter: a good plan is never lost to a bad draw.
         elite = scored[: max(2, population // 4)]
@@ -1168,7 +1267,10 @@ def _evolve(
             children.append((child, fitness(child)))
 
         scored = children
-    return scored
+
+    if history:
+        log.append(_generation(generations, scored))
+    return scored, tuple(log)
 
 
 @dataclass(frozen=True)
@@ -1204,6 +1306,22 @@ class Search:
     decision_value: float
     #: Runner-up plans, best first, for showing alternatives. Scored in-sample.
     alternatives: tuple[tuple[Plan, float], ...]
+    #: En cuántas de las carreras sorteadas ``best`` terminó en cada puesto:
+    #: puesto -> cantidad, ordenado por puesto y sin los puestos que no ocurrieron,
+    #: de modo que los valores suman ``draws``.
+    #:
+    #: Es la distribución que hay detrás de ``mean_position``, que hasta ahora se
+    #: resumía en dos números y se tiraba. De acá salen P(ganar), P(podio) y
+    #: P(zona de puntos) sin volver a sortear: son cuentas sobre las **mismas**
+    #: carreras que eligieron el plan, no sobre otras nuevas.
+    #:
+    #: Vacío cuando la búsqueda corrió sin instrumentar, que es el caso por
+    #: omisión. Vale lo mismo que ``mean_position``: es una posición proyectada
+    #: contra rivales que no reaccionan, no una probabilidad de la carrera real.
+    position_histogram: dict[int, int] = field(default_factory=dict)
+    #: Una entrada por generación, la cero siendo la población sembrada. Vacío
+    #: cuando la búsqueda corrió sin instrumentar. Ver :class:`Generation`.
+    history: tuple[Generation, ...] = ()
 
     @property
     def optimism(self) -> float:
@@ -1232,6 +1350,7 @@ def optimise(
     draws: int = 1200,
     max_stops: int = 4,
     seed: int = 0,
+    instrument: bool = False,
 ) -> Search:
     """Search for the plan that best serves ``objective``.
 
@@ -1271,10 +1390,17 @@ def optimise(
             wearing a confident face.
         max_stops: Cap on stops in a plan.
         seed: Reproducibility.
+        instrument: Conservar lo que la búsqueda calcula y hoy tira: el histograma
+            de puestos de llegada del plan ganador y el registro por generación.
+            Apagado por omisión, porque son miles las llamadas que no los miran y
+            cada una pagaría memoria por ellos. **Encenderlo no cambia el
+            resultado**: no se sortea ninguna carrera de más ni se toca el orden en
+            que se consume el generador, se guarda lo que ya estaba calculado.
 
     Returns:
         The best plan found, its score **on held-out draws**, the spread of stop
-        counts the population settled on, and a few runners-up.
+        counts the population settled on, and a few runners-up. Con ``instrument``
+        también el histograma de puestos y el registro por generación.
 
         The held-out score is the one to report. A Monte Carlo fitness is noisy,
         and taking the maximum over a population selects partly for which plan got
@@ -1362,9 +1488,13 @@ def optimise(
     if engine is Engine.DEAP:
         from boxbox_ml.deap_search import evolve as evolve_deap
 
-        scored = evolve_deap(scored, fitness, car, model, rng, population, generations)
+        scored, history = evolve_deap(
+            scored, fitness, car, model, rng, population, generations, instrument
+        )
     else:
-        scored = _evolve(scored, fitness, car, model, rng, population, generations)
+        scored, history = _evolve(
+            scored, fitness, car, model, rng, population, generations, instrument
+        )
 
     scored.sort(key=lambda pair: pair[1], reverse=True)
     best, in_sample = scored[0]
@@ -1404,11 +1534,8 @@ def optimise(
             draws=draws,
             max_stops=max_stops,
             seed=seed,
+            instrument=instrument,
         )
-
-    counts: dict[int, float] = {}
-    for plan, _ in scored:
-        counts[plan.count] = counts.get(plan.count, 0.0) + 1.0 / len(scored)
 
     position = _positions(race_time(best, car, model, rng, draws, flags, rival_trace), rival_times)
 
@@ -1429,10 +1556,14 @@ def optimise(
         best=best,
         score=score,
         score_in_sample=in_sample,
-        stop_distribution=dict(sorted(counts.items())),
+        stop_distribution=_stop_shares([plan for plan, _ in scored]),
         mean_position=float(position.mean()),
         sd_position=float(position.std()),
         mean_points=float(_points(position).mean()),
         decision_value=float(score - scored[-1][1]),
         alternatives=tuple(alternatives),
+        # El mismo array de posiciones del que salen la media y el desvío: contar
+        # es gratis, volver a sortear daría otro número.
+        position_histogram=_position_histogram(position) if instrument else {},
+        history=history,
     )

@@ -13,7 +13,9 @@ Lo que DEAP aporta de verdad:
 * los operadores quedan **registrados y nombrados** en un ``Toolbox``, que es la
   forma en que se espera leer un AG;
 * ``HallOfFame``, ``Statistics`` y ``Logbook`` salen gratis, y con ellos el
-  registro generación a generación que antes no existía;
+  registro generación a generación que antes no existía — hoy es el que alimenta
+  ``Search.history`` cuando se pide, sin inventar nada: son los números que el
+  propio ``eaMuPlusLambda`` anota;
 * deja la puerta abierta a multiobjetivo (``selNSGA2``) sin reescribir nada, que
   es la forma natural de mirar tiempo contra riesgo.
 
@@ -42,7 +44,15 @@ from collections.abc import Callable
 import numpy as np
 from deap import algorithms, base, creator, tools
 
-from boxbox_ml.strategy import Car, Plan, RaceModel, _crossover, _mutate
+from boxbox_ml.strategy import (
+    Car,
+    Generation,
+    Plan,
+    RaceModel,
+    _crossover,
+    _mutate,
+    _stop_shares,
+)
 
 #: Probabilidad de cruza y de mutación en ``eaMuPlusLambda``. Tienen que sumar
 #: como mucho uno: DEAP aplica una o la otra a cada hijo, nunca las dos.
@@ -108,6 +118,48 @@ def _as_individual(plan: Plan):
     return creator.Individual(list(plan.stops))
 
 
+def _shares_of(individuals: list) -> tuple[tuple[int, float], ...]:
+    """El reparto de paradas de una población, **como pares y no como diccionario**.
+
+    ``Logbook.record`` trata cualquier valor que sea un ``dict`` como un capítulo
+    anidado y lo vuelve a desarmar en argumentos por nombre, así que un reparto
+    ``{1: 0.5, ...}`` lo hace explotar con claves que son enteros. Se anota como
+    pares y el diccionario se rearma al leer.
+    """
+    return tuple(_stop_shares([Plan(tuple(individual)) for individual in individuals]).items())
+
+
+def _stop_statistics() -> tools.Statistics:
+    """Estadística que mira el individuo entero y no su aptitud.
+
+    El reparto de paradas no sale del número de aptitud sino del plan, así que
+    necesita su propia clave. Es la razón de que el registro use
+    ``MultiStatistics``: es la forma en que DEAP junta dos claves distintas en un
+    mismo ``Logbook``, una por capítulo.
+    """
+    statistics = tools.Statistics()
+    statistics.register("shares", _shares_of)
+    return statistics
+
+
+def _history(logbook: tools.Logbook) -> tuple[Generation, ...]:
+    """Traducir el ``Logbook`` de DEAP al registro por generación de la búsqueda.
+
+    ``eaMuPlusLambda`` anota ``ngen + 1`` veces —la primera es la población
+    sembrada, antes de la primera selección— que es exactamente el convenio del
+    motor propio, así que los dos registros se leen igual y son comparables.
+    """
+    return tuple(
+        Generation(index=int(gen), best=float(best), stop_distribution=dict(shares))
+        for gen, best, shares in zip(
+            logbook.select("gen"),
+            logbook.chapters["fitness"].select("max"),
+            logbook.chapters["stops"].select("shares"),
+            strict=True,
+        )
+    )
+
+
 def evolve(
     scored: list[tuple[Plan, float]],
     fitness: Callable[[Plan], float],
@@ -116,7 +168,8 @@ def evolve(
     rng: np.random.Generator,
     population: int,
     generations: int,
-) -> list[tuple[Plan, float]]:
+    history: bool = False,
+) -> tuple[list[tuple[Plan, float]], tuple[Generation, ...]]:
     """Correr la evolución con DEAP y devolver la población final puntuada.
 
     La firma es la misma que la de :func:`boxbox_ml.strategy._evolve`, para que
@@ -131,9 +184,15 @@ def evolve(
         rng: Generador, compartido con los operadores.
         population: Individuos por generación.
         generations: Rondas de selección.
+        history: Anotar cada generación. Acá el registro es **real y no una
+            equivalencia inventada**: sale del ``Logbook`` que ``eaMuPlusLambda``
+            ya devolvía y que hasta ahora se descartaba, con el máximo de aptitud
+            que la ``Statistics`` de siempre calcula y el reparto de paradas
+            agregado como segundo capítulo. Apagado por omisión.
 
     Returns:
-        La población final como pares ``(plan, aptitud)``, ordenada como venga.
+        La población final como pares ``(plan, aptitud)``, ordenada como venga, y
+        el registro por generación, vacío si no se pidió.
     """
     toolbox = _build_toolbox(fitness, car, model, rng)
 
@@ -145,12 +204,19 @@ def evolve(
         individual.fitness.values = (value,)
         individuals.append(individual)
 
-    statistics = tools.Statistics(lambda ind: ind.fitness.values[0])
-    statistics.register("max", np.max)
-    statistics.register("avg", np.mean)
+    fitness_stats = tools.Statistics(lambda ind: ind.fitness.values[0])
+    fitness_stats.register("max", np.max)
+    fitness_stats.register("avg", np.mean)
+    # Sin registro se le pasa la misma Statistics de siempre, tal cual: el motor
+    # no se entera de que la instrumentación existe.
+    statistics = (
+        tools.MultiStatistics(fitness=fitness_stats, stops=_stop_statistics())
+        if history
+        else fitness_stats
+    )
     hall = tools.HallOfFame(1)
 
-    final, _logbook = algorithms.eaMuPlusLambda(
+    final, logbook = algorithms.eaMuPlusLambda(
         individuals,
         toolbox,
         mu=population,
@@ -162,4 +228,5 @@ def evolve(
         halloffame=hall,
         verbose=False,
     )
-    return [(Plan(tuple(individual)), individual.fitness.values[0]) for individual in final]
+    scored_final = [(Plan(tuple(individual)), individual.fitness.values[0]) for individual in final]
+    return scored_final, (_history(logbook) if history else ())
