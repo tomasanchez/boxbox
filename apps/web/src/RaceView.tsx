@@ -24,7 +24,10 @@ import { IN_RANGE_S, battleKey, liveBattles, noBattleReason } from './battle'
 import { RACE } from './data'
 import { pickBattle } from './forecast'
 import { fmt } from './format'
+import { PLANS } from './plans'
+import { preraceCar, recommendedPlan } from './prerace'
 import { TRACKS } from './tracks'
+import type { PitStop } from './tyres'
 import type { DriverState, TrackStatus } from './types'
 import type { FieldState, Timing } from './useField'
 import { Panel } from './ui'
@@ -42,6 +45,8 @@ export function RaceView({
   field,
   cars,
   timing,
+  focal,
+  plans,
 }: {
   scenarioLap: number
   status: TrackStatus
@@ -50,6 +55,14 @@ export function RaceView({
   timing: Timing
   /** Los mismos autos que alimentan la simulación. */
   cars: DriverState[]
+  /** El piloto elegido en la vista pre-carrera: se destaca acá también (ADR-007). */
+  focal: string
+  /**
+   * Plan de paradas de cada auto, cuando la carrera corre desde la largada.
+   * `null` en la foto de la vuelta 30, donde lo que hay es una **ventana
+   * proyectada** y no un plan: son cosas distintas y la torre no las mezcla.
+   */
+  plans: PitStop[][] | null
 }) {
   const track = TRACKS[RACE.trackKey]
   const duels = useMemo(
@@ -79,13 +92,29 @@ export function RaceView({
     [cars, timing, scenarioLap, duel],
   )
 
+  /*
+   * El plan que se muestra es el del **auto focal** (ADR-007): el selector de
+   * la vista pre-carrera manda también acá. La foto de la vuelta 30 tiene dos
+   * autos sin plan cargado —los que abandonaron—, y ahí se cae a la lógica
+   * vieja: el perseguidor del duelo, o el líder si no hay duelo.
+   *
+   * Corriendo desde la largada el plan sale del export pre-carrera, que es el
+   * que la carrera está ejecutando. Mostrar el de la vuelta 30 mientras el auto
+   * corre otro sería la tarjeta contradiciendo al mapa.
+   */
+  const hasPlan = plans !== null || PLANS[focal] !== undefined
+  const insightDriver = hasPlan
+    ? focal
+    : (duel?.chaser ?? cars[timing.order[0]]?.code ?? 'ANT')
+  const insightPlan = plans !== null ? recommendedPlan(preraceCar(insightDriver)) : undefined
+
   const [battleOpen, setBattleOpen] = useState(true)
   const [forecastOpen, setForecastOpen] = useState(true)
   const [insightOpen, setInsightOpen] = useState(true)
 
   return (
     <div className="view view--race">
-      <GridPanel lap={scenarioLap} cars={cars} timing={timing} />
+      <GridPanel lap={scenarioLap} cars={cars} timing={timing} focal={focal} plans={plans} />
 
       <Panel
         title={`Trazado · ${track.name}`}
@@ -98,6 +127,7 @@ export function RaceView({
           status={status}
           field={field}
           lap={scenarioLap}
+          focal={focal}
         >
           <div className="overlay overlay--top">
             {duel ? (
@@ -131,14 +161,10 @@ export function RaceView({
             ) : null}
           </div>
 
-          {/*
-           * El plan que se muestra es el del perseguidor del duelo en pantalla,
-           * o el del líder si no hay duelo. Así las tres tarjetas hablan del
-           * mismo momento de la carrera en vez de tres momentos distintos.
-           */}
           <InsightOverlay
             lap={scenarioLap}
-            driver={duel?.chaser ?? cars[timing.order[0]]?.code ?? 'ANT'}
+            driver={insightDriver}
+            plan={insightPlan}
             open={insightOpen}
             onToggle={() => setInsightOpen((v) => !v)}
           />

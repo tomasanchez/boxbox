@@ -99,6 +99,24 @@ const WEAR_CUTS: Record<Compound, number[]> = {
 const PIT_LOSS_CUTS = { p25: 20.6, median: 23.5, p75: 31.3 }
 
 /**
+ * De dónde salen los sorteos de una carrera.
+ *
+ * Existe porque hay **dos mediciones de desgaste de Zandvoort** conviviendo en
+ * el repositorio y difieren un 63% en el medio (ver ADR-009): la de acá junta
+ * todas las temporadas, la del export pre-carrera se queda con 2026. Cada vista
+ * sortea con el modelo que le corresponde en vez de que una imponga el suyo, y
+ * la diferencia queda declarada en pantalla en lugar de disimulada.
+ */
+export interface DrawModel {
+  /** Cortes del ritmo de caída por compuesto, en las probabilidades de `CUT_AT`. */
+  wearCuts: Record<Compound, number[]>
+  pitLoss: { p25: number; median: number; p75: number }
+}
+
+/** El modelo de la foto de la vuelta 30, que es el que se usaba hasta acá. */
+export const SNAPSHOT_MODEL: DrawModel = { wearCuts: WEAR_CUTS, pitLoss: PIT_LOSS_CUTS }
+
+/**
  * Cuántas paradas le quedan a un auto desde la vuelta 30 de 72.
  *
  * Índice = cantidad de paradas. Medido en Zandvoort seco sobre 73 autos que
@@ -197,19 +215,19 @@ function fromCuts(cuts: number[], u: number): number {
 }
 
 /** La mediana de un compuesto, que es el corte del medio. */
-function medianWear(compound: Compound): number {
-  const cuts = WEAR_CUTS[compound] ?? WEAR_CUTS.MEDIUM
+function medianWear(model: DrawModel, compound: Compound): number {
+  const cuts = model.wearCuts[compound] ?? model.wearCuts.MEDIUM
   return cuts[(CUT_AT.length - 1) / 2]
 }
 
 /** Ritmo de caída sorteado para un compuesto, en s/vuelta. */
-function drawWear(compound: Compound, ...parts: number[]): number {
-  return fromCuts(WEAR_CUTS[compound] ?? WEAR_CUTS.MEDIUM, hash(...parts))
+function drawWear(model: DrawModel, compound: Compound, ...parts: number[]): number {
+  return fromCuts(model.wearCuts[compound] ?? model.wearCuts.MEDIUM, hash(...parts))
 }
 
 /** Pérdida de boxes sorteada, triangular sobre los cuartiles medidos. */
-function drawPitLoss(...parts: number[]): number {
-  const { p25: a, median: c, p75: b } = PIT_LOSS_CUTS
+function drawPitLoss(model: DrawModel, ...parts: number[]): number {
+  const { p25: a, median: c, p75: b } = model.pitLoss
   const u = hash(...parts)
   const split = (c - a) / (b - a)
   return u < split
@@ -268,7 +286,13 @@ function pick<T>(options: [T, number][], u: number): T {
  * Las vueltas sorteadas se ordenan y se separan al menos `MIN_STINT` vueltas:
  * dos paradas pegadas no son un plan, son un sorteo mal leído.
  */
-function planStops(car: DriverState, index: number, seed: number, fromLap: number): PitStop[] {
+function planStops(
+  model: DrawModel,
+  car: DriverState,
+  index: number,
+  seed: number,
+  fromLap: number,
+): PitStop[] {
   if (car.retiredOnLap != null) return []
 
   const count = pick(
@@ -301,11 +325,33 @@ function planStops(car: DriverState, index: number, seed: number, fromLap: numbe
     if (lap > RACE.totalLaps - MIN_STINT) break
 
     compound = pick(NEXT_COMPOUND[compound] ?? NEXT_COMPOUND.MEDIUM, hash(seed, index, 0x8c02 + n))
-    stops.push({ lap, compound, lossS: drawPitLoss(seed, index, 0x1055 + n) })
+    stops.push({ lap, compound, lossS: drawPitLoss(model, seed, index, 0x1055 + n) })
     previous = lap
   }
 
   return stops
+}
+
+/** Una parada dicha de antemano: cuándo y con qué. Lo que cuesta se sortea. */
+export interface PlannedStop {
+  lap: number
+  compound: Compound
+}
+
+export interface EvolveOptions {
+  /** De dónde se sortea el desgaste y la pérdida de boxes. Ver `DrawModel`. */
+  model?: DrawModel
+  /**
+   * Plan fijo de cada auto, en el mismo orden que `base`.
+   *
+   * Es lo que separa a la carrera desde la largada de la foto de la vuelta 30:
+   * ahí las paradas se sortean de las distribuciones medidas porque no se sabe
+   * qué va a hacer cada auto, y acá **cada auto corre el plan que le dio el
+   * algoritmo genético**. Lo que sigue sorteándose es cuánto cuesta esa parada y
+   * cómo se cae la goma, que es lo que hace que dos sorteos del mismo plan
+   * terminen distinto — la tesis del trabajo (ADR-006).
+   */
+  plans?: PlannedStop[][]
 }
 
 /**
@@ -319,8 +365,19 @@ export function evolve(
   lap: number,
   fromLap: number,
   seed: number = DEFAULT_SEED,
+  options: EvolveOptions = {},
 ): Stochastic {
-  const plans = base.map((car, index) => planStops(car, index, seed, fromLap))
+  const model = options.model ?? SNAPSHOT_MODEL
+  const plans = base.map((car, index) => {
+    const planned = options.plans?.[index]
+    if (!planned) return planStops(model, car, index, seed, fromLap)
+    // El plan dice cuándo y con qué; cuánto cuesta cada parada se sigue
+    // sorteando de la distribución medida de pérdida de boxes.
+    return planned.map((stop, n) => ({
+      ...stop,
+      lossS: drawPitLoss(model, seed, index, 0x1055 + n),
+    }))
+  })
   // La última parada ya hecha es la que define con qué goma anda ahora.
   const done = plans.map((plan) => plan.filter((stop) => lap >= stop.lap))
   const stops = plans.map((plan) => plan.find((stop) => lap < stop.lap) ?? null)
@@ -332,7 +389,7 @@ export function evolve(
       // Juego nuevo: no hay medición previa de este auto con esta goma, así que
       // el ritmo se sortea entero de la distribución del compuesto.
       const age = lap - stop.lap
-      const rate = drawWear(stop.compound, seed, index, 0x2472 + done[index].length)
+      const rate = drawWear(model, stop.compound, seed, index, 0x2472 + done[index].length)
       return {
         ...car,
         compound: stop.compound,
@@ -354,7 +411,7 @@ export function evolve(
     // Tanda en curso: hay un ritmo medido para este auto. Se conserva como valor
     // central y se le suma la incertidumbre con la forma de la distribución
     // —el sorteo menos su mediana—, en vez de tirarlo y sortear de cero.
-    const deviation = drawWear(car.compound, seed, index, 0x5747) - medianWear(car.compound)
+    const deviation = drawWear(model, car.compound, seed, index, 0x5747) - medianWear(model, car.compound)
     const rate = car.degradationRate + deviation
     const elapsed = Math.max(0, lap - fromLap)
     return {

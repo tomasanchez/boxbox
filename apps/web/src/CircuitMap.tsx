@@ -41,6 +41,7 @@ export function CircuitMap({
   status,
   field,
   lap,
+  focal,
   children,
 }: {
   track: Track
@@ -51,6 +52,13 @@ export function CircuitMap({
   status: TrackStatus
   /** Posición interpolada del pelotón; ver `useField`. */
   field: FieldState
+  /**
+   * El auto elegido en la vista pre-carrera (ADR-007).
+   *
+   * Se destaca con un anillo y un disco más grande, no sólo con color: en un
+   * mapa con veintidós puntos del color de su equipo, teñir uno más no se ve.
+   */
+  focal?: string
   /** Contenido superpuesto sobre el mapa. */
   children?: ReactNode
 }) {
@@ -168,23 +176,29 @@ export function CircuitMap({
 
         {placed
           .filter(({ driver }) => driver.retiredOnLap == null || lap <= driver.retiredOnLap)
-          .map(({ driver, x, y, labelX, anchor }) => (
-          <g key={driver.code}>
-            <circle cx={x} cy={y} r={15} fill={INNER_COLOR} />
-            <circle cx={x} cy={y} r={12} fill={driver.teamColor} />
-            <text
-              x={labelX}
-              y={y + 8}
-              fill="#f4f3f2"
-              fontFamily="Archivo, sans-serif"
-              fontSize={24 - 7 * field.gridded}
-              fontWeight={800}
-              textAnchor={anchor}
-            >
-              {driver.code}
-            </text>
-          </g>
-        ))}
+          .map(({ driver, x, y, labelX, anchor }) => {
+            const chosen = driver.code === focal
+            return (
+              <g key={driver.code} opacity={focal && !chosen ? 0.72 : 1}>
+                {chosen ? (
+                  <circle cx={x} cy={y} r={22} fill="none" stroke="#f4f3f2" strokeWidth={3} />
+                ) : null}
+                <circle cx={x} cy={y} r={chosen ? 17 : 15} fill={INNER_COLOR} />
+                <circle cx={x} cy={y} r={chosen ? 14 : 12} fill={driver.teamColor} />
+                <text
+                  x={labelX}
+                  y={y + 8}
+                  fill="#f4f3f2"
+                  fontFamily="Archivo, sans-serif"
+                  fontSize={(chosen ? 28 : 24) - 7 * field.gridded}
+                  fontWeight={800}
+                  textAnchor={anchor}
+                >
+                  {driver.code}
+                </text>
+              </g>
+            )
+          })}
       </svg>
       {children}
     </div>

@@ -13,11 +13,18 @@
  * tantas paradas»: es cuánto de la población final del algoritmo se quedó en esa
  * cantidad. Es la confianza de la búsqueda, y presentarlo de otro modo sería
  * atribuirle a la carrera una certeza que es del optimizador.
+ *
+ * El objetivo tiene **tres** valores posibles y no dos —puntos, entrar a los
+ * puntos, posición—, así que la etiqueta sale de `objectiveLabel` en vez de un
+ * ternario: con dos ramas, el auto de la burbuja se leía como si estuviera
+ * maximizando posición cuando maximiza la chance de entrar a los diez.
  */
 
 import { COMPOUND_COLOR } from './data'
 import { pct } from './format'
 import { PLANS } from './plans'
+import type { RecommendedPlan } from './plans'
+import { objectiveLabel } from './prerace'
 import type { Compound } from './types'
 
 const LEGEND: Compound[] = ['HARD', 'MEDIUM', 'SOFT']
@@ -43,16 +50,25 @@ function stints(plan: string): { compound: Compound; laps: number }[] {
 export function InsightOverlay({
   lap,
   driver,
+  plan: given,
   open,
   onToggle,
 }: {
   lap: number
   /** De quién se muestra el plan. */
   driver: string
+  /**
+   * Plan a mostrar. Sin esto manda el de la búsqueda de la vuelta 30.
+   *
+   * Corriendo desde la largada el plan es otro —el del export pre-carrera— y es
+   * el que el auto está ejecutando en el mapa. Mostrar el de la vuelta 30 ahí
+   * sería la tarjeta hablando de una carrera distinta de la que se ve.
+   */
+  plan?: RecommendedPlan
   open: boolean
   onToggle: () => void
 }) {
-  const plan = PLANS[driver]
+  const plan = given ?? PLANS[driver]
   const sequence = plan ? stints(plan.plan) : []
   const stops = plan ? plan.stops.length : 0
   const confidence = plan ? (plan.stopDistribution[String(stops)] ?? 0) : 0
@@ -109,8 +125,7 @@ export function InsightOverlay({
                * qué se optimizó.
                */}
               <div className="insight__kicker">
-                {driver} · {plan.objective === 'points' ? 'máx. puntos' : 'máx. posición'} · llega
-                P{plan.meanPosition.toFixed(1)}
+                {driver} · {objectiveLabel(plan.objective)} · llega P{plan.meanPosition.toFixed(1)}
               </div>
 
               <div className="insight__headline">

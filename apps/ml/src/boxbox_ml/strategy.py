@@ -1533,24 +1533,50 @@ def optimise(
     holdout_rival_times = holdout_rivals[:, -1, :] if rivals else np.empty((0, draws))
     score = _score(holdout_times, holdout_rival_times, objective, tail)
 
-    # Points unreachable: the objective was flat, so the winner is noise. Search
-    # again on position, where there is still a gradient to follow.
-    if wanted is Objective.ADAPTIVE and objective is Objective.POINTS and score < POINTS_FLOOR:
-        return optimise(
-            car,
-            rivals,
-            rival_plans,
-            model,
-            objective=Objective.POSITION,
-            risk=risk,
-            engine=engine,
-            population=population,
-            generations=generations,
-            draws=draws,
-            max_stops=max_stops,
-            seed=seed,
-            instrument=instrument,
-        )
+    # Where the points objective runs out of gradient — and it runs out in two
+    # different ways, which the first version of this conflated.
+    #
+    # The test used to compare the **risk-adjusted** score against the floor. For
+    # a cautious car that score is the mean of the worst quarter, and for anyone
+    # near the points cliff that quarter is all zeros by construction. So a car
+    # eleventh on the grid with a **31.7% chance of scoring** was being sent to
+    # optimise position, because its bad quarter never scores. The comment said
+    # "points unreachable"; what was flat was the tail, which is not the same
+    # thing. Measured, that cost the bubble cars about a third of their expected
+    # points.
+    #
+    # Now the two cases are separated:
+    #
+    # * Points genuinely out of reach — the **expected** value is under the floor.
+    #   Position is the right objective; there is nothing to score.
+    # * Points reachable but the chosen tail is flat. Falling to position throws
+    #   away the whole points structure for a car whose entire race is about one
+    #   place. What it actually wants is the **probability of finishing in the
+    #   points**, which has gradient exactly where the tail does not — and which
+    #   is the same thing a pit wall means by "hold tenth".
+    if wanted is Objective.ADAPTIVE and objective is Objective.POINTS:
+        expected = _score(holdout_times, holdout_rival_times, Objective.POINTS)
+        fallback = None
+        if expected < POINTS_FLOOR:
+            fallback = Objective.POSITION
+        elif score < POINTS_FLOOR:
+            fallback = Objective.IN_POINTS
+        if fallback is not None:
+            return optimise(
+                car,
+                rivals,
+                rival_plans,
+                model,
+                objective=fallback,
+                risk=risk,
+                engine=engine,
+                population=population,
+                generations=generations,
+                draws=draws,
+                max_stops=max_stops,
+                seed=seed,
+                instrument=instrument,
+            )
 
     position = _positions(race_time(best, car, model, rng, draws, flags, rival_trace), rival_times)
 

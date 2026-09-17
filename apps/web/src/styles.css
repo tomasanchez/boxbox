@@ -1971,3 +1971,661 @@ body {
   font-weight: 700;
   color: var(--txt-2);
 }
+
+/* ========================================================== vista pre-carrera */
+
+/*
+ * Tres columnas que se leen como un argumento: quién, cómo se encontró el plan,
+ * y qué sale de ahí. Ninguna scrollea — el alto lo reparten las filas de cada
+ * pila, con `minmax(0,1fr)` en la que puede ceder.
+ */
+.view--prerace {
+  grid-template-columns: minmax(176px, 224px) minmax(340px, 1.1fr) minmax(310px, 1fr);
+}
+
+.stack--prerace-left {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.stack--prerace-mid {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.stack--prerace-right {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+/* ------------------------------------------------------ selector de piloto */
+
+.picker {
+  display: grid;
+  grid-auto-rows: minmax(0, 1fr);
+  gap: 1px;
+  min-height: 0;
+}
+
+.picker__row {
+  display: grid;
+  grid-template-columns: 0.75em 2.1em 3px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px;
+  background: var(--bg-2);
+  border: 1px solid transparent;
+  border-radius: 2px;
+  color: var(--txt-2);
+  font-family: inherit;
+  font-size: var(--fs-tiny);
+  text-align: left;
+  cursor: pointer;
+}
+
+.picker__row:hover {
+  background: var(--bg-3);
+  color: var(--txt-1);
+}
+
+.picker__row[aria-checked='true'] {
+  background: var(--bg-5);
+  border-color: var(--txt-3);
+  color: var(--txt-0);
+}
+
+.picker__row:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: 1px;
+}
+
+.picker__mark {
+  color: var(--txt-0);
+  font-size: var(--fs-micro);
+}
+
+.picker__pos {
+  font-size: var(--fs-micro);
+  color: var(--txt-3);
+}
+
+.picker__row[aria-checked='true'] .picker__pos {
+  color: var(--txt-1);
+}
+
+.picker__team {
+  width: 3px;
+  height: 0.95em;
+  border-radius: 1px;
+}
+
+.picker__code {
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.picker__gap {
+  font-size: var(--fs-micro);
+  color: var(--txt-3);
+}
+
+/* ------------------------------------------------- supuestos del export */
+
+.notes {
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: calc(var(--pad) * 0.5) var(--pad);
+}
+
+.notes__summary {
+  font-size: var(--fs-micro);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--txt-2);
+  cursor: pointer;
+}
+
+.notes__summary:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: 2px;
+}
+
+/*
+ * Cinco párrafos no entran en la columna sin empujar al resto, y esto es una
+ * divulgación opcional: se abre a pedido y scrollea adentro de su propia caja,
+ * sin romper el alto de la vista.
+ */
+.notes__list {
+  margin: calc(var(--gap) * 0.5) 0 0;
+  padding-left: 1.1em;
+  max-height: 30vh;
+  overflow: auto;
+  font-size: var(--fs-micro);
+  line-height: 1.45;
+  color: var(--txt-3);
+}
+
+.notes__list li + li {
+  margin-top: 0.4em;
+}
+
+/* --------------------------------------------------- evolución del algoritmo */
+
+.evo__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap);
+  flex-wrap: wrap;
+}
+
+.evo__gen {
+  font-size: var(--fs-lg);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.evo__of {
+  font-size: var(--fs-tiny);
+  color: var(--txt-3);
+}
+
+.evo__best {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.evo__bestv {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--green);
+}
+
+.evo__bestl {
+  font-size: var(--fs-micro);
+  color: var(--txt-3);
+}
+
+.evo__controls {
+  display: flex;
+  gap: 3px;
+}
+
+.evo__controls .scenario {
+  flex: 0 0 auto;
+}
+
+.evo__controls .scenario:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.evo__scrub {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--gap);
+}
+
+.evo__scrubl {
+  font-size: var(--fs-micro);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--txt-3);
+}
+
+.evo__plot {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 42px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-soft);
+  border-radius: 2px;
+}
+
+.evo__svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * El gráfico se estira con el panel, así que sin esto el trazo saldría más
+ * grueso a lo ancho que a lo alto.
+ */
+.evo__line,
+.evo__rule,
+.evo__now {
+  vector-effect: non-scaling-stroke;
+  fill: none;
+}
+
+.evo__line {
+  stroke: var(--green);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.evo__rule {
+  stroke: var(--line-strong);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.evo__now {
+  stroke: var(--red);
+  stroke-width: 1.5;
+}
+
+/* Las generaciones que todavía no ocurrieron: el hueco reservado, vacío. */
+.evo__pending {
+  fill: var(--bg-3);
+}
+
+.evo__axis {
+  position: absolute;
+  right: 4px;
+  font-size: var(--fs-micro);
+  color: var(--txt-4);
+  background: var(--bg-2);
+  padding: 0 2px;
+}
+
+.evo__axis--top {
+  top: 2px;
+}
+
+.evo__axis--bottom {
+  bottom: 2px;
+}
+
+.evo__label {
+  font-size: var(--fs-micro);
+  color: var(--txt-3);
+  letter-spacing: 0.02em;
+}
+
+.evo__label strong {
+  color: var(--yellow);
+}
+
+.evo__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  font-size: var(--fs-micro);
+  color: var(--txt-2);
+}
+
+.evo__key {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.evo__swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 1px;
+}
+
+.evo__keyv {
+  color: var(--txt-3);
+}
+
+/* ------------------------------------------------------ plan recomendado */
+
+.plan__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap);
+}
+
+.plan__stops {
+  font-size: var(--fs-lg);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.plan__seq {
+  font-size: var(--fs-tiny);
+  color: var(--txt-2);
+}
+
+.plan__bar {
+  display: flex;
+  gap: 1px;
+  height: 18px;
+}
+
+.plan__stint {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  overflow: hidden;
+  color: #0f0e0d;
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.plan__stops-list {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: var(--fs-micro);
+  color: var(--txt-2);
+}
+
+.plan__stop {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.plan__chip {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  color: #0f0e0d;
+  font-size: var(--fs-micro);
+  font-weight: 800;
+}
+
+.plan__conv {
+  margin-left: auto;
+  color: var(--txt-3);
+}
+
+.alts {
+  display: grid;
+  gap: 2px;
+  font-size: var(--fs-micro);
+  color: var(--txt-2);
+}
+
+.alts__label {
+  color: var(--txt-3);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.alts__row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--gap);
+  padding: 1px 4px;
+  background: var(--bg-2);
+  border-radius: 2px;
+}
+
+.alts__score {
+  color: var(--txt-3);
+}
+
+/* ----------------------------------------------------- las cuatro y la banda */
+
+.band {
+  display: grid;
+  gap: 1px;
+  padding: calc(var(--pad) * 0.5) var(--pad);
+  background: var(--bg-2);
+  border-left: 3px solid var(--green);
+  border-radius: 2px;
+}
+
+.band__kicker {
+  font-size: var(--fs-micro);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--txt-3);
+}
+
+.band__value {
+  font-size: var(--fs-lg);
+  font-weight: 800;
+  line-height: 1.05;
+}
+
+.band__note {
+  font-size: var(--fs-micro);
+  color: var(--txt-3);
+}
+
+.probs {
+  display: grid;
+  gap: 2px;
+}
+
+.prob {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(56px, 34%) 3.4em;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-tiny);
+  color: var(--txt-1);
+}
+
+.prob__track {
+  height: 9px;
+  background: var(--bg-4);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.prob__bar {
+  display: block;
+  height: 100%;
+  background: var(--txt-2);
+}
+
+.prob__value {
+  text-align: right;
+  color: var(--txt-0);
+  font-weight: 700;
+}
+
+.hist {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 46px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-soft);
+  border-radius: 2px;
+}
+
+/* La banda va detrás de las barras: es el resumen de la misma distribución. */
+.hist__band {
+  position: absolute;
+  inset-block: 0;
+  background: rgba(53, 196, 111, 0.16);
+  border-inline: 1px solid rgba(53, 196, 111, 0.5);
+}
+
+.hist__mean {
+  position: absolute;
+  inset-block: 0;
+  width: 1px;
+  background: var(--green);
+}
+
+.hist__bars {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  padding: 2px;
+}
+
+.hist__bar {
+  flex: 1 1 0;
+  background: var(--txt-3);
+  border-radius: 1px 1px 0 0;
+  min-height: 1px;
+}
+
+.hist__bar--peak {
+  background: var(--txt-1);
+}
+
+.hist__axis {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--gap);
+  font-size: var(--fs-micro);
+  color: var(--txt-4);
+}
+
+/* -------------------------------------------------- carrera desde la largada */
+
+.run {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  align-items: stretch;
+}
+
+.run__go {
+  flex: 1 1 auto;
+  padding: calc(var(--pad) * 0.45) var(--pad);
+  background: var(--red);
+  border: 1px solid var(--red);
+  border-radius: 2px;
+  color: #f4f3f2;
+  font-family: inherit;
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.run__go:hover {
+  background: #ff3d1c;
+}
+
+.run__go:focus-visible,
+.run .scenario:focus-visible {
+  outline: 2px solid var(--txt-0);
+  outline-offset: 1px;
+}
+
+/* La línea de tiempo del plan: tandas, paradas y la vuelta actual. */
+.timeline {
+  position: relative;
+  height: 26px;
+  margin-top: 6px;
+  background: var(--bg-4);
+  border-radius: 2px;
+}
+
+.timeline__stint {
+  position: absolute;
+  top: 0;
+  height: 10px;
+  opacity: 0.9;
+}
+
+.timeline__stop {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--txt-0);
+}
+
+.timeline__flag {
+  position: absolute;
+  top: 11px;
+  left: 2px;
+  font-size: var(--fs-micro);
+  color: var(--txt-2);
+  white-space: nowrap;
+}
+
+.timeline__now {
+  position: absolute;
+  inset-block: 0;
+  width: 2px;
+  background: var(--red);
+}
+
+.trace {
+  position: relative;
+  height: clamp(58px, 7vh, 88px);
+  background: var(--bg-2);
+  border: 1px solid var(--line-soft);
+  border-radius: 2px;
+}
+
+.trace__svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.trace__band {
+  fill: rgba(53, 196, 111, 0.16);
+}
+
+.trace__mean,
+.trace__line,
+.trace__now {
+  vector-effect: non-scaling-stroke;
+  fill: none;
+}
+
+.trace__mean {
+  stroke: var(--green);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+
+.trace__line {
+  stroke: var(--txt-0);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.trace__now {
+  stroke: var(--red);
+  stroke-width: 1;
+}
+
+.trace__tag {
+  position: absolute;
+  font-size: var(--fs-micro);
+  color: var(--txt-3);
+  background: rgba(23, 22, 21, 0.85);
+  padding: 0 3px;
+}
+
+.trace__tag--band {
+  left: 3px;
+  top: 2px;
+}
+
+.trace__tag--live {
+  right: 3px;
+  bottom: 2px;
+  color: var(--txt-1);
+}
+
+/* --------------------------------------------------- el elegido, en la torre */
+
+/*
+ * El auto focal se marca con fondo, con un borde a la izquierda y con el
+ * triángulo de la primera celda. Tres canales, porque el color solo no alcanza.
+ */
+.tower-table .MuiTableBody-root .row--focal .MuiTableCell-root {
+  background: var(--bg-4);
+  color: var(--txt-0);
+}
+
+.tower-table .MuiTableBody-root .row--focal .MuiTableCell-root:first-of-type {
+  box-shadow: inset 2px 0 0 var(--txt-0);
+}

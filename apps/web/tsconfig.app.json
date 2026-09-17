@@ -6,6 +6,8 @@
     "module": "esnext",
     "types": ["vite/client"],
     "allowArbitraryExtensions": true,
+    /* El export pre-carrera se importa como JSON, no se transcribe (ADR-010). */
+    "resolveJsonModule": true,
     "skipLibCheck": true,
 
     /* Bundler mode */

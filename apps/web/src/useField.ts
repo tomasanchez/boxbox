@@ -91,10 +91,37 @@ function gridTravelled(drivers: DriverState[]): number[] {
   })
 }
 
-/** Posiciones iniciales, a partir de los intervalos medidos. */
+/**
+ * Cuánta vuelta ocupa un segundo de intervalo.
+ *
+ * Lo físico es `1 / greenLapS`: dos autos separados por un segundo están a un
+ * segundo de vuelta de distancia, y la vuelta verde de Zandvoort está medida.
+ * Pero si con esa escala el pelotón entero no entra en `FIELD_SPAN` —con los
+ * intervalos de la vuelta 30 ocupa 1,28 vueltas— los rezagados envuelven el
+ * circuito y reaparecen adelante, así que en ese caso se comprime.
+ *
+ * El caso `totalGap === 0` es la **largada**: los autos están detenidos en la
+ * parrilla y no hay intervalos que medir, así que manda la escala física.
+ */
+function gapScale(drivers: DriverState[]): number {
+  const totalGap = drivers.reduce((sum, d) => sum + (d.gapAheadS ?? 0), 0)
+  const physical = 1 / RACE.greenLapS
+  return totalGap > 0 ? Math.min(physical, FIELD_SPAN / totalGap) : physical
+}
+
+/**
+ * Posiciones iniciales, a partir de los intervalos medidos.
+ *
+ * Sin intervalos medidos —la largada— se cae a la formación de la parrilla. No
+ * es que el pelotón esté formado en esa vuelta: es que no hay dato para
+ * ubicarlo, y amontonarlos a todos en el mismo punto sería peor que ponerlos en
+ * el único orden que sí está medido.
+ */
 function initialTravelled(drivers: DriverState[]): number[] {
   const totalGap = drivers.reduce((sum, d) => sum + (d.gapAheadS ?? 0), 0)
-  const spread = totalGap > 0 ? FIELD_SPAN / totalGap : 0.02
+  if (totalGap <= 0) return gridTravelled(drivers)
+
+  const spread = gapScale(drivers)
   let cumulative = 0
   return drivers.map((d) => {
     cumulative += (d.gapAheadS ?? 0) * spread
@@ -172,7 +199,14 @@ function clamp(value: number, low: number, high: number): number {
  * segundo término dos autos con la misma goma andaban exactamente igual para
  * siempre, que es lo único que no puede pasar en una carrera.
  *
- * `held` apaga las dos cosas cuando la carrera está neutralizada, porque ahí
+ * Desde la largada se suma un tercer término: el **ritmo propio** del auto
+ * (`paceS`). En la foto de la vuelta 30 no hace falta, porque el ritmo relativo
+ * ya está metido en los intervalos medidos; pero en la vuelta 1 están todos
+ * juntos en la parrilla, y sin ese término un Cadillac terminaría pegado a un
+ * McLaren cuando la clasificación dice que anda casi tres segundos más lento
+ * por vuelta.
+ *
+ * `held` apaga las tres cosas cuando la carrera está neutralizada, porque ahí
  * todos van al mismo ritmo impuesto.
  */
 function carPace(driver: DriverState, noise: number, held: number, lapTimeS: number): number {
@@ -183,7 +217,7 @@ function carPace(driver: DriverState, noise: number, held: number, lapTimeS: num
   //
   // El ruido puede ser negativo —una vuelta buena— pero el ritmo nunca puede
   // caer a cero ni invertirse, así que el castigo total queda acotado.
-  const wear = Math.max(driver.degradationS + noise, 0)
+  const wear = Math.max(driver.degradationS + noise + (driver.paceS ?? 0), 0)
   const penalty = clamp(wear / lapTimeS, 0, 0.35)
   return 1 - penalty * (1 - held)
 }
@@ -363,9 +397,7 @@ export function useField(
 
       // El intervalo acumulado del último auto fija la escala: se reparte el
       // pelotón dentro de FIELD_SPAN y después el estado lo comprime o estira.
-      const totalGap = cars.reduce((sum, c) => sum + (c.gapAheadS ?? 0), 0)
-      const spread =
-        (totalGap > 0 ? FIELD_SPAN / totalGap : 0.02) * (s.spacing / STATUS.GREEN.spacing)
+      const spread = gapScale(cars) * (s.spacing / STATUS.GREEN.spacing)
       const base = s.pace * lps
 
       // Neutralizada, el ritmo propio se apaga y manda la corrección: nadie

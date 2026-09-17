@@ -3,26 +3,53 @@
  *
  * Todo entra en el viewport: el `.app` es una grilla de tres filas con la
  * última en `minmax(0,1fr)`, y ningún contenedor scrollea. Ver `styles.css`.
+ *
+ * Acá viven tres cosas que las tres vistas comparten y que por eso no pueden
+ * vivir más abajo (ADR-007):
+ *
+ *   `focal`   el piloto elegido. Es el auto que se destaca en el mapa y en la
+ *             torre, y del que hablan las tarjetas de la vista pre-carrera.
+ *   `origin`  desde dónde arranca la simulación: la foto medida de la vuelta 30
+ *             o la parrilla de largada con el plan que dio el algoritmo.
+ *   `seed`    la semilla del sorteo. El botón de re-sorteo la cambia, y con eso
+ *             la misma recomendación produce otra carrera — que es la tesis del
+ *             trabajo, no un bug (ADR-006).
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ForecastView } from './ForecastView'
 import { PlaybackControls } from './Playback'
 import { SPEEDS } from './playback-clock'
+import { PreRaceView } from './PreRaceView'
 import { RaceView } from './RaceView'
 import { GRID, RACE } from './data'
+import { PRERACE_GRID, PRERACE_MODEL, PRERACE_PLANS } from './prerace'
 import { STATUS, STATUS_ORDER, fieldNote } from './status'
-import { evolve } from './tyres'
+import { DEFAULT_SEED, evolve } from './tyres'
 import { useField } from './useField'
 import { Kpi } from './ui'
 import type { TrackStatus } from './types'
 
-type View = 'race' | 'forecast'
+type View = 'race' | 'forecast' | 'prerace'
+
+/**
+ * Desde dónde arranca la carrera animada.
+ *
+ *   `snapshot`  la foto medida de la vuelta 30: cada auto con su goma, su edad
+ *               y sus intervalos reales, y las paradas que faltan sorteadas de
+ *               las distribuciones medidas.
+ *   `start`     la parrilla de largada de la clasificación, con **cada auto
+ *               corriendo el plan que le dio el algoritmo genético**.
+ */
+type Origin = 'snapshot' | 'start'
 
 const TABS: { id: View; label: string }[] = [
+  { id: 'prerace', label: 'Pre-carrera' },
   { id: 'race', label: 'Panel de carrera' },
   { id: 'forecast', label: 'Pronóstico' },
 ]
+
+const VIEWS = new Set<string>(TABS.map((t) => t.id))
 
 /**
  * Los autos que se dibujan en el mapa: **todos los que están en pista**.
@@ -41,16 +68,38 @@ const FIELD_CARS = GRID
 
 export default function App() {
   // El hash permite abrir una vista directo (y sacarle captura sin interactuar).
-  const initial: View = window.location.hash === '#forecast' ? 'forecast' : 'race'
+  const hash = window.location.hash.slice(1)
+  const initial: View = VIEWS.has(hash) ? (hash as View) : 'prerace'
   const [view, setView] = useState<View>(initial)
   const [status, setStatus] = useState<TrackStatus>('GREEN')
+  const [origin, setOrigin] = useState<Origin>('snapshot')
   const [lap, setLap] = useState(RACE.currentLap)
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState(SPEEDS[1])
+  const [focal, setFocal] = useState('NOR')
+  const [seed, setSeed] = useState(DEFAULT_SEED)
 
   const spec = STATUS[status]
+  const fromLap = origin === 'start' ? 1 : RACE.currentLap
 
-  const advance = useCallback(() => {
+  const [track, setTrack] = useState<number[]>([])
+
+  /**
+   * Cierra una vuelta: adelanta el reloj y anota en qué puesto la terminó el
+   * auto focal.
+   *
+   * Las dos cosas van juntas porque son el mismo evento —la cabeza del pelotón
+   * cruzando la meta—, y porque así la trayectoria tiene exactamente un punto
+   * por vuelta en vez de uno por publicación de la torre.
+   */
+  const closeLap = useCallback((atLap: number, place: number) => {
+    if (place > 0) {
+      setTrack((current) => {
+        const next = current.slice()
+        next[atLap] = place
+        return next
+      })
+    }
     setLap((current) => {
       if (current >= RACE.totalLaps) {
         setPlaying(false)
@@ -63,24 +112,68 @@ export default function App() {
   // La goma envejece con la carrera, y no lo hace igual para todos: cada tanda
   // tiene su propio ritmo de caída sorteado, y cada vuelta su propio ruido. Sin
   // esto dos autos con la misma goma andaban exactamente igual para siempre.
-  const { cars, paceNoise, progressLost } = useMemo(
-    () => evolve(FIELD_CARS, lap, RACE.currentLap),
-    [lap],
+  //
+  // Desde la largada cambian dos cosas: el plan de cada auto **no se sortea**
+  // —es el que emitió el algoritmo— y el desgaste sale de los cortes del propio
+  // export, que son de 2026 y no de todas las temporadas (ADR-009).
+  const { cars, paceNoise, progressLost, plans } = useMemo(
+    () =>
+      origin === 'start'
+        ? evolve(PRERACE_GRID, lap, 1, seed, { model: PRERACE_MODEL, plans: PRERACE_PLANS })
+        : evolve(FIELD_CARS, lap, RACE.currentLap, seed),
+    [lap, origin, seed],
   )
 
   // El pelotón vive en useField: separación, ritmo y posición se interpolan
   // cuadro a cuadro, así que cambiar de estado es una maniobra y no un salto.
   const { field, timing } = useField(cars, status, playing, speed.msPerLap, lap, paceNoise, progressLost)
 
-  // La vuelta avanza cuando la cabeza del pelotón cruza la meta.
+  const focalIndex = cars.findIndex((c) => c.code === focal)
+
+  /*
+   * La vuelta se cierra cuando la cabeza del pelotón cruza la meta. Ahí también
+   * queda anotado el puesto del auto focal: la trayectoria es una **medición de
+   * la simulación**, no una proyección, y se reinicia desde los botones que
+   * cambian de carrera, que es donde la vieja deja de corresponder.
+   */
   const crossed = useRef(field.positions[0] ?? 0)
   useEffect(() => {
     const head = field.positions[0] ?? 0
-    if (crossed.current > 0.8 && head < 0.2) advance()
+    if (crossed.current > 0.8 && head < 0.2) {
+      closeLap(lap, focalIndex >= 0 ? timing.order.indexOf(focalIndex) + 1 : 0)
+    }
     crossed.current = head
-  }, [field.positions, advance])
+  }, [field.positions, timing, focalIndex, lap, closeLap])
 
   const togglePlay = useCallback(() => setPlaying((current) => !current), [])
+
+  /** Arranca la carrera desde donde diga `next`, y deja el reloj en su vuelta. */
+  const startFrom = useCallback((next: Origin, play: boolean) => {
+    setOrigin(next)
+    setLap(next === 'start' ? 1 : RACE.currentLap)
+    setPlaying(play)
+    setTrack([])
+  }, [])
+
+  /** Otra semilla, mismo plan: la carrera vuelve a largar y sale distinta. */
+  const redraw = useCallback(() => {
+    setSeed((current) => current + 1)
+    setOrigin('start')
+    setLap(1)
+    setPlaying(true)
+    setTrack([])
+  }, [])
+
+  /** Cambiar de piloto cambia de quién es la trayectoria que se está anotando. */
+  const chooseFocal = useCallback((code: string) => {
+    setFocal(code)
+    setTrack([])
+  }, [])
+
+  const openView = useCallback((next: View) => {
+    setView(next)
+    window.location.hash = next
+  }, [])
 
   return (
     <div className="app">
@@ -103,10 +196,7 @@ export default function App() {
               role="tab"
               className="tab"
               aria-selected={view === t.id}
-              onClick={() => {
-                setView(t.id)
-                window.location.hash = t.id
-              }}
+              onClick={() => openView(t.id)}
             >
               {t.label}
             </button>
@@ -132,7 +222,9 @@ export default function App() {
         <Kpi
           label="Vuelta"
           value={`${lap} / ${RACE.totalLaps}`}
-          note={`quedan ${RACE.totalLaps - lap}`}
+          note={`quedan ${RACE.totalLaps - lap} · ${
+            origin === 'start' ? 'desde la largada' : 'desde la foto V30'
+          }`}
         />
         <Kpi
           label="Costo de parar"
@@ -163,7 +255,7 @@ export default function App() {
               setPlaying(false)
               setLap(next)
             }}
-            homeLap={RACE.currentLap}
+            homeLap={fromLap}
           />
         </div>
       </div>
@@ -184,9 +276,34 @@ export default function App() {
       </div>
 
       {view === 'race' ? (
-        <RaceView scenarioLap={lap} status={status} field={field} cars={cars} timing={timing} />
-      ) : (
+        <RaceView
+          scenarioLap={lap}
+          status={status}
+          field={field}
+          cars={cars}
+          timing={timing}
+          focal={focal}
+          plans={origin === 'start' ? plans : null}
+        />
+      ) : view === 'forecast' ? (
         <ForecastView />
+      ) : (
+        <PreRaceView
+          focal={focal}
+          onFocal={chooseFocal}
+          lap={lap}
+          running={origin === 'start'}
+          playing={playing}
+          seed={seed}
+          track={track}
+          onStart={() => {
+            startFrom('start', true)
+            openView('prerace')
+          }}
+          onSnapshot={() => startFrom('snapshot', false)}
+          onRedraw={redraw}
+          onWatch={() => openView('race')}
+        />
       )}
     </div>
   )
