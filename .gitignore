@@ -25,9 +25,16 @@ apps/web/dist/
 
 # Data: FastF1 cache and generated datasets. These are large, re-derivable and
 # must never enter git.
-apps/ml/data/
+# Se ignora el CONTENIDO y no el directorio: git no desciende a un directorio
+# excluido, así que con `apps/ml/data/` la excepción de abajo nunca se evalúa.
+apps/ml/data/*
 *.parquet
 *.feather
+
+# Excepción: las predicciones congeladas ANTES de una carrera. Son chicas, no son
+# re-derivables — el punto es justamente que existieran antes del resultado — y
+# sin ellas versionadas la afirmación "esto se escribió antes" no es verificable.
+!apps/ml/data/*_prediccion.json
 
 # Notebook checkpoints
 .ipynb_checkpoints/

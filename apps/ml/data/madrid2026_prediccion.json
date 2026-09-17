@@ -1,0 +1,77 @@
+{
+  "circuito": "Madrid",
+  "fecha": "2026-09-13",
+  "ronda": 14,
+  "generado_con": "calendario + FP1/FP2/FP3 + clasificación; la carrera NO se cargó",
+  "vueltas_estimadas": 58,
+  "desgaste_estimado_s_vuelta": {
+    "MEDIUM": 0.0884,
+    "SOFT": 0.0839,
+    "HARD": 0.0539
+  },
+  "plan_recomendado": {
+    "SOFT": "S23-H34",
+    "MEDIUM": "M23-H34",
+    "HARD": "H36-S21"
+  },
+  "paradas_recomendadas": {
+    "SOFT": 1,
+    "MEDIUM": 1,
+    "HARD": 1
+  },
+  "ventana": {
+    "SOFT": {
+      "paradas": 1,
+      "primera": [
+        19,
+        24
+      ]
+    },
+    "MEDIUM": {
+      "paradas": 1,
+      "primera": [
+        19,
+        24
+      ]
+    },
+    "HARD": {
+      "paradas": 1,
+      "primera": [
+        34,
+        37
+      ]
+    }
+  },
+  "mejor_compuesto_de_salida": "SOFT",
+  "apuesta_principal": {
+    "supuestos": [
+      "desgaste del medio calibrado desde práctica (único método validado)",
+      "escalón de ritmo medido en Madrid: blando -0,893 s/vuelta",
+      "el duro fuera de la mesa: 32 vueltas en todo el fin de semana"
+    ],
+    "planes": {
+      "MEDIUM": {
+        "plan": "M12-S23-S22",
+        "paradas": 2
+      },
+      "SOFT": {
+        "plan": "S23-H16-S18",
+        "paradas": 2
+      }
+    },
+    "ventana_primera_parada": [
+      10,
+      15
+    ]
+  },
+  "p_safety_car": 0.629,
+  "p_vsc": 0.543,
+  "p_bandera_roja": 0.114,
+  "p_alguna_neutralizacion": 0.85,
+  "afirmaciones_falsables": [
+    "el duro corre menos del 10% de las vueltas de la carrera",
+    "la mayoría de la parrilla larga en MEDIO",
+    "la cantidad modal de paradas del top 10 es la que dice la tabla de arriba",
+    "al menos una neutralización (SC, VSC o roja): 85%"
+  ]
+}
