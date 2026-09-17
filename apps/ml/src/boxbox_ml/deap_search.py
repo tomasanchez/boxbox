@@ -39,6 +39,7 @@ preferencias: un plan ilegal es una descalificación, no un plan malo.
 
 from __future__ import annotations
 
+import random
 from collections.abc import Callable
 
 import numpy as np
@@ -194,6 +195,21 @@ def evolve(
         La población final como pares ``(plan, aptitud)``, ordenada como venga, y
         el registro por generación, vacío si no se pidió.
     """
+    # **Sembrar el generador global de ``random``, que DEAP usa y nunca sembró.**
+    #
+    # ``eaMuPlusLambda``, ``varOr`` y ``selTournament`` no toman un generador: van
+    # directo al módulo ``random``. Sin esto el motor DEAP era **no
+    # determinístico**, y no de forma sutil — dos llamadas seguidas con los
+    # mismos parámetros daban planes distintos, y la comparación de
+    # ``scripts/deap_vs_builtin.py`` medía en parte esa aleatoriedad suelta en vez
+    # de la diferencia entre los dos bucles.
+    #
+    # La semilla sale del propio ``rng`` que ya comparte ``optimise``, así que dos
+    # búsquedas con el mismo ``seed`` dan el mismo resultado sin agregar un
+    # parámetro nuevo. Se toca el estado global del proceso, que es feo, pero es
+    # la única superficie que DEAP ofrece.
+    random.seed(int(rng.integers(0, 2**32)))
+
     toolbox = _build_toolbox(fitness, car, model, rng)
 
     individuals = []

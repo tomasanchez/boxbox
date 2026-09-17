@@ -231,11 +231,26 @@ El procedimiento es:
 de entrada, porque en la carrera real sería descalificación. Nunca llega a competir.
 
 **Sobre DEAP.** La propuesta decía que se iba a usar DEAP, la librería que recomienda la
-cátedra. La implementación quedó escrita a medida, porque el genoma es de largo variable —un plan
-tiene una, dos o tres paradas— y necesita reglas de reparación propias: ordenar las paradas,
-separarlas al menos seis vueltas y forzar una parada cuando la tanda excede lo que la evidencia
-puede cotizar. Eso no encaja cómodo en los operadores estándar. Portarlo a DEAP no cambia el
-modelo y queda como tarea pendiente, declarada acá y no escondida.
+cátedra. La implementación se escribió primero a medida, porque el genoma es de largo variable
+—un plan tiene una, dos o tres paradas— y necesita reglas de reparación propias: ordenar las
+paradas, separarlas al menos seis vueltas y forzar una parada cuando la tanda excede lo que la
+evidencia puede cotizar. Eso no encaja cómodo en los operadores estándar.
+
+**Ya está portado, y los dos motores conviven.** Se elige con un parámetro. El port es
+deliberadamente un re-alojamiento y no un rediseño: las semillas, la aptitud con números
+aleatorios comunes, el reparador, la cruza y la mutación son los mismos objetos; lo único que
+cambia es el bucle, que pasa a ser `eaMuPlusLambda` con selección por torneo. Los operadores de
+caja de DEAP no sirven acá —`cxTwoPoint` asume largo fijo y no sabe de restricciones— así que se
+registran los propios en un `Toolbox`, que es la forma en que se espera leer un algoritmo
+genético.
+
+Dos cosas que el port enseñó. La primera: **el caché de aptitud de DEAP acá es correcto**, y no
+era obvio. DEAP no reevalúa un individuo cuya aptitud sigue válida, lo cual es el error clásico
+con Monte Carlo; pero la nuestra usa números aleatorios comunes con semilla fija, así que para un
+plan dado es determinística. La segunda salió de verificar: **`eaMuPlusLambda` y `selTournament`
+usan el generador global de `random`, que nunca sembrábamos**, así que el motor DEAP era no
+determinístico y dos corridas idénticas daban planes distintos. Está sembrado desde el mismo
+generador que ya comparte la búsqueda.
 
 **3. Agente de Aprendizaje por Refuerzo (comparación — Unidad 5).**
 
@@ -291,8 +306,6 @@ para entregar una es peor que proponer dos y cumplirlas.
 ### Lo que falta
 
 - El agente de Aprendizaje por Refuerzo, que era la comparación propuesta.
-- Portar el genético a **DEAP**. Está escrito a medida porque el genoma es de largo variable con
-  reglas de reparación, pero DEAP es la herramienta que recomienda la cátedra y conviene alinearse.
 - El tráfico de **rezagados**. El 23,1% de los pilotos terminan al menos una vuelta abajo, y la
   medición actual los excluye por construcción.
 - La **ventana de parada** sale hoy de una heurística y debería salir del propio genético.
@@ -576,6 +589,109 @@ paradas, que es ruido. Con objetivo posición converge en una parada al 0,87.
 la equivocada no da una respuesta prudente sino una al azar.** Por eso el
 objetivo es adaptativo.
 
+### La posición de largada, que el modelo no estaba mirando
+
+Durante un tiempo el buscador recomendaba **el mismo plan desde la pole que desde
+el vigésimo**. Medido: `M23-H33` para las veinte posiciones. El hueco a la pole
+entraba como un desplazamiento constante del tiempo final, y una constante se
+suma igual a todos los candidatos, así que no cambia el orden entre planes.
+
+No era un descuido sino una cicatriz. Antes el hueco se cobraba *por vuelta*, y
+con la carrera arrancando en la vuelta 1 eso ponía a un auto 19.º a 4,75 s/vuelta
+— cinco minutos y medio sobre la carrera. Se apagó, y quedó el agujero.
+
+Lo que faltaba es un **ritmo**, no un hueco. Después de largar se infiere del
+terreno ya perdido; antes de largar no hay historia de la cual inferirlo. Pero sí
+hay una medición directa, y es casi obvia una vez que se la ve: **una diferencia
+de tiempo de vuelta en clasificación ya es una cantidad por vuelta.**
+
+Cuánto de ese hueco sobrevive a la carrera, medido sobre 277 pilotos-carrera en
+las catorce fechas de 2026, con corrección de combustible y sólo vueltas verdes
+representativas:
+
+| | |
+|---|---|
+| Correlación | **+0,880** |
+| Pendiente | **0,835** |
+| Por carrera | 0,63 a 1,10, mediana 0,92 |
+| Dejando una carrera afuera | 0,554 s/vuelta de error contra **0,935** suponiendo que todos andan igual |
+
+Esa última fila es la que importa: **saber la clasificación reduce el error un
+40,7%** respecto de tratar a los veinte autos como iguales. Y a diferencia de casi
+todo lo demás por circuito, **replica**.
+
+El contraste con la calibración de práctica de Madrid es deliberado y vale
+señalarlo: aquélla también lucía bien en un leave-one-out y falló en el primer
+circuito que no había visto. La diferencia es *n* — nueve circuitos allá, catorce
+carreras y 277 autos acá.
+
+Verificación contra la carrera real de Madrid: el auto más lento de la grilla,
+6,187 s de la pole en clasificación, se predijo a 5,17 s/vuelta y corrió a
+**5,12**. Error medio absoluto sobre los veinte autos: 0,502 s/vuelta.
+
+**Un sesgo que conviene declarar:** −0,494 s/vuelta. El modelo *comprime el
+frente*. Antonelli clasificó a 0,011 de la pole y corrió a 0,29 s/vuelta de Norris
+— veintiocho veces más. Entre los punteros, el hueco de clasificación no separa.
+
+Dos consecuencias, y la primera es contraintuitiva:
+
+**Bajo el objetivo de tiempo sigue sin cambiar el plan, y está bien.** «La forma
+más rápida de cubrir la distancia» genuinamente no depende de dónde largaste. Lo
+que la posición desbloquea es el campo.
+
+**Bajo el objetivo adaptativo cambia, y cambia donde tiene que cambiar.** Los
+autos de la burbuja de los puntos —del noveno al decimotercero— pasan a parar
+**ocho vueltas antes** que los que están cómodos adentro o afuera. Es el undercut,
+que es exactamente la maniobra del que pelea el último puesto pagador.
+
+### El apetito de riesgo, o por qué el décimo defiende
+
+Todos los objetivos de arriba son un **promedio**, o sea neutrales al riesgo, y un
+muro de boxes no lo es.
+
+El caso más claro es el último puesto pagador. El que va décimo tiene un punto:
+perderlo cuesta uno y ganar el noveno gana uno. Ante un 50/50 entre octavo y
+duodécimo, el valor esperado calcula 0,5·4 + 0,5·0 = **2** contra **1** por
+quedarse quieto, así que el modelo **toma la apuesta**. Ningún equipo hace eso.
+
+La solución no es una regla por posición: es dejar de resumir la distribución por
+su media. Los sorteos ya están; lo que cambia es sobre qué parte de ellos se
+puntúa el plan. Medido, sobre un auto que larga décimo:
+
+| plan | posición media | cuarto peor | cuarto mejor |
+|---|---|---|---|
+| una parada `M15-H41` | 10,67 | **13,64** | **7,38** |
+| dos paradas `M17-H19-H20` | 10,95 | **12,37** | **9,55** |
+
+El paradón es mejor en media, mejor en el buen caso, y **peor en el malo**. Eso es
+una apuesta, y el promedio la escondía. Un apetito conservador elige el de dos
+paradas y uno arriesgado el de una, y **las dos respuestas son correctas — para
+autos distintos**.
+
+El patrón se repite en toda la grilla: **el apetito conservador parte la carrera
+en más tandas y el arriesgado se juega a menos.** Un paradón es una apuesta a que
+la goma aguante y a que salga un safety car; dos paradas compran previsibilidad.
+
+**Dos cosas que costaron y conviene que queden escritas.**
+
+*El cuantil no sirve.* El primer intento puntuaba sobre el cuartil mismo. Pero un
+cuantil de una cantidad discreta es discreto —la posición es un entero— y salían
+columnas enteras de planes empatados en −12,00 exacto. Una aptitud que no
+distingue dos planes no le da nada que escalar a la búsqueda: se quedaba con la
+semilla. Lo que funciona es la **media de la cola**, que promedia y por eso se
+mueve de a poco.
+
+*Sobre los puntos la cola se aplana*, y justo para los autos que esto venía a
+ayudar: el cuarto peor de las carreras de un auto de la burbuja termina fuera de
+los diez, así que todos los planes valen cero ahí. No tiene arreglo — es la forma
+de la tabla de puntos. Lo salva el respaldo que ya existía: el objetivo adaptativo
+cae a posición cuando los puntos no tienen gradiente. **El riesgo termina mordiendo
+sobre la posición, no sobre los puntos**, y la tabla de arriba está en posiciones
+por esa razón.
+
+**Limitación declarada:** el apetito es binario, no graduado. El primero y el
+undécimo reciben el mismo tratamiento porque la cola es un cuarto fijo.
+
 ### Contra qué se compara, y una comparación que estaba mal armada
 
 La primera versión de esta sección decía que el algoritmo apenas le ganaba a una
@@ -844,7 +960,7 @@ detalle que acá se aproxima con un promedio. Su metodología no está publicada
 | El escalón de ritmo entre compuestos **en condiciones de carrera** | Sin él, el duro sólo existe por el reglamento | Necesita telemetría o un modelo de combustible mejor |
 | Restricción de **asignación de neumáticos** | Sólo el 15% de los autos monta dos duros frescos, y la recomendación los pide | Sí, hay que decidir de dónde sale la asignación |
 | Bajar **`MIN_STINT`** de seis vueltas | No puede representar la parada de bandera roja temprana, que hicieron los 22 autos de Monza | Sí |
-| Portar a **DEAP** | Es la herramienta que recomienda la cátedra | Sí, no cambia el modelo |
+| ~~Portar a **DEAP**~~ | Es la herramienta que recomienda la cátedra | **Hecho.** Los dos motores conviven, se elige con un parámetro |
 | Tráfico de **rezagados** | 23,1% de los pilotos terminan una vuelta abajo | Requiere comparar por posición y no por vuelta |
 | Agente de **Refuerzo** | La comparación propuesta: planificar contra reaccionar | Para la Entrega 2 |
 
