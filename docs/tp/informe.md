@@ -9,6 +9,8 @@ Inteligencia Artificial Avanzada — UTN FRBA — 2do Cuatrimestre 2026
 
 **Fecha de Presentación:** _(completar)_
 
+**Repositorio:** https://github.com/tomasanchez/boxbox
+
 ---
 
 ## Resumen
