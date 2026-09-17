@@ -108,8 +108,15 @@ const PIT_LOSS_CUTS = { p25: 20.6, median: 23.5, p75: 31.3 }
  * la diferencia queda declarada en pantalla en lugar de disimulada.
  */
 export interface DrawModel {
-  /** Cortes del ritmo de caída por compuesto, en las probabilidades de `CUT_AT`. */
-  wearCuts: Record<Compound, number[]>
+  /**
+   * Cortes del ritmo de caída por compuesto, en las probabilidades de `CUT_AT`.
+   *
+   * Puede no traerlos todos —el export pre-carrera sólo mide las tres secas— y
+   * por eso el tipo exige **sólo** el medio, que es al que se cae `drawWear`
+   * cuando le piden un compuesto sin medición. Declararlo completo sería
+   * prometer una medición que no existe.
+   */
+  wearCuts: Partial<Record<Compound, number[]>> & Record<'MEDIUM', number[]>
   pitLoss: { p25: number; median: number; p75: number }
 }
 

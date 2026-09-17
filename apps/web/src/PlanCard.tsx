@@ -5,7 +5,7 @@
  * se ve acá es lo que el muro diría antes de largar, y la carrera animada se
  * contrasta contra esto.
  *
- * Además de las tandas van tres cifras que son el antídoto contra leer la
+ * Además de las tandas van las cifras que son el antídoto contra leer la
  * recomendación como una certeza:
  *
  *   convergencia    cuánto de la población final quedó en esa cantidad de
@@ -74,7 +74,9 @@ export function PlanCard({ car }: { car: PreRaceCar }) {
         </span>
       </div>
 
-      <div className="facts">
+      {/* Cuatro en una fila: en dos filas le come el alto al histograma de
+          la tarjeta de abajo, que es el dato y no el contexto. */}
+      <div className="facts facts--plan">
         <div className="fact">
           <div className="fact__k">Valor de decidir</div>
           <div className="fact__v num">{fmt(car.decision_value, 2)}</div>
@@ -104,8 +106,8 @@ export function PlanCard({ car }: { car: PreRaceCar }) {
       </div>
 
       <p className="footnote">
-        Las tandas del export suman <strong>{covered}</strong> vueltas sobre las {RACE.totalLaps} de
-        la carrera; se muestra lo que dice el archivo, sin completar la que falta.
+        Las tandas del export suman <strong>{covered}</strong> de {RACE.totalLaps} vueltas: se
+        muestra lo que dice el archivo.
       </p>
     </Panel>
   )

@@ -66,11 +66,16 @@ function metricValue(
         text: live.gapAhead === null ? '—' : `+${fmt(live.gapAhead)}`,
         tone: 'normal',
       }
-    case 'leader':
+    case 'leader': {
       if (live.formation) return { text: live.place === 1 ? 'pole' : '—', tone: 'muted' }
-      return live.place === 1
-        ? { text: 'líder', tone: 'muted' }
-        : { text: `+${fmt(live.gapLeader)}`, tone: 'normal' }
+      if (live.place === 1) return { text: 'líder', tone: 'muted' }
+      // Más de una vuelta de diferencia se dice en vueltas, como en la
+      // transmisión: «+96,4» no avisa que ese auto está doblado. Pasa desde la
+      // largada, donde el más lento pierde casi tres segundos por vuelta.
+      const lapsDown = Math.floor(live.gapLeader / RACE.greenLapS)
+      if (lapsDown >= 1) return { text: `+${lapsDown} v`, tone: 'muted' }
+      return { text: `+${fmt(live.gapLeader)}`, tone: 'normal' }
+    }
     case 'age':
       return { text: `${d.tyreAge}v`, tone: 'normal' }
     case 'deg':

@@ -67,6 +67,12 @@ const MAX_CATCHUP = 0.9
  * circuito y reaparecían adelante — que era lo que se veía como autos yendo
  * para atrás o saliendo disparados. Normalizando, el pelotón siempre entra en
  * una vuelta y el orden en pantalla coincide con el de la carrera.
+ *
+ * El tope vale cuando **hay intervalos medidos**. Desde la largada no los hay y
+ * manda la escala física (ver `gapScale`): ahí el pelotón puede pasarse de una
+ * vuelta, que es lo que tiene que pasar cuando alguien queda doblado. El orden
+ * sigue saliendo de la distancia recorrida, así que un doblado no aparece
+ * adelante: aparece último, y la torre lo dice en vueltas.
  */
 const FIELD_SPAN = 0.82
 
@@ -332,8 +338,12 @@ export function useField(
     }
   }, [progressLost])
 
+  /** Dónde queda cada auto formado en la parrilla. Ver el uso en el bucle. */
+  const formation = useRef(gridTravelled(drivers))
+
   useEffect(() => {
     grid.current = drivers
+    formation.current = gridTravelled(drivers)
     // Si cambia la cantidad de autos, se reinicia el arreglo de posiciones.
     if (sim.current.travelled.length !== drivers.length) {
       sim.current.travelled = initialTravelled(drivers)
@@ -418,13 +428,30 @@ export function useField(
         gridLine.current = null
         // La cabeza dicta el ritmo (B5.12.2): avanza sola y el resto se acomoda
         // detrás.
-        s.travelled[0] += dt * base * carPace(cars[0], noise.current[0] ?? 0, held, RACE.greenLapS)
+        // La cabeza **también paga su parada**. Antes no: el bucle descontaba
+        // la deuda de boxes sólo del segundo auto para atrás, así que el
+        // primero del arreglo entraba a boxes y salía sin perder nada. Con la
+        // carrera corriendo desde la largada eso era justo el auto de la pole.
+        let step = dt * base * carPace(cars[0], noise.current[0] ?? 0, held, RACE.greenLapS)
+        const owed = stall.current[0] ?? 0
+        if (owed > 0) {
+          const paid = Math.min(owed, step)
+          stall.current[0] = owed - paid
+          step -= paid
+        }
+        s.travelled[0] += step
       }
 
+      // Sin intervalos medidos —la largada— el hueco deseado es el **cajón de
+      // la parrilla**, no cero. Con cero, mientras la formación se deshace la
+      // corrección arrastraba a los veintidós encima del líder y el orden que
+      // salía de ahí no lo dictaba el ritmo sino el arrastre.
+      const measured = cars.some((c) => (c.gapAheadS ?? 0) > 0)
       let byGap = 0
       for (let i = 1; i < cars.length; i += 1) {
         byGap += (cars[i].gapAheadS ?? 0) * spread
-        const desired = byGap * (1 - s.uniform) + spread * i * s.uniform
+        const spaced = measured ? byGap : -(formation.current[i] ?? 0)
+        const desired = spaced * (1 - s.uniform) + spread * i * s.uniform
         const goal = s.travelled[0] - desired
 
         // Acelera si quedó lejos y levanta si se pasó, pero la velocidad nunca

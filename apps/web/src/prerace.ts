@@ -20,6 +20,9 @@ import type { Compound, DriverState } from './types'
 import type { DrawModel, PlannedStop } from './tyres'
 import raw from './prerace-zandvoort.json'
 
+/** Los compuestos que el export mide. En el escenario no hay tandas de mojado. */
+export type DryCompound = 'SOFT' | 'MEDIUM' | 'HARD'
+
 /**
  * Qué se estaba maximizando. Ver `objectiveNote`.
  *
@@ -43,7 +46,8 @@ export interface PreRaceCar {
   gap_to_pole_s: number
   /** Ritmo de carrera respecto del poleman, en segundos por vuelta. */
   pace_s: number
-  start_compound: Compound
+  /** Con qué larga. Es un supuesto declarado del export: medio para todos. */
+  start_compound: DryCompound
   /** Las tandas como las diría el muro: «M18-H26-H27». */
   plan: string
   stops: { lap: number; compound: Compound }[]
@@ -93,12 +97,13 @@ export interface PreRaceExport {
     total_laps: number
     pole_s: number
     cars: number
-    start_compound: Compound
+    start_compound: DryCompound
     excluded: string[]
   }
   model: {
-    wear_median_s_lap: Record<Compound, number>
-    wear_cuts_s_lap: Record<Compound, number[]>
+    /** Sólo las tres secas: en Zandvoort 2026 no hubo tandas de mojado. */
+    wear_median_s_lap: Record<DryCompound, number>
+    wear_cuts_s_lap: Record<DryCompound, number[]>
     cut_probabilities: number[]
     /** Cuartiles de pérdida de boxes por estado de pista: [p25, mediana, p75]. */
     pit_loss_s: Record<string, number[]>
@@ -120,6 +125,13 @@ export interface PreRaceExport {
   assumptions: string[]
   checks: {
     draws: number
+    /**
+     * Cuánto suman las 22 P(ganar). **No da 1**: cada auto se simula contra
+     * rivales sorteados aparte, así que las 22 carreras no son la misma carrera.
+     * No se muestra en pantalla porque es una cifra sobre el método y no sobre
+     * ningún piloto en particular, pero queda declarada acá.
+     */
+    p_ganar_total: number
     position_histogram_sums_draws: boolean
     history_generations: number
   }
@@ -280,11 +292,11 @@ export function objectiveLabel(objective: string): string {
 export function riskNote(car: PreRaceCar): string {
   switch (car.risk) {
     case 'averse':
-      return 'Con aversión al riesgo: entre dos planes parecidos prefiere el de llegada más pareja.'
+      return 'Con aversión al riesgo: entre planes parecidos prefiere el de llegada más pareja.'
     case 'seeking':
-      return 'Buscando riesgo: desde el fondo conviene el plan que abre la dispersión, porque abajo casi no hay nada que perder.'
+      return 'Buscando riesgo: desde el fondo conviene el plan que abre la dispersión, porque hay poco que perder.'
     default:
-      return 'Riesgo neutro: ordena por el valor esperado, sin premiar ni castigar la dispersión.'
+      return 'Riesgo neutro: ordena por valor esperado, sin premiar ni castigar la dispersión.'
   }
 }
 
@@ -362,7 +374,7 @@ export const PRERACE_GRID: DriverState[] = PRERACE_CARS.map((car) => ({
   compound: car.start_compound,
   tyreAge: 0,
   degradationS: 0,
-  degradationRate: medianOf(PRERACE_MODEL.wearCuts[car.start_compound]),
+  degradationRate: medianOf(PRERACE.model.wear_cuts_s_lap[car.start_compound]),
   gapAheadS: null,
   gapLeaderS: null,
   pitWindow: null,

@@ -69,7 +69,19 @@ export function StartRaceCard({
       if (place) points.push(`${points.length === 0 ? 'M' : 'L'} ${x(l)} ${y(place)}`)
     }
   }
-  const now = running ? track[lap] : undefined
+  /*
+   * El puesto se anota al **cerrar** cada vuelta, así que la vuelta en curso
+   * todavía no tiene el suyo. Se muestra el último cierre y se dice de qué
+   * vuelta es, en vez de dar por buena la posición de una vuelta a medio correr.
+   */
+  let closed = 0
+  for (let l = Math.min(lap, RACE.totalLaps); l >= 1; l -= 1) {
+    if (track[l]) {
+      closed = l
+      break
+    }
+  }
+  const now = closed > 0 ? track[closed] : undefined
   const pct = (atLap: number) => ((atLap - 1) / (RACE.totalLaps - 1)) * 100
 
   return (
@@ -133,7 +145,7 @@ export function StartRaceCard({
           aria-label={`Banda de llegada entre el puesto ${fmt(band.low, 1)} y el ${fmt(
             band.high,
             1,
-          )}${now ? `. En la vuelta ${lap} va ${now}.º` : ''}`}
+          )}${now ? `. Cerró la vuelta ${closed} en el puesto ${now}.` : ''}`}
         >
           <rect
             x={0}
@@ -152,8 +164,8 @@ export function StartRaceCard({
         <span className="trace__tag trace__tag--live">
           {running
             ? now
-              ? `V${lap}: va ${now}.º${playing ? '' : ' · en pausa'}`
-              : `V${lap}`
+              ? `V${lap} · ${now}.º al cierre de la V${closed}${playing ? '' : ' · en pausa'}`
+              : `V${lap} · todavía sin vuelta cerrada`
             : 'sin sorteo en curso'}
         </span>
       </div>

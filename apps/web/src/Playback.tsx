@@ -66,14 +66,18 @@ export function PlaybackControls({
         <button type="button" className="playback__jump" onClick={() => onLap(1)}>
           V1
         </button>
-        <button
-          type="button"
-          className="playback__jump"
-          onClick={() => onLap(homeLap)}
-          title="Vuelta con datos medidos"
-        >
-          V{homeLap}
-        </button>
+        {/* Corriendo desde la largada el atajo de arriba ya es la vuelta 1: dos
+            botones iguales al lado del otro no ayudan a nadie. */}
+        {homeLap === 1 ? null : (
+          <button
+            type="button"
+            className="playback__jump"
+            onClick={() => onLap(homeLap)}
+            title="Vuelta con datos medidos"
+          >
+            V{homeLap}
+          </button>
+        )}
       </div>
     </div>
   )

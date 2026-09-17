@@ -105,8 +105,16 @@ export function EvolutionCard({ car }: { car: PreRaceCar }) {
   const high = Math.max(...values)
   const span = high - low || 1
 
+  /*
+   * Hay autos cuyo mejor plan aparece en la generación cero y no se mueve más
+   * —OCO es uno—. Ahí no hay escala que armar: la línea va al medio y se dice
+   * que nunca mejoró, en vez de dibujarla pegada al piso, que se lee como si el
+   * gráfico estuviera vacío.
+   */
+  const flat = high === low
   const x = (index: number) => PAD_X + (index / last) * (W - PAD_X * 2)
-  const y = (value: number) => H_BEST - 10 - ((value - low) / span) * (H_BEST - 22)
+  const y = (value: number) =>
+    flat ? H_BEST / 2 : H_BEST - 10 - ((value - low) / span) * (H_BEST - 22)
 
   // Escalera, no recta: el mejor valor se sostiene hasta que aparece uno mejor.
   // Interpolar entre generaciones dibujaría mejoras que nunca ocurrieron.
@@ -137,7 +145,14 @@ export function EvolutionCard({ car }: { car: PreRaceCar }) {
         <div className="evo__best">
           <span className="evo__bestv num">{fmt(entry.best, 3, true)}</span>
           <span className="evo__bestl">
-            mejor valor {improved ? '· mejoró' : shown === 0 ? '· inicial' : '· sin cambio'}
+            mejor valor{' '}
+            {flat
+              ? '· nunca mejoró: el mejor plan ya estaba en la generación 0'
+              : improved
+                ? '· mejoró'
+                : shown === 0
+                  ? '· inicial'
+                  : '· sin cambio'}
           </span>
         </div>
         <div className="evo__controls">
@@ -187,14 +202,20 @@ export function EvolutionCard({ car }: { car: PreRaceCar }) {
           aria-label={`Mejor valor por generación. Generación ${entry.generation}: ${fmt(entry.best, 3, true)}`}
         >
           <line x1={PAD_X} y1={y(high)} x2={W - PAD_X} y2={y(high)} className="evo__rule" />
-          <line x1={PAD_X} y1={y(low)} x2={W - PAD_X} y2={y(low)} className="evo__rule" />
+          {flat ? null : (
+            <line x1={PAD_X} y1={y(low)} x2={W - PAD_X} y2={y(low)} className="evo__rule" />
+          )}
           <path d={steps.join(' ')} className="evo__line" />
           {/* Marca vertical en vez de un punto: el gráfico se estira con el
               panel y un círculo saldría ovalado. */}
           <line x1={x(shown)} y1={0} x2={x(shown)} y2={H_BEST} className="evo__now" />
         </svg>
-        <span className="evo__axis evo__axis--top num">{fmt(high, 3, true)}</span>
-        <span className="evo__axis evo__axis--bottom num">{fmt(low, 3, true)}</span>
+        <span className={`evo__axis num evo__axis--${flat ? 'mid' : 'top'}`}>
+          {fmt(high, 3, true)}
+        </span>
+        {flat ? null : (
+          <span className="evo__axis evo__axis--bottom num">{fmt(low, 3, true)}</span>
+        )}
       </div>
 
       <div className="evo__label">

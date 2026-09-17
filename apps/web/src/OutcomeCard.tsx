@@ -106,11 +106,9 @@ export function OutcomeCard({ car }: { car: PreRaceCar }) {
       <p className="footnote">
         {riskNote(car)}
         {car.p_mejora === 0 && car.grid_position === 1
-          ? ' Larga desde la pole: no hay puesto que mejorar, y por eso esa probabilidad es cero.'
+          ? ' Larga desde la pole: no hay puesto que mejorar.'
           : ''}
-        {car.p_puntos === 1
-          ? ' P(zona de puntos) = 100% es una afirmación sobre el modelo, no sobre la carrera: el simulador no modela abandonos.'
-          : ''}
+        {car.p_puntos === 1 ? ' El 100% habla del modelo, que no simula abandonos.' : ''}
       </p>
     </Panel>
   )

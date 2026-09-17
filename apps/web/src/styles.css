@@ -2096,7 +2096,7 @@ body {
 .notes__list {
   margin: calc(var(--gap) * 0.5) 0 0;
   padding-left: 1.1em;
-  max-height: 30vh;
+  max-height: 24vh;
   overflow: auto;
   font-size: var(--fs-micro);
   line-height: 1.45;
@@ -2176,7 +2176,7 @@ body {
 .evo__plot {
   position: relative;
   flex: 1 1 0;
-  min-height: 42px;
+  min-height: 36px;
   background: var(--bg-2);
   border: 1px solid var(--line-soft);
   border-radius: 2px;
@@ -2236,6 +2236,12 @@ body {
 
 .evo__axis--bottom {
   bottom: 2px;
+}
+
+/* Historia sin mejoras: un solo valor, a la altura de la línea. */
+.evo__axis--mid {
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .evo__label {
@@ -2366,6 +2372,12 @@ body {
   color: var(--txt-3);
 }
 
+/* Las cuatro cifras del plan entran en una fila: el alto que ahorran se lo
+   lleva el histograma de llegada, que es el dato. */
+.facts--plan {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 /* ----------------------------------------------------- las cuatro y la banda */
 
 .band {
@@ -2431,7 +2443,7 @@ body {
 .hist {
   position: relative;
   flex: 1 1 0;
-  min-height: 46px;
+  min-height: 34px;
   background: var(--bg-2);
   border: 1px solid var(--line-soft);
   border-radius: 2px;
@@ -2489,13 +2501,15 @@ body {
   align-items: stretch;
 }
 
+/* Mismo tratamiento que el botón de reproducir: texto oscuro sobre el rojo, que
+   contrasta bastante mejor que el blanco. */
 .run__go {
   flex: 1 1 auto;
   padding: calc(var(--pad) * 0.45) var(--pad);
   background: var(--red);
   border: 1px solid var(--red);
   border-radius: 2px;
-  color: #f4f3f2;
+  color: #0f0e0d;
   font-family: inherit;
   font-size: var(--fs-micro);
   font-weight: 800;
@@ -2556,7 +2570,7 @@ body {
 
 .trace {
   position: relative;
-  height: clamp(58px, 7vh, 88px);
+  height: clamp(52px, 6.6vh, 86px);
   background: var(--bg-2);
   border: 1px solid var(--line-soft);
   border-radius: 2px;
