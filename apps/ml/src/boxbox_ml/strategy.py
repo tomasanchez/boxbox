@@ -81,7 +81,7 @@ exactly the case where two cars are fighting each other directly.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 
@@ -117,6 +117,33 @@ RATE_SHRINK = 0.05
 
 #: Median of that rolling slope across the field, which the shrinkage centres on.
 ROLLING_MEDIAN_S = 0.022
+
+#: How much of a qualifying gap is still there in race pace, per lap.
+#:
+#: This is what lets a pre-race plan know where the car started. Measured over 277
+#: driver-races across the fourteen rounds of 2026 run so far, on fuel-corrected
+#: green laps only: r = 0.880, pooled slope 0.835. Unusually for this project it
+#: **replicates** — the per-race slope runs 0.63 to 1.10 with a median of 0.92 —
+#: and leave-one-race-out puts the error at 0.554 s/lap against 0.935 for assuming
+#: every car is equally fast, a 40.7% gain.
+#:
+#: Contrast with the practice-to-race wear calibration, which looked just as good
+#: on a leave-one-out and then failed on the first circuit it had not seen. The
+#: difference is n: nine circuits there, fourteen races and 277 cars here.
+QUALI_TO_RACE_PACE = 0.835
+
+
+def pace_from_qualifying(gap_to_pole_s: float) -> float:
+    """Race pace deficit per lap implied by a qualifying gap.
+
+    Args:
+        gap_to_pole_s: The car's best qualifying lap minus pole, in seconds.
+
+    Returns:
+        Seconds per lap slower than the fastest car, for use as :attr:`Car.pace_s`.
+    """
+    return QUALI_TO_RACE_PACE * gap_to_pole_s
+
 
 #: Cuánto más lento es cada compuesto con goma nueva, en segundos por vuelta,
 #: respecto del duro. **La pieza que faltaba**, y la que le da al duro una razón
@@ -408,6 +435,90 @@ class Objective(StrEnum):
     IN_POINTS = "in_points"
 
 
+class Risk(StrEnum):
+    """How much of the spread the plan is allowed to gamble.
+
+    Every objective above was a **mean**, which is risk-neutral, and a real pit
+    wall is not. The clearest case is the last points-paying place. A car tenth
+    holds one point: losing it costs one, gaining ninth gains one. Under an
+    expected value, a fifty-fifty between eighth and twelfth scores ``0.5*4 +
+    0.5*0 = 2`` against ``1`` for staying put, so the search **takes the gamble**.
+    No team does that. The car tenth defends.
+
+    The fix is not a rule per position — it is to stop reducing the spread by its
+    mean. The draws are already there; what changes is which part of them the
+    plan is scored on. Measured on a car starting tenth at Madrid, two plans the
+    mean cannot separate properly:
+
+    ====================  =========  ==============  ===============
+    plan                  posición   cuarto peor     cuarto mejor
+    ====================  =========  ==============  ===============
+    una parada M15-H41      10.73        13.74            7.36
+    dos paradas M17-H19     11.01        12.44            9.58
+    ====================  =========  ==============  ===============
+
+    The one-stopper is better on average and better in the good quarter, and
+    worse in the bad one: it is the gamble, and the mean hides that. AVERSE picks
+    the two-stopper, SEEKING the one-stopper, and both are defensible — for
+    different cars.
+
+    **One honest limitation.** On the points objective the tail goes flat for
+    exactly the cars this was built for: the worst quarter of a bubble car's races
+    finishes outside the top ten, so every plan scores zero there and the search
+    has nothing to climb. What rescues it is the fallback that was already in
+    place — ``Objective.ADAPTIVE`` drops to ``POSITION`` when points are flat, and
+    that is where the table above lives. Risk appetite therefore bites on
+    position, not on points, and the table is the evidence that it bites.
+
+    ``NEUTRAL``   the mean. What every objective did before, and still the right
+                  choice when nothing is being protected.
+    ``AVERSE``    the 25th percentile of the maximised value: make the bad case
+                  good. A plan that sometimes wins and sometimes finishes twelfth
+                  loses to one that reliably finishes eighth.
+    ``SEEKING``   the 75th percentile: make the good case great. Correct for a car
+                  with nothing to lose, where the mean undervalues the upside that
+                  a safety car or a contrarian stint might hand it.
+    ``ADAPTIVE``  averse while there is something to protect, seeking when there
+                  is not — resolved from whether the car is in the points at all.
+
+    Note that the leader being the most cautious car on the grid does **not** need
+    this: it already falls out of the points table, where slipping one place costs
+    seven. What this adds is the car on the bubble, which the table alone gets
+    backwards.
+    """
+
+    NEUTRAL = "neutral"
+    AVERSE = "averse"
+    SEEKING = "seeking"
+    ADAPTIVE = "adaptive"
+
+
+#: Which tail each appetite scores on: ``(fraction, worst)``, or ``None`` for the
+#: mean over everything.
+#:
+#: **A mean over the tail, not the quantile that bounds it.** The first attempt
+#: used the quartile itself and it does not work, for a reason worth keeping: the
+#: quantile of a discrete quantity is discrete. Finishing position is an integer
+#: and championship points take eleven values, so the p25 of either is a step
+#: function — measured, whole columns of candidate plans tied on exactly -12.00,
+#: and a fitness that cannot tell two plans apart gives the search nothing to
+#: climb. It kept whichever seed it seeded with.
+#:
+#: Averaging the tail fixes it: the mean of the worst quarter moves continuously
+#: as probability shifts between outcomes, even when the outcomes themselves are
+#: coarse. This is expected shortfall, the same measure risk desks use, and for
+#: the same reason.
+#:
+#: A quarter is deliberately not extreme. Score the worst 5% and the plan is
+#: chosen by the disaster case alone, which for a race car is a first-lap crash
+#: that no strategy prevents.
+RISK_TAIL: dict[Risk, tuple[float, bool] | None] = {
+    Risk.NEUTRAL: None,
+    Risk.AVERSE: (0.25, True),
+    Risk.SEEKING: (0.25, False),
+}
+
+
 @dataclass(frozen=True)
 class Car:
     """A car's state at the moment the plan is drawn up."""
@@ -423,6 +534,15 @@ class Car:
     gap_leader_s: float
     #: Lap the plan starts from.
     from_lap: int
+    #: Seconds per lap this car is slower than the fastest, with tyre state taken
+    #: out. ``None`` means "infer it from the ground already lost", which is the
+    #: only option once a race is running and **impossible before it starts**: a
+    #: grid gap is a one-off offset, not a rate.
+    #:
+    #: Pass it explicitly for a pre-race plan. Qualifying measures exactly this —
+    #: a lap time difference is already a per-lap quantity — and
+    #: :func:`pace_from_qualifying` converts one into the other.
+    pace_s: float | None = None
 
 
 @dataclass(frozen=True)
@@ -637,12 +757,25 @@ def race_trace(
     trace[0] = total
 
     current = float(np.clip(car.degradation_s, -MAX_DEFICIT_S, MAX_DEFICIT_S))
-    # Baseline pace is inferred from how much ground the car has already lost per
-    # lap. Before the race has run there is no such history: a grid gap is a
-    # one-off offset, not a rate. Charging it per lap put a car nineteenth on the
-    # grid 4.75 s/lap behind, which over 71 laps is five and a half minutes, and
-    # made every pre-race comparison meaningless.
-    baseline = 0.0 if car.from_lap <= 1 else car.gap_leader_s / (car.from_lap - 1) - current
+    # Baseline pace: seconds per lap this car gives away to the fastest, tyre
+    # state excluded. There are two ways to know it and they apply at different
+    # moments.
+    #
+    # Given explicitly (``pace_s``), it is used as-is. That is the pre-race case,
+    # where qualifying measures it directly.
+    #
+    # Otherwise it is inferred from ground already lost. Before the race has run
+    # there is no such history — a grid gap is a one-off offset, not a rate — and
+    # charging it per lap put a car nineteenth on the grid 4.75 s/lap behind,
+    # which over 71 laps is five and a half minutes. So the inference yields zero
+    # at lap 1, and a car built without ``pace_s`` gets the same plan from pole as
+    # from twentieth. That is wrong, and ``pace_s`` is how it gets fixed.
+    if car.pace_s is not None:
+        baseline = car.pace_s
+    elif car.from_lap <= 1:
+        baseline = 0.0
+    else:
+        baseline = car.gap_leader_s / (car.from_lap - 1) - current
     stop_at = {stop.lap: stop for stop in plan.stops}
 
     rate = _from_cuts(model.wear_cuts[car.compound], rng.random(draws)) + RATE_SHRINK * (
@@ -862,19 +995,108 @@ def _points(position: np.ndarray) -> np.ndarray:
 POINTS_FLOOR = 0.1
 
 
-def _score(times: np.ndarray, rival_times: np.ndarray, objective: Objective) -> float:
-    """Turn a spread of finishing times into the single number being maximised."""
-    if objective is Objective.TIME:
-        return -float(times.mean())
+#: Distributional objectives: already a probability over the spread, so there is
+#: no per-draw value to take a quantile of. An indicator's quantile is 0 or 1.
+_PROBABILITY_OBJECTIVES = (Objective.PODIUM, Objective.IN_POINTS)
 
+
+def _values(times: np.ndarray, rival_times: np.ndarray, objective: Objective) -> np.ndarray:
+    """The quantity being maximised, **one value per drawn race**.
+
+    Keeping the spread instead of collapsing it immediately is what lets the
+    search express risk appetite: see :class:`Risk`.
+    """
+    if objective is Objective.TIME:
+        return -times
     position = _positions(times, rival_times)
     if objective is Objective.POSITION:
-        return -float(position.mean())
+        return -position.astype(float)
     if objective is Objective.PODIUM:
-        return float((position <= 3).mean())
+        return (position <= 3).astype(float)
     if objective is Objective.IN_POINTS:
-        return float((position <= 10).mean())
-    return float(_points(position).mean())
+        return (position <= 10).astype(float)
+    return _points(position)
+
+
+def _tail_mean(values: np.ndarray, fraction: float, worst: bool) -> float:
+    """Mean of the worst (or best) ``fraction`` of outcomes — expected shortfall."""
+    keep = max(1, int(round(len(values) * fraction)))
+    ordered = np.sort(values)
+    return float(ordered[:keep].mean() if worst else ordered[-keep:].mean())
+
+
+def _score(
+    times: np.ndarray,
+    rival_times: np.ndarray,
+    objective: Objective,
+    tail: tuple[float, bool] | None = None,
+) -> float:
+    """Collapse the spread of outcomes into the single number being maximised.
+
+    Args:
+        times: Finishing time per drawn race.
+        rival_times: The same for each rival, one row each.
+        objective: What counts as better.
+        tail: ``None`` takes the mean over every draw, which is risk-neutral.
+            ``(fraction, worst)`` averages that share of the distribution: the bad
+            end protects, the good end gambles. See :data:`RISK_TAIL`. Ignored for
+            the probability objectives, which are already summaries of the spread
+            rather than per-draw quantities.
+
+    Returns:
+        The value to maximise.
+    """
+    values = _values(times, rival_times, objective)
+    if tail is None or objective in _PROBABILITY_OBJECTIVES:
+        return float(values.mean())
+    return _tail_mean(values, *tail)
+
+
+class Engine(StrEnum):
+    """Which evolution loop runs the search.
+
+    Both share everything that matters — the same seeds, the same fitness with
+    common random numbers, the same repair, crossover and mutation, the same
+    held-out scoring. Only the loop differs, which is what makes them comparable.
+
+    ``BUILTIN``  the loop written for this project: elitism on the top quarter,
+                 one parent drawn from the elite and one from the whole
+                 population, mutation at 0.6.
+    ``DEAP``     the same operators registered on a ``deap.base.Toolbox`` and run
+                 through ``algorithms.eaMuPlusLambda``, which is the tool the
+                 cátedra recommends for Unit 3.
+    """
+
+    BUILTIN = "builtin"
+    DEAP = "deap"
+
+
+def _evolve(
+    scored: list[tuple[Plan, float]],
+    fitness: Callable[[Plan], float],
+    car: Car,
+    model: RaceModel,
+    rng: np.random.Generator,
+    population: int,
+    generations: int,
+) -> list[tuple[Plan, float]]:
+    """The hand-written loop: elitist, with one parent always from the elite."""
+    for _ in range(generations):
+        scored.sort(key=lambda pair: pair[1], reverse=True)
+        # Elitism on the top quarter: a good plan is never lost to a bad draw.
+        elite = scored[: max(2, population // 4)]
+        children: list[tuple[Plan, float]] = list(elite)
+
+        while len(children) < population:
+            a = elite[int(rng.integers(0, len(elite)))][0]
+            b = scored[int(rng.integers(0, len(scored)))][0]
+            child = _crossover(a, b, car, model, rng)
+            if rng.random() < 0.6:
+                child = _mutate(child, car, model, rng)
+            children.append((child, fitness(child)))
+
+        scored = children
+    return scored
 
 
 @dataclass(frozen=True)
@@ -883,6 +1105,10 @@ class Search:
 
     car: str
     objective: Objective
+    #: The appetite actually used. Worth reporting because ``Risk.ADAPTIVE``
+    #: resolves to one of the others before the search runs, and which one it
+    #: picked is part of the recommendation.
+    risk: Risk
     best: Plan
     #: Value of the objective for ``best``, on **held-out draws**: a fresh set of
     #: races the search never saw. This is the number to report.
@@ -927,6 +1153,8 @@ def optimise(
     model: RaceModel | None = None,
     *,
     objective: Objective = Objective.POINTS,
+    risk: Risk = Risk.NEUTRAL,
+    engine: Engine = Engine.BUILTIN,
     population: int = 48,
     generations: int = 30,
     draws: int = 1200,
@@ -957,6 +1185,9 @@ def optimise(
             giving every car the optimum would describe a race nobody has run.
         model: Measured distributions; 2026 Zandvoort defaults if omitted.
         objective: What "better" means. See :class:`Objective`.
+        risk: How much of the spread to gamble. See :class:`Risk`. The default is
+            neutral, which is the mean and is what every earlier result used.
+        engine: Which evolution loop to run. See :class:`Engine`.
         population: Plans held per generation.
         generations: Rounds of selection.
         draws: Races simulated per fitness evaluation. **1,200 is a floor, not a
@@ -1003,6 +1234,21 @@ def optimise(
     )
     rival_times = rival_trace[:, -1, :] if rivals else np.empty((0, draws))
 
+    # Risk appetite has to be settled before the search, because it changes what
+    # the fitness *is*. ADAPTIVE resolves it from whether the car has anything
+    # worth protecting: score the obvious plan neutrally and see if it is in the
+    # points at all. One extra evaluation, against a whole search.
+    if risk is Risk.ADAPTIVE:
+        probe = _heuristic_plan(car, model, 1)
+        probe_gen = np.random.default_rng(seed + 4441)
+        holding = _score(
+            race_time(probe, car, model, probe_gen, draws, flags, rival_trace),
+            rival_times,
+            Objective.POINTS,
+        )
+        risk = Risk.AVERSE if holding >= POINTS_FLOOR else Risk.SEEKING
+    tail = RISK_TAIL[risk]
+
     def fitness(plan: Plan) -> float:
         # **Common random numbers.** Every candidate is evaluated against the
         # *same* drawn races, by restarting the generator at a fixed seed rather
@@ -1020,7 +1266,7 @@ def optimise(
         # only quantity a search actually uses.
         common = np.random.default_rng(seed + 4441)
         times = race_time(plan, car, model, common, draws, flags, rival_trace)
-        return _score(times, rival_times, objective)
+        return _score(times, rival_times, objective, tail)
 
     # Seed the population with the obvious plans as well as random ones.
     #
@@ -1041,21 +1287,12 @@ def optimise(
     seeds += [_random_plan(car, model, rng, max_stops) for _ in range(population - len(seeds))]
     scored = [(plan, fitness(plan)) for plan in seeds]
 
-    for _ in range(generations):
-        scored.sort(key=lambda pair: pair[1], reverse=True)
-        # Elitism on the top quarter: a good plan is never lost to a bad draw.
-        elite = scored[: max(2, population // 4)]
-        children: list[tuple[Plan, float]] = list(elite)
+    if engine is Engine.DEAP:
+        from boxbox_ml.deap_search import evolve as evolve_deap
 
-        while len(children) < population:
-            a = elite[int(rng.integers(0, len(elite)))][0]
-            b = scored[int(rng.integers(0, len(scored)))][0]
-            child = _crossover(a, b, car, model, rng)
-            if rng.random() < 0.6:
-                child = _mutate(child, car, model, rng)
-            children.append((child, fitness(child)))
-
-        scored = children
+        scored = evolve_deap(scored, fitness, car, model, rng, population, generations)
+    else:
+        scored = _evolve(scored, fitness, car, model, rng, population, generations)
 
     scored.sort(key=lambda pair: pair[1], reverse=True)
     best, in_sample = scored[0]
@@ -1077,7 +1314,7 @@ def optimise(
     )
     holdout_times = race_time(best, car, model, holdout, draws, holdout_flags, holdout_rivals)
     holdout_rival_times = holdout_rivals[:, -1, :] if rivals else np.empty((0, draws))
-    score = _score(holdout_times, holdout_rival_times, objective)
+    score = _score(holdout_times, holdout_rival_times, objective, tail)
 
     # Points unreachable: the objective was flat, so the winner is noise. Search
     # again on position, where there is still a gradient to follow.
@@ -1088,6 +1325,8 @@ def optimise(
             rival_plans,
             model,
             objective=Objective.POSITION,
+            risk=risk,
+            engine=engine,
             population=population,
             generations=generations,
             draws=draws,
@@ -1114,6 +1353,7 @@ def optimise(
     return Search(
         car=car.code,
         objective=objective,
+        risk=risk,
         best=best,
         score=score,
         score_in_sample=in_sample,
