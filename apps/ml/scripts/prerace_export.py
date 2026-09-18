@@ -7,9 +7,10 @@ sin rivales no existe: un puesto de llegada es una comparación. Por eso cada au
 se optimiza desde la vuelta 1 contra todos los demás, cada uno con un plan
 sorteado.
 
-Lo que sale es un archivo y no un servicio. La búsqueda tarda minutos, la web es
-estática, y el patrón ya está: ``strategy_search.py --out`` genera el JSON que
-``apps/web/src/plans.ts`` consume. Ver ADR-002.
+Lo que sale es un archivo y no un servicio. La búsqueda tarda diez minutos —tres
+corridas por auto, una por compuesto de salida—, la web es estática, y el patrón
+ya está: ``strategy_search.py --out`` genera el JSON que ``apps/web/src/plans.ts``
+consume. Ver ADR-002.
 
 ## Las cuatro probabilidades
 
@@ -25,18 +26,44 @@ largada— y el lector elige la que le importa según desde dónde larga su pilo
 Son cuentas sobre las **mismas** carreras que eligieron el plan, no sobre otras
 nuevas. Ver ADR-001 y ADR-003.
 
+## Con qué larga cada uno
+
+Largar en duro, en medio o en blando es una decisión, y hasta acá se regalaba:
+``START_COMPOUND = "MEDIUM"`` para los veintidós. Que la elección pesa ya estaba
+medido —en ``prerace_strategy.py``, con el auto de referencia, el duro da 89,6 s
+contra 90,1 del medio— y una grilla de un solo compuesto además no existe: en las
+catorce fechas de 2026 conviven entre uno y tres compuestos de salida por carrera.
+
+Ahora el auto focal **elige**: la búsqueda entera se corre una vez por compuesto
+de salida, y las tres quedan en el JSON y no sólo la ganadora. Elegir entre ellas
+tiene una trampa que conviene nombrar. ``Objective.ADAPTIVE`` resuelve a
+``points``, ``in_points`` o ``position`` según lo que el auto tenga al alcance, y
+puede resolver **distinto para cada compuesto de salida**: tres puntajes en tres
+unidades no se ordenan, y quedarse con el mayor sería comparar peras con manzanas.
+Por eso la comparación se hace con una vara común, decidida una vez por auto y
+sobre las tres corridas juntas — puntos esperados si alguna deja los puntos al
+alcance, puesto esperado si ninguna. Las dos salen del mismo
+``position_histogram`` del que salen las cuatro probabilidades, así que son
+cuentas sobre las mismas carreras que eligieron cada plan.
+
+Los rivales no eligen: su compuesto de salida se **sortea** del reparto medido
+por banda de grilla (ver :data:`START_COMPOUND_SHARES`), con su propia semilla.
+
+Y el auto focal, cuando aparece como rival de los otros veintiuno, lleva el
+compuesto **sorteado** y no el optimizado. Es la misma razón por la que sus
+planes también se sortean: veintiún rivales todos optimizados describen una
+carrera que nadie corrió.
+
 ## Qué es medido y qué es supuesto
 
 Medido: el hueco de clasificación de cada auto (sesión real, ver ADR-004), el
 desgaste por compuesto de Zandvoort, la pérdida de boxes, las tasas de
-neutralización, el costo del tráfico, el ruido de vuelta y la conversión de hueco
-de clasificación a ritmo de carrera.
+neutralización, el costo del tráfico, el ruido de vuelta, la conversión de hueco
+de clasificación a ritmo de carrera y el reparto del compuesto de salida por
+banda de grilla.
 
 Supuesto, y declarado también dentro del JSON:
 
-* **El compuesto de salida.** Todos largan en medio. Antes de la carrera no se
-  sabe con qué larga cada uno, y darles el mismo deja que lo único que los separe
-  sea el puesto y el ritmo, que sí están medidos.
 * **Los planes de los rivales.** Se sortean con ``_random_plan``, que reparte
   uniforme entre cero y tres paradas. La distribución **medida** de paradas
   reales es otra —0,151 / 0,493 / 0,192 / 0,164, la que usa
@@ -68,7 +95,9 @@ from __future__ import annotations
 import argparse
 import json
 import time
-from dataclasses import dataclass
+from collections import Counter
+from collections.abc import Sequence
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import numpy as np
@@ -78,6 +107,7 @@ from boxbox_ml.qualifying import Entry, Qualifying
 from boxbox_ml.strategy import (
     Car,
     Objective,
+    Plan,
     RaceModel,
     Risk,
     Search,
@@ -93,12 +123,50 @@ YEAR, ROUND = 2026, 12
 #: el default de :class:`RaceModel`. Ver ``docs/research/case-zandvoort-2026.md``.
 TOTAL_LAPS = 72
 
-#: Compuesto con el que larga todo el campo. **Supuesto, no medido.** Antes de la
-#: carrera nadie sabe con qué larga cada auto: la elección se ve recién en la
-#: grilla y se decide hasta último momento. Se le da el mismo a todos a propósito,
-#: para que lo único que separe a un auto de otro sea su puesto y su ritmo, que sí
-#: están medidos. El día que se sepa la elección real entra acá y nada más cambia.
-START_COMPOUND = "MEDIUM"
+#: Las tres salidas que se le corren a cada auto focal, en el orden en que se
+#: comparan. Es ``strategy.DRY``, del más duro al más blando; el orden sólo se
+#: nota al desempatar, y ahí gana el más duro, que es el que menos supone sobre
+#: cuántos juegos frescos le quedan al auto.
+START_COMPOUNDS = strategy.DRY
+
+#: Los cortes de grilla del reparto de abajo, por el último puesto de cada banda:
+#: el frente, la media alta, la media baja y el fondo.
+GRID_BANDS: tuple[tuple[int, str], ...] = (
+    (5, "P1-5"),
+    (10, "P6-10"),
+    (15, "P11-15"),
+    (22, "P16-22"),
+)
+
+#: Con qué compuesto larga cada banda de la grilla. **Medido**, no supuesto: el
+#: compuesto del primer stint de cada piloto contra su puesto de largada, sobre
+#: 294 pilotos-carrera de las catorce fechas de 2026 —66, 68, 66 y 94 por banda—,
+#: descartando los siete que largaron con intermedio. Ver
+#: ``scripts/start_compound.py``.
+#:
+#: ::
+#:
+#:                DURO   MEDIO   BLANDO
+#:     P1-5      0,015   0,788   0,197
+#:     P6-10     0,044   0,779   0,176
+#:     P11-15    0,136   0,727   0,136
+#:     P16-22    0,223   0,479   0,298
+#:
+#: El frente converge al medio y el fondo se dispersa: el que larga atrás no
+#: tiene nada que perder y se desmarca, que es la misma lectura con la que
+#: ``Risk.ADAPTIVE`` le da apetito de riesgo al auto que ya no tiene puntos que
+#: proteger. Reemplaza al supuesto de que los veintidós largaban en medio, que
+#: describía una grilla que no existe.
+#:
+#: Las filas están redondeadas a la milésima y dos de ellas suman 0,999, así que
+#: el sorteo las normaliza. Renormalizar es preferible a retocar a mano un número
+#: medido para que cierre.
+START_COMPOUND_SHARES: dict[str, dict[str, float]] = {
+    "P1-5": {"HARD": 0.015, "MEDIUM": 0.788, "SOFT": 0.197},
+    "P6-10": {"HARD": 0.044, "MEDIUM": 0.779, "SOFT": 0.176},
+    "P11-15": {"HARD": 0.136, "MEDIUM": 0.727, "SOFT": 0.136},
+    "P16-22": {"HARD": 0.223, "MEDIUM": 0.479, "SOFT": 0.298},
+}
 
 #: Tope de paradas de un plan del buscador, que es el default de ``optimise``.
 MAX_STOPS = 4
@@ -118,6 +186,11 @@ PODIUM = 3
 #: «points» y «position» empiezan igual, y la columna que distingue al auto que
 #: pelea puntos del que ya sólo pelea puestos sería ilegible.
 OBJECTIVE_LABEL = {Objective.POINTS: "puntos", Objective.POSITION: "puesto"}
+
+#: Cómo se imprime el compuesto de salida, en castellano como el resto de la
+#: tabla. La inicial no alcanza: la usa ``Plan.describe`` para las tandas y verla
+#: dos veces con dos significados en la misma fila se lee mal.
+COMPOUND_LABEL = {"HARD": "duro", "MEDIUM": "medio", "SOFT": "blando"}
 
 SEP = "=" * 96
 
@@ -170,7 +243,79 @@ def chances(histogram: dict[int, int], grid_position: int) -> Chances:
     )
 
 
-def field_from(quali: Qualifying) -> list[Car]:
+def expected_points(histogram: dict[int, int]) -> float:
+    """Puntos de campeonato esperados, sobre las mismas carreras del histograma.
+
+    Args:
+        histogram: Puesto -> cantidad de carreras sorteadas que terminaron ahí.
+
+    Returns:
+        Media de puntos sobre las carreras sorteadas. Del undécimo en adelante no
+        se suma nada, que es el acantilado del que vive toda la estrategia.
+
+    Da lo mismo que ``Search.mean_points`` —el histograma cuenta ese mismo array
+    de posiciones— y se recalcula acá igual, para que la vara con la que se
+    eligió el compuesto y las cuatro probabilidades salgan del mismo lugar y el
+    lector del JSON pueda rehacer las dos cuentas con lo que está publicado.
+    """
+    races = sum(histogram.values())
+    scored = sum(
+        strategy.POINTS[place - 1] * count
+        for place, count in histogram.items()
+        if place <= IN_POINTS
+    )
+    return scored / races
+
+
+def expected_position(histogram: dict[int, int]) -> float:
+    """Puesto de llegada esperado, sobre las mismas carreras del histograma.
+
+    Args:
+        histogram: Puesto -> cantidad de carreras sorteadas que terminaron ahí.
+
+    Returns:
+        Media del puesto de llegada. **Menor es mejor**, al revés que todo lo
+        demás que este archivo compara. Da lo mismo que ``Search.mean_position``,
+        por el mismo motivo que :func:`expected_points`.
+    """
+    races = sum(histogram.values())
+    return sum(place * count for place, count in histogram.items()) / races
+
+
+def grid_band(grid_position: int) -> str:
+    """En qué banda de la grilla cae un puesto de largada.
+
+    Args:
+        grid_position: Puesto de largada, empezando en uno.
+
+    Returns:
+        El nombre de la banda, tal como lo indexa :data:`START_COMPOUND_SHARES`.
+    """
+    for last, band in GRID_BANDS:
+        if grid_position <= last:
+            return band
+    # Una grilla más larga que la última banda cae igual en el fondo: el corte de
+    # arriba dice hasta dónde se midió, no cuántos autos puede tener la parrilla.
+    return GRID_BANDS[-1][1]
+
+
+def draw_start_compound(grid_position: int, rng: np.random.Generator) -> str:
+    """Sortea con qué compuesto larga un rival, del reparto medido de su banda.
+
+    Args:
+        grid_position: Desde dónde larga, que es lo único que elige la banda.
+        rng: Generador del sorteo de compuestos. Va aparte del de los planes para
+            que agregar este sorteo no corra el otro y mueva cifras ya publicadas.
+
+    Returns:
+        Uno de los tres compuestos secos.
+    """
+    shares = START_COMPOUND_SHARES[grid_band(grid_position)]
+    weights = np.array([shares[compound] for compound in START_COMPOUNDS], dtype=float)
+    return str(rng.choice(START_COMPOUNDS, p=weights / weights.sum()))
+
+
+def field_from(quali: Qualifying, compounds: Sequence[str]) -> list[Car]:
     """Los autos en la grilla, uno por piloto con tiempo.
 
     Goma nueva, sin historia de desgaste propia —nadie corrió todavía, así que el
@@ -180,8 +325,13 @@ def field_from(quali: Qualifying) -> list[Car]:
     largada: sin ``pace_s``, un auto en la vuelta 1 no tiene historia de la cual
     inferir su ritmo y el modelo lo trata como si fuera tan rápido como la pole.
 
+    Este es el campo tal como lo ven **los demás**: cada auto con su compuesto
+    sorteado. El auto que se está optimizando entra por separado, con el compuesto
+    que se le esté probando.
+
     Args:
         quali: La clasificación ya leída.
+        compounds: Con qué larga cada piloto, en el mismo orden que las entradas.
 
     Returns:
         Un auto por piloto, en orden de grilla.
@@ -189,7 +339,7 @@ def field_from(quali: Qualifying) -> list[Car]:
     return [
         Car(
             code=entry.code,
-            compound=START_COMPOUND,
+            compound=compound,
             tyre_age=0,
             degradation_s=0.0,
             degradation_rate=strategy.ROLLING_MEDIAN_S,
@@ -197,8 +347,96 @@ def field_from(quali: Qualifying) -> list[Car]:
             from_lap=1,
             pace_s=pace_from_qualifying(entry.gap_to_pole_s),
         )
-        for entry in quali.entries
+        for entry, compound in zip(quali.entries, compounds, strict=True)
     ]
+
+
+@dataclass(frozen=True)
+class StartOption:
+    """Una de las tres salidas corridas para un auto, con su vara ya calculada.
+
+    Existe porque elegir entre las tres necesita más que sus ``score``: con
+    ``Objective.ADAPTIVE`` cada corrida puede haber resuelto a un objetivo
+    distinto, y entonces los tres puntajes están en tres unidades. Acá cada
+    corrida llega además con los dos números que sí se comparan entre sí, los dos
+    contados sobre el mismo histograma de puestos.
+    """
+
+    compound: str
+    car: Car
+    found: Search
+    odds: Chances
+    #: Puntos de campeonato esperados de esta salida.
+    points: float
+    #: Puesto de llegada esperado. Menor es mejor.
+    position: float
+
+
+def start_option(compound: str, car: Car, found: Search, grid_position: int) -> StartOption:
+    """Medir una corrida para poder compararla con las otras dos.
+
+    Args:
+        compound: Con qué compuesto se corrió.
+        car: El auto que se optimizó, ya con ese compuesto.
+        found: Lo que devolvió la búsqueda, instrumentada.
+        grid_position: Desde dónde larga, para saber qué es mejorar.
+
+    Returns:
+        La salida con sus cuatro probabilidades, sus puntos y su puesto esperados.
+    """
+    return StartOption(
+        compound=compound,
+        car=car,
+        found=found,
+        odds=chances(found.position_histogram, grid_position),
+        points=expected_points(found.position_histogram),
+        position=expected_position(found.position_histogram),
+    )
+
+
+def choose(options: Sequence[StartOption]) -> tuple[StartOption, str]:
+    """Con qué compuesto larga el auto, y con qué vara se decidió.
+
+    El problema no es cuál corrida tiene mejor ``score``. ``Objective.ADAPTIVE``
+    resuelve a puntos, a probabilidad de puntos o a posición según lo que el auto
+    tenga al alcance, y puede resolver **distinto para cada compuesto de salida**:
+    si largar en duro resuelve a puntos y en blando a posición, quedarse con el
+    mayor de los dos sería comparar peras con manzanas.
+
+    La vara se decide una vez por auto y mirando las tres corridas juntas. Si
+    alguna deja los puntos al alcance —el mismo ``POINTS_FLOOR`` con el que
+    ``optimise`` decide que el objetivo de puntos tiene gradiente— se compara por
+    puntos esperados. Si ninguna, por puesto esperado, que es lo único que le
+    queda al auto que no puntúa en ninguna de las tres.
+
+    Args:
+        options: Las tres salidas corridas, en el orden de :data:`START_COMPOUNDS`.
+
+    Returns:
+        La elegida y el nombre de la vara, ``"points"`` o ``"position"``. Un
+        empate exacto lo rompe el orden de la lista, que va del más duro al más
+        blando.
+    """
+    if max(option.points for option in options) >= strategy.POINTS_FLOOR:
+        return max(options, key=lambda option: option.points), "points"
+    return min(options, key=lambda option: option.position), "position"
+
+
+@dataclass(frozen=True)
+class CarRun:
+    """Todo lo que se corrió para un auto: las tres salidas y la que ganó."""
+
+    entry: Entry
+    options: tuple[StartOption, ...]
+    chosen: StartOption
+    #: Con qué se compararon las tres, ``"points"`` o ``"position"``.
+    yardstick: str
+    #: El mismo auto tal como aparece en la carrera de los OTROS veintiuno:
+    #: compuesto y plan sorteados, no optimizados. Si acá entrara su óptimo, cada
+    #: auto se estaría enfrentando a veintiún rivales todos optimizados, que
+    #: describe una carrera que nadie corrió.
+    rival: Car
+    rival_plan: Plan
 
 
 def race_meta(quali: Qualifying) -> dict:
@@ -211,7 +449,9 @@ def race_meta(quali: Qualifying) -> dict:
         "total_laps": TOTAL_LAPS,
         "pole_s": quali.pole_s,
         "cars": len(quali.entries),
-        "start_compound": START_COMPOUND,
+        # Ya no hay un compuesto de salida de la carrera: cada auto tiene el suyo,
+        # el elegido en ``cars[].start_compound`` y el sorteado en
+        # ``cars[].rival_start_compound``.
         "excluded": [{"code": out.code, "reason": out.reason} for out in quali.excluded],
     }
 
@@ -266,15 +506,28 @@ def search_meta(args: argparse.Namespace) -> dict:
         "seed": args.seed,
         "rival_seed": args.rival_seed,
         "rival_max_stops": RIVAL_MAX_STOPS,
+        # Las tres salidas que corrió cada auto focal, y de dónde salió la de cada
+        # rival. Con estas tres cosas el archivo se vuelve a armar igual.
+        "start_compounds": list(START_COMPOUNDS),
+        "compound_seed": args.compound_seed,
+        "rival_start_compound_shares": START_COMPOUND_SHARES,
     }
 
 
 #: Los supuestos, en el archivo y no sólo en el docstring. Quien lea el JSON sin
 #: abrir el script tiene que poder separar lo medido de lo asumido.
 ASSUMPTIONS = [
-    "Todos los autos largan en MEDIUM: antes de la carrera no se sabe con qué "
-    "larga cada uno, y darles el mismo compuesto deja que lo único que los separe "
-    "sea el puesto y el ritmo, que sí están medidos.",
+    "El compuesto de salida del auto focal es una recomendación, no un supuesto: "
+    "la búsqueda entera se corre una vez por compuesto y las tres quedan "
+    "publicadas en start_options. Los tres puntajes no se comparan entre sí "
+    "porque el objetivo adaptativo puede resolver distinto en cada una, así que "
+    "la comparación usa una vara común por auto: puntos esperados si alguna de "
+    "las tres los tiene al alcance, puesto esperado si ninguna.",
+    "El compuesto de salida de los RIVALES se sortea del reparto medido por banda "
+    "de grilla (294 pilotos-carrera de las catorce fechas de 2026), no se elige. "
+    "El auto focal también lo lleva sorteado cuando aparece como rival de los "
+    "otros veintiuno: darles a los veintiuno el óptimo describiría una carrera "
+    "que nadie corrió.",
     "Los planes de los rivales se sortean uniformes entre cero y tres paradas. La "
     "distribución medida de paradas reales (0,151 / 0,493 / 0,192 / 0,164) es "
     "otra, así que este sorteo sobrerrepresenta los planes de tres paradas.",
@@ -288,19 +541,60 @@ ASSUMPTIONS = [
 ]
 
 
-def car_entry(entry: Entry, car: Car, found: Search, laps: int) -> dict:
-    """Todo lo que la vista necesita de un auto, en un objeto.
+def option_entry(option: StartOption, chosen: bool, laps: int) -> dict:
+    """Qué daba una de las tres salidas, para que la elección quede explicada.
+
+    Exportar sólo la ganadora convertiría la recomendación en un veredicto: el
+    lector no podría ver cuánto costaba la otra, ni si las tres estaban empatadas.
+    Va el resumen y no la corrida entera —histograma e historia pesan, y la de la
+    ganadora ya está completa un nivel más arriba— pero va lo suficiente para
+    reconstruir la decisión: las cuatro probabilidades y los dos números con los
+    que se comparó.
 
     Args:
-        entry: El piloto tal como salió de la clasificación.
-        car: El auto que se optimizó.
-        found: Lo que devolvió la búsqueda, instrumentada.
+        option: La salida ya medida.
+        chosen: Si es la que la vara eligió.
+        laps: Vueltas de la carrera, para describir el plan por tandas.
+
+    Returns:
+        El objeto que va a la lista ``start_options`` de un auto.
+    """
+    return {
+        "compound": option.compound,
+        "plan": option.found.best.describe(option.car, laps),
+        "stops": [{"lap": stop.lap, "compound": stop.compound} for stop in option.found.best.stops],
+        # Resueltos por la búsqueda, y pueden no coincidir entre las tres: es
+        # justamente por eso que los ``score`` no se comparan directamente.
+        "objective": option.found.objective.value,
+        "risk": option.found.risk.value,
+        "p_ganar": round(option.odds.p_ganar, 4),
+        "p_podio": round(option.odds.p_podio, 4),
+        "p_puntos": round(option.odds.p_puntos, 4),
+        "p_mejora": round(option.odds.p_mejora, 4),
+        "expected_position": round(option.position, 3),
+        "sd_position": round(option.found.sd_position, 3),
+        "expected_points": round(option.points, 3),
+        "score": round(option.found.score, 4),
+        "decision_value": round(option.found.decision_value, 3),
+        "chosen": chosen,
+    }
+
+
+def car_entry(run: CarRun, laps: int) -> dict:
+    """Todo lo que la vista necesita de un auto, en un objeto.
+
+    Los campos de siempre describen la salida **elegida**, que es la
+    recomendación; las otras dos van completas en ``start_options``.
+
+    Args:
+        run: Las tres salidas del auto, la elegida y la vara con la que se eligió.
         laps: Vueltas de la carrera, para describir el plan por tandas.
 
     Returns:
         El objeto que va a la lista ``cars`` del JSON.
     """
-    odds = chances(found.position_histogram, entry.grid_position)
+    entry, car, found = run.entry, run.chosen.car, run.chosen.found
+    odds = run.chosen.odds
     return {
         "code": entry.code,
         "driver": entry.driver,
@@ -310,6 +604,14 @@ def car_entry(entry: Entry, car: Car, found: Search, laps: int) -> dict:
         "gap_to_pole_s": entry.gap_to_pole_s,
         "pace_s": round(car.pace_s or 0.0, 4),
         "start_compound": car.compound,
+        # Con qué se compararon las tres salidas. Sin esto, «eligió el duro» no
+        # dice si lo eligió por puntos o por puestos, que no es lo mismo.
+        "start_yardstick": run.yardstick,
+        # Y con qué larga este mismo auto cuando es rival de los otros veintiuno:
+        # sorteado, no elegido. Va exportado porque es parte de la carrera que se
+        # simuló y de otro modo sólo se recupera volviendo a correr la semilla.
+        "rival_start_compound": run.rival.compound,
+        "rival_plan": run.rival_plan.describe(run.rival, laps),
         "plan": found.best.describe(car, laps),
         "stops": [{"lap": stop.lap, "compound": stop.compound} for stop in found.best.stops],
         # Resueltos, no pedidos: los dos entraron como ADAPTIVE y la búsqueda los
@@ -365,6 +667,12 @@ def car_entry(entry: Entry, car: Car, found: Search, laps: int) -> dict:
             }
             for generation in found.history
         ],
+        # Las tres salidas, en orden de compuesto y no de resultado: la ganadora
+        # se reconoce por ``chosen``, y ordenarlas por mérito escondería que
+        # también se corrieron las otras dos.
+        "start_options": [
+            option_entry(option, option is run.chosen, laps) for option in run.options
+        ],
     }
 
 
@@ -385,6 +693,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--rival-seed", type=int, default=7, help="semilla del sorteo de planes rivales"
     )
+    parser.add_argument(
+        "--compound-seed",
+        type=int,
+        default=13,
+        # Va aparte de ``--rival-seed`` a propósito: si los dos sorteos
+        # compartieran generador, agregar el del compuesto correría el de los
+        # planes y cambiaría planes rivales ya publicados.
+        help="semilla del sorteo del compuesto de salida de los rivales",
+    )
     return parser.parse_args()
 
 
@@ -395,13 +712,25 @@ def main() -> None:
 
     quali = qualifying.load(YEAR, ROUND)
     model = RaceModel.for_circuit(quali.circuit, total_laps=TOTAL_LAPS)
-    field = field_from(quali)
+
+    # El compuesto de salida de cada rival se sortea UNA vez, de la banda de
+    # grilla que le toca y con su propia semilla. Aparte de la de los planes: si
+    # compartieran generador, agregar este sorteo correría el otro y cambiaría
+    # planes rivales ya publicados.
+    compound_rng = np.random.default_rng(args.compound_seed)
+    drawn = [draw_start_compound(entry.grid_position, compound_rng) for entry in quali.entries]
+    field = field_from(quali, drawn)
 
     # Los planes de los rivales se sortean UNA vez, con su propia semilla, y se
     # comparten entre todas las búsquedas: si cada auto sorteara los suyos, cada
     # uno estaría corriendo una carrera distinta y los resultados no se podrían
     # mirar juntos. Por lo mismo todas las búsquedas usan la misma semilla, que es
     # lo que hace que a todos los autos les toquen las mismas neutralizaciones.
+    #
+    # Se sortean sobre el campo YA con su compuesto sorteado, porque el plan
+    # depende de con qué larga: ``_repair`` hace cumplir la regla de los dos
+    # compuestos, y sortearlo contra otra salida daría un plan que no es legal
+    # para el auto que lo va a correr.
     rival_rng = np.random.default_rng(args.rival_seed)
     rival_plans = [strategy._random_plan(car, model, rival_rng, RIVAL_MAX_STOPS) for car in field]
 
@@ -418,49 +747,84 @@ def main() -> None:
         f"búsqueda: población {args.population}, {args.generations} generaciones, "
         f"{args.draws} sorteos, semilla {args.seed} (rivales {args.rival_seed})"
     )
-    print(f"supuesto declarado: todos largan en {START_COMPOUND}")
+    print(
+        "el auto focal corre las tres salidas y elige; los rivales la sortean del "
+        f"reparto\nmedido por banda de grilla (semilla {args.compound_seed}): "
+        f"{dict(Counter(drawn))}"
+    )
 
     print("\n" + SEP)
     print("### LO QUE LA BUSQUEDA RECOMIENDA, AUTO POR AUTO")
+    print("Una fila por compuesto de salida; la marcada es la elegida, y al lado")
+    print("con qué vara se eligió — puntos si alguna de las tres los tiene al")
+    print("alcance, puesto si ninguna.")
     print(
-        f"{'sale':>4} {'auto':<4} {'hueco':>6} {'ritmo':>6} {'plan':<17} {'obj/riesgo':<15}"
-        f" {'gana':>5} {'podio':>5} {'ptos':>5} {'mejor':>5} {'llega':>13} {'seg':>5}"
+        f"{'sale':>4} {'auto':<4} {'larga':<7} {'plan':<17} {'obj/riesgo':<15}"
+        f" {'gana':>5} {'podio':>5} {'ptos':>5} {'mejor':>5} {'llega':>6} {'ptos':>6} {'seg':>5}"
     )
 
-    cars: list[dict] = []
-    for index, (entry, car) in enumerate(zip(quali.entries, field, strict=True)):
+    runs: list[CarRun] = []
+    for index, entry in enumerate(quali.entries):
         rivals = [other for slot, other in enumerate(field) if slot != index]
         plans = [plan for slot, plan in enumerate(rival_plans) if slot != index]
 
-        at = time.perf_counter()
-        found = optimise(
-            car,
-            rivals,
-            plans,
-            model,
-            objective=Objective.ADAPTIVE,
-            risk=Risk.ADAPTIVE,
-            population=args.population,
-            generations=args.generations,
-            draws=args.draws,
-            max_stops=MAX_STOPS,
-            seed=args.seed,
-            instrument=True,
-        )
-        took = time.perf_counter() - at
+        options: list[StartOption] = []
+        for compound in START_COMPOUNDS:
+            # El mismo auto con la sola diferencia del compuesto de salida, y con
+            # la MISMA semilla que las otras dos corridas: los tres compuestos se
+            # miden contra las mismas carreras sorteadas, que es lo que hace que
+            # la diferencia entre ellos no cargue además el ruido del Monte Carlo.
+            focal = replace(field[index], compound=compound)
+            at = time.perf_counter()
+            found = optimise(
+                focal,
+                rivals,
+                plans,
+                model,
+                objective=Objective.ADAPTIVE,
+                risk=Risk.ADAPTIVE,
+                population=args.population,
+                generations=args.generations,
+                draws=args.draws,
+                max_stops=MAX_STOPS,
+                seed=args.seed,
+                instrument=True,
+            )
+            took = time.perf_counter() - at
+            option = start_option(compound, focal, found, entry.grid_position)
+            options.append(option)
+            label = OBJECTIVE_LABEL.get(found.objective, found.objective.value)
+            print(
+                f"{entry.grid_position:>4} {entry.code:<4}"
+                f" {COMPOUND_LABEL[compound]:<7}"
+                f" {found.best.describe(focal, model.total_laps):<17}"
+                f" {label}/{found.risk.value:<8}"
+                f" {option.odds.p_ganar:>5.2f} {option.odds.p_podio:>5.2f}"
+                f" {option.odds.p_puntos:>5.2f} {option.odds.p_mejora:>5.2f}"
+                f" {option.position:>6.2f} {option.points:>6.2f} {took:>5.1f}",
+                flush=True,
+            )
 
-        exported = car_entry(entry, car, found, model.total_laps)
-        cars.append(exported)
-        label = OBJECTIVE_LABEL.get(found.objective, found.objective.value)
+        chosen, yardstick = choose(options)
+        runs.append(
+            CarRun(
+                entry=entry,
+                options=tuple(options),
+                chosen=chosen,
+                yardstick=yardstick,
+                rival=field[index],
+                rival_plan=rival_plans[index],
+            )
+        )
         print(
-            f"{entry.grid_position:>4} {entry.code:<4} {entry.gap_to_pole_s:>6.3f}"
-            f" {car.pace_s or 0.0:>6.2f} {exported['plan']:<17}"
-            f" {label}/{found.risk.value:<8}"
-            f" {exported['p_ganar']:>5.2f} {exported['p_podio']:>5.2f}"
-            f" {exported['p_puntos']:>5.2f} {exported['p_mejora']:>5.2f}"
-            f" {found.mean_position:>6.2f} +-{found.sd_position:<4.2f} {took:>5.1f}",
+            f"{'':>4} {'':<4} --> larga en {COMPOUND_LABEL[chosen.compound]}, "
+            f"por {'puntos esperados' if yardstick == 'points' else 'puesto esperado'}"
+            f"; como rival larga en {COMPOUND_LABEL[field[index].compound]}",
             flush=True,
         )
+
+    cars = [car_entry(run, model.total_laps) for run in runs]
+    every = [option for run in runs for option in run.options]
 
     payload = {
         "race": race_meta(quali),
@@ -474,10 +838,24 @@ def main() -> None:
             # esto no tiene por qué dar exactamente 1. Cuánto se aleja es
             # información sobre el modelo, y por eso se publica en vez de esconderse.
             "p_ganar_total": round(sum(one["p_ganar"] for one in cars), 4),
+            # Los tres invariantes se verifican sobre las TRES salidas de cada
+            # auto y no sólo sobre la elegida: las otras dos también se publican,
+            # así que también tienen que estar bien.
+            "start_options": len(START_COMPOUNDS),
             "position_histogram_sums_draws": all(
-                sum(one["position_histogram"].values()) == args.draws for one in cars
+                sum(option.found.position_histogram.values()) == args.draws for option in every
             ),
             "history_generations": args.generations + 1,
+            "history_complete": all(
+                len(option.found.history) == args.generations + 1 for option in every
+            ),
+            # P(ganar) <= P(podio) <= P(zona de puntos) por construcción: cada una
+            # acumula sobre la anterior. Si alguna vez no diera, el histograma y
+            # las probabilidades habrían dejado de salir del mismo lugar.
+            "chances_ordered": all(
+                option.odds.p_ganar <= option.odds.p_podio <= option.odds.p_puntos
+                for option in every
+            ),
         },
         "cars": cars,
     }
@@ -493,13 +871,42 @@ def main() -> None:
     print("y sólo el focal paga tráfico. Lo lejos que quede es el tamaño de esa")
     print("aproximación, y por eso el número se publica.")
     print(
-        f"histograma suma los {args.draws} sorteos en todos los autos: "
+        f"histograma suma los {args.draws} sorteos en las {len(every)} corridas: "
         f"{payload['checks']['position_histogram_sums_draws']}"
     )
     print(
-        f"historia con {args.generations + 1} generaciones en todos los autos: "
-        f"{all(len(one['history']) == args.generations + 1 for one in cars)}"
+        f"historia con {args.generations + 1} generaciones en las {len(every)} corridas: "
+        f"{payload['checks']['history_complete']}"
     )
+    print(
+        f"P(ganar) <= P(podio) <= P(puntos) en las tres salidas de cada auto: "
+        f"{payload['checks']['chances_ordered']}"
+    )
+
+    print("\n" + SEP)
+    print("### CON QUE ELIGIO LARGAR CADA UNO")
+    elegidos = Counter(run.chosen.compound for run in runs)
+    print(f"elegidos por la búsqueda: {dict(elegidos)}")
+    print(f"sorteados para los rivales: {dict(Counter(drawn))}")
+    print("El sorteo tiene que parecerse al reparto medido; la elección no tiene")
+    print("por qué. Una es la grilla que la evidencia describe y la otra es lo que")
+    print("la búsqueda recomienda, y que no coincidan es justamente el resultado.")
+    print()
+    print(f"{'sale':>4} {'auto':<4} {'elige':<7} {'sorteado':<9} {'vara':<9} {'ventaja'}")
+    for run in runs:
+        otras = [option for option in run.options if option is not run.chosen]
+        if run.yardstick == "points":
+            margen = run.chosen.points - max(option.points for option in otras)
+            gap = f"{margen:+.2f} puntos"
+        else:
+            margen = min(option.position for option in otras) - run.chosen.position
+            gap = f"{margen:+.2f} puestos"
+        print(
+            f"{run.entry.grid_position:>4} {run.entry.code:<4}"
+            f" {COMPOUND_LABEL[run.chosen.compound]:<7}"
+            f" {COMPOUND_LABEL[run.rival.compound]:<9} {run.yardstick:<9} {gap}"
+        )
+
     print(f"\nescrito en {args.out} ({args.out.stat().st_size / 1024:.0f} KB) en {elapsed:.0f} s")
 
 
