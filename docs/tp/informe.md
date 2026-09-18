@@ -963,6 +963,81 @@ por auto y 1,1 millones de puntos por segundo, y nosotros tiempos por vuelta.**
 Eso explica por qué pueden ver aire sucio y carga sobre el neumático con un
 detalle que acá se aproxima con un promedio. Su metodología no está publicada.
 
+### Límites estructurales: lo que el modelo no puede representar
+
+Hay que separar dos clases de límite, porque se arreglan de maneras distintas y
+confundirlos lleva a afinar insumos donde falta una pieza.
+
+Los **límites de datos** son los de la sección 7: cosas que existen en el modelo
+pero están mal medidas o no se pudieron medir. Se arreglan con más datos o con
+mejores diseños de medición.
+
+Los **límites estructurales** son otra cosa: el modelo **no tiene dónde ponerlos**.
+Ninguna cantidad de datos los arregla. Son cuatro y conviene nombrarlos.
+
+**1. El modelo no ve el ritmo de los compuestos, sólo su desgaste.** Es el que la
+sección anterior midió contra una grilla real. `COMPOUND_OFFSET_S` está en cero, y
+el intento de medirlo falló de forma diagnosticable: con efectos fijos por
+piloto-carrera sobre las primeras vueltas de cada tanda, el escalón del medio se
+mueve **1,167 s/vuelta** al variar el coeficiente de combustible entre cero y el
+doble, y el efecto buscado es de ese mismo tamaño. La causa no tiene arreglo con
+tiempos por vuelta: **el orden de las tandas determina a la vez qué compuesto
+lleva un auto y cuándo lo lleva**, así que compuesto y avance de carrera son
+colineales por construcción.
+
+**2. Los rivales no reaccionan.** Sus planes se sortean una vez y se congelan. Es
+lo que hace barata la búsqueda —una traza por rival, reusada para miles de
+candidatos— y es falso exactamente cuando dos autos se pelean, que es cuando
+importa.
+
+**3. Los rivales tampoco anticipan, y el algoritmo tampoco.** Cubrir al de
+adelante, forzarlo a mover primero, parar una vuelta antes porque se sabe que el
+otro va a parar: nada de eso entra en la decisión. El óptimo que se calcula es el
+de un auto contra un campo que no juega.
+
+Lo incómodo es que **el modelo de anticipación existe, está medido y corre en
+pantalla**: la tarjeta de duelo de estrategia calcula si un undercut sale bien, y
+lo hace resolviendo las vueltas de respuesta del rival. Pero vive en
+`insights.py`, y `strategy.py` no lo menciona ni una vez. Son dos sistemas que
+nunca se hablan: uno táctico y de una movida, otro estratégico y ciego.
+
+Meterlo tiene un problema circular y por eso no está: para anticipar que el rival
+cubre hace falta su plan, que depende de lo que uno haga, que él a su vez
+anticipa. Eso deja de ser optimizar y pasa a ser **buscar un equilibrio**, que con
+veintidós jugadores e información incompleta es otra clase de problema.
+
+Hay un paso intermedio que no lo requiere: que la búsqueda elija su plan
+asumiendo que los vecinos cubren su parada, con el cálculo que ya existe. No es
+equilibrio — es pensar una movida más que ahora.
+
+**4. Los equipos tienen dos autos y el modelo optimiza de a uno.** Un equipo puede
+partir estrategias para cubrir las dos ramas, y eso un optimizador de un solo auto
+no puede ni representar.
+
+Acá el resultado es **negativo y vale la pena**: medido sobre las diez carreras
+limpias de 2026, comparando compañeros contra pares no compañeros a cuatro
+puestos o menos de distancia en la grilla, los compañeros difieren un 1,08× en
+compuesto de salida —dentro del ruido con n=90— y **0,81× en cantidad de paradas**,
+o sea que se parecen *más* que dos autos cualquiera de la misma zona. No hay
+reparto deliberado que se vea en el agregado. Tiene sentido: mismo auto, mismo
+desgaste, clasifican cerca, y el plan óptimo les da parecido porque lo son.
+
+Que no aparezca no prueba que no exista — prueba que no es una política, y eso ya
+es más de lo que se sabía.
+
+**Una que parecía estructural y resultó no serlo.** El modelo decide si una parada
+sale barata mirando si **la vuelta** estaba neutralizada, sin saber en qué parte
+de la vuelta estaba el auto: si el safety car sale cuando ya pasó la entrada a
+boxes, esa vuelta la pierde. Medido, cuesta **0,048 s por parada** —una décima de
+segundo sobre una carrera— porque las neutralizaciones duran casi cuatro vueltas y
+sólo en la primera importa dónde estás. Es despreciable para un plan fijo.
+
+Pero **no lo es para reaccionar**, que vale entre 0,5 y 2,0 segundos: ahí poder
+entrar *esta* vuelta o tener que dar una más es toda la diferencia, y depende
+exactamente de dónde estás cuando aparece la bandera. Es un requisito del agente
+de refuerzo de la Entrega 2, no una deuda del simulador actual — y sin él, la
+ventaja de reaccionar saldría optimista.
+
 ---
 
 ## 7. Conclusiones
@@ -1017,6 +1092,17 @@ detalle que acá se aproxima con un promedio. Su metodología no está publicada
    recomendación actual no sea ejecutable para el 85% de los autos. El sistema es
    honesto dentro de ese techo y lo declara.
 
+8. **Hay un segundo techo que no es de datos, y es el más caro.** Más datos no
+   arreglan que el modelo no vea el ritmo de los compuestos, que los rivales no
+   reaccionen ni anticipen, y que se optimice de a un auto cuando los equipos
+   tienen dos. La sección 6 los separa y los mide uno por uno. El primero ya está
+   contrastado contra una grilla real: el modelo pone medio **una vez de
+   veintidós** y la realidad lo pone entre el 55% y el 85%, porque un compuesto
+   que es intermedio en todo no puede ganar en un modelo que sólo mira una
+   dimensión. Y el tercero tiene una ironía anotada: el cálculo de anticipación
+   está construido, medido y corriendo en pantalla, y el algoritmo del que trata
+   este trabajo no lo usa.
+
 ### Qué sigue
 
 | Acción | Por qué | ¿Se puede? |
@@ -1027,6 +1113,8 @@ detalle que acá se aproxima con un promedio. Su metodología no está publicada
 | Bajar **`MIN_STINT`** de seis vueltas | No puede representar la parada de bandera roja temprana, que hicieron los 22 autos de Monza | Sí |
 | ~~Portar a **DEAP**~~ | Es la herramienta que recomienda la cátedra | **Hecho.** Los dos motores conviven, se elige con un parámetro |
 | Tráfico de **rezagados** | 23,1% de los pilotos terminan una vuelta abajo | Requiere comparar por posición y no por vuelta |
+| **Anticipar una movida** en el buscador: elegir el plan asumiendo que los vecinos cubren | El cálculo ya existe en `insights.py`, está medido y corre en pantalla — el algoritmo no lo usa | Sí, y no requiere buscar un equilibrio |
+| **Posición dentro de la vuelta** al parar | Cuesta 0,1 s con un plan fijo y es decisivo para reaccionar | Requisito de la Entrega 2, no deuda de hoy |
 | Agente de **Refuerzo** | La comparación propuesta: planificar contra reaccionar | Para la Entrega 2 |
 
 **Lo que no se va a hacer:** más términos en la aptitud esperando que deje de ser
