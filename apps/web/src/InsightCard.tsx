@@ -20,6 +20,7 @@
  * maximizando posición cuando maximiza la chance de entrar a los diez.
  */
 
+import type { ReactNode } from 'react'
 import { COMPOUND_COLOR } from './data'
 import { pct } from './format'
 import { PLANS } from './plans'
@@ -53,6 +54,7 @@ export function InsightOverlay({
   plan: given,
   open,
   onToggle,
+  aside,
 }: {
   lap: number
   /** De quién se muestra el plan. */
@@ -67,6 +69,19 @@ export function InsightOverlay({
   plan?: RecommendedPlan
   open: boolean
   onToggle: () => void
+  /**
+   * Contenido para el centro de la banda de abajo. Hoy es el recuadro EN BOXES.
+   *
+   * Va como ranura de esta barra y no como capa absoluta propia por dos
+   * motivos. Uno: la barra ya reparte el ancho entre la referencia y el plan,
+   * así que el hueco del medio se calcula solo. Dos: ubicado aparte chocaba
+   * contra la columna de tarjetas de la izquierda, que crece hacia abajo
+   * mientras esto crece hacia arriba.
+   *
+   * Cuando no hay nadie en boxes el componente no renderiza nada y la barra
+   * vuelve sola a sus dos extremos, sin salto de layout.
+   */
+  aside?: ReactNode
 }) {
   const plan = given ?? PLANS[driver]
   const sequence = plan ? stints(plan.plan) : []
@@ -99,6 +114,8 @@ export function InsightOverlay({
           ))}
         </div>
       </div>
+
+      {aside}
 
       {plan ? (
         <div className="insight">

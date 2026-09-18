@@ -2,10 +2,21 @@
  * Panel de carrera: el mapa a la izquierda y la parrilla a la derecha.
  *
  * Los insights van superpuestos sobre el mapa y pueden minimizarse, porque
- * tapan justamente la zona donde corren los autos. Son tres, y contestan cosas
- * distintas: el **duelo de estrategia** dice si conviene parar ahora, el
- * **pronóstico de batalla** dice si lo va a alcanzar, y el **plan** dice a
- * cuántas paradas va la carrera.
+ * tapan justamente la zona donde corren los autos. Son cinco, y contestan cosas
+ * distintas — son las cinco gráficas de estrategia de la transmisión:
+ *
+ *   duelo de estrategia    si el de atrás para ahora, ¿sale adelante?
+ *   pronóstico de batalla  ¿lo va a alcanzar, y en cuántas vueltas?
+ *   plan recomendado       ¿a cuántas paradas va la carrera?
+ *   ventana de boxes       ¿cuándo PODRÍA parar este auto?
+ *   amenaza de undercut    el mismo duelo, desde el que va adelante.
+ *
+ * Las dos últimas son nuevas y no traen modelo nuevo: la ventana ya la
+ * calculaba `pit_window()` y entraba como `DriverState.pitWindow`, y la amenaza
+ * es `solveBattle` leído desde el otro lado. Lo que faltaba era dónde leerlas.
+ *
+ * Aparte va el recuadro **EN BOXES**, que no es una de las cinco: aparece sólo
+ * mientras hay un auto efectivamente detenido en el carril.
  *
  * Los duelos **no están escritos a mano**: salen del orden en pista que va
  * marcando la simulación, así que aparecen y se resuelven solos a medida que
@@ -20,10 +31,15 @@ import { BattleStrip } from './BattleStrip'
 import { CircuitMap } from './CircuitMap'
 import { GridPanel } from './GridPanel'
 import { InsightOverlay } from './InsightCard'
-import { IN_RANGE_S, battleKey, liveBattles, noBattleReason } from './battle'
+import { InPitBox } from './InPitBox'
+import { PitWindowCard } from './PitWindowCard'
+import { UndercutThreatCard } from './UndercutThreat'
+import { IN_RANGE_S, battleKey, liveBattles, noBattleReason, undercutThreat } from './battle'
 import { RACE } from './data'
 import { pickBattle } from './forecast'
 import { fmt } from './format'
+import { inPitNow } from './pitlane'
+import { openCount } from './pitwindow'
 import { PLANS } from './plans'
 import { preraceCar, recommendedPlan } from './prerace'
 import { TRACKS } from './tracks'
@@ -47,6 +63,7 @@ export function RaceView({
   timing,
   focal,
   plans,
+  drawnPlans,
 }: {
   scenarioLap: number
   status: TrackStatus
@@ -63,6 +80,19 @@ export function RaceView({
    * proyectada** y no un plan: son cosas distintas y la torre no las mezcla.
    */
   plans: PitStop[][] | null
+  /**
+   * Las paradas sorteadas de **este** sorteo, siempre.
+   *
+   * Va aparte de `plans` a propósito. `plans` es lo que la torre puede
+   * presentar como «lo que el auto va a hacer», y por eso es `null` en la foto
+   * de la vuelta 30, donde lo que hay es una ventana proyectada. Pero los autos
+   * paran igual en los dos orígenes, así que el recuadro de boxes y la tarjeta
+   * de ventana necesitan las paradas del sorteo en curso pasen lo que pasen.
+   *
+   * Mezclarlos en una sola prop volvería a juntar ventana y plan, que es
+   * justamente lo que la vista se cuidó de separar.
+   */
+  drawnPlans: PitStop[][]
 }) {
   const track = TRACKS[RACE.trackKey]
   const duels = useMemo(
@@ -111,6 +141,59 @@ export function RaceView({
   const [battleOpen, setBattleOpen] = useState(true)
   const [forecastOpen, setForecastOpen] = useState(true)
   const [insightOpen, setInsightOpen] = useState(true)
+  const [windowOpen, setWindowOpen] = useState(true)
+  const [threatOpen, setThreatOpen] = useState(true)
+
+  /*
+   * El auto focal manda en las dos tarjetas nuevas, como en el resto de la
+   * vista (ADR-007): la ventana es la suya y la amenaza es la que él corre.
+   */
+  const focalIndex = cars.findIndex((c) => c.code === focal)
+  const focalCar = focalIndex >= 0 ? cars[focalIndex] : undefined
+
+  /** Las paradas que el auto focal ya hizo en este sorteo. */
+  const focalStops = useMemo(
+    () => (focalIndex >= 0 ? (drawnPlans[focalIndex] ?? []) : []).filter((s) => s.lap <= scenarioLap),
+    [drawnPlans, focalIndex, scenarioLap],
+  )
+
+  const inWindow = useMemo(() => openCount(cars, scenarioLap), [cars, scenarioLap])
+  const running = useMemo(
+    () => cars.filter((c) => c.retiredOnLap == null || scenarioLap < c.retiredOnLap).length,
+    [cars, scenarioLap],
+  )
+
+  /*
+   * ¿Este origen trae ventanas proyectadas?
+   *
+   * La foto de la vuelta 30 sí: cada auto llega con la salida de `pit_window()`.
+   * Desde la largada no: `PRERACE_GRID` pone `pitWindow: null` en los veintidós
+   * porque el export pre-carrera trae el **plan** del algoritmo y no la ventana.
+   *
+   * Es justamente la distinción que la torre ya hacía —muestra «Vent.» o
+   * «Plan», nunca las dos— y por eso se deriva de la misma prop: donde hay plan
+   * cargado, no hay ventana proyectada.
+   *
+   * Sin esto las dos tarjetas explicaban ese `null` como «la goma está plana» y
+   * «no va a parar», que en ese origen son afirmaciones que nadie midió — y la
+   * segunda además es falsa, porque el auto tiene plan y para.
+   */
+  const windowsProjected = plans === null
+
+  const threat = useMemo(
+    () => undercutThreat(cars, timing, scenarioLap, focalIndex, windowsProjected),
+    [cars, timing, scenarioLap, focalIndex, windowsProjected],
+  )
+
+  /*
+   * Quién está detenido en el carril ahora mismo. Sale de `timing.inPit`, que
+   * es el mismo estado con el que la torre escribe BOXES: si las dos cosas
+   * salieran de cuentas distintas podrían contradecirse en pantalla.
+   */
+  const inPit = useMemo(
+    () => inPitNow(cars, timing.inPit, drawnPlans, scenarioLap),
+    [cars, timing.inPit, drawnPlans, scenarioLap],
+  )
 
   return (
     <div className="view view--race">
@@ -129,36 +212,71 @@ export function RaceView({
           lap={scenarioLap}
           focal={focal}
         >
+          {/*
+           * Todo lo anclado arriba vive en el mismo contenedor y en columna, no
+           * en dos capas absolutas: así la fila de abajo se acomoda sola cuando
+           * el duelo se minimiza, en vez de quedar clavada a un alto supuesto.
+           */}
           <div className="overlay overlay--top">
-            {duel ? (
-              <BattleStrip
-                battle={duel}
-                others={duels.filter((b) => battleKey(b) !== battleKey(duel))}
-                onPick={(b) => setPick(battleKey(b))}
-                open={battleOpen}
-                onToggle={() => setBattleOpen((v) => !v)}
-              />
-            ) : (
-              /*
-               * Sin duelo se deja el hueco ocupado con el motivo, no vacío ni
-               * con un par inventado. Cuál de las dos condiciones falló importa:
-               * «nadie va a parar» y «nadie alcanza» son carreras distintas.
-               */
-              <div className="battle battle--idle">
-                <div className="battle__head">
-                  <span className="battle__title">Duelo de estrategia</span>
-                  <span className="battle__sub">{IDLE_TEXT[reason ?? 'no-one-close']}</span>
+            <div className="overlay__row">
+              {duel ? (
+                <BattleStrip
+                  battle={duel}
+                  others={duels.filter((b) => battleKey(b) !== battleKey(duel))}
+                  onPick={(b) => setPick(battleKey(b))}
+                  open={battleOpen}
+                  onToggle={() => setBattleOpen((v) => !v)}
+                />
+              ) : (
+                /*
+                 * Sin duelo se deja el hueco ocupado con el motivo, no vacío ni
+                 * con un par inventado. Cuál de las dos condiciones falló
+                 * importa: «nadie va a parar» y «nadie alcanza» son carreras
+                 * distintas.
+                 */
+                <div className="battle battle--idle">
+                  <div className="battle__head">
+                    <span className="battle__title">Duelo de estrategia</span>
+                    <span className="battle__sub">{IDLE_TEXT[reason ?? 'no-one-close']}</span>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {forecast ? (
-              <BattleForecastCard
-                forecast={forecast}
-                open={forecastOpen}
-                onToggle={() => setForecastOpen((v) => !v)}
+              {forecast ? (
+                <BattleForecastCard
+                  forecast={forecast}
+                  open={forecastOpen}
+                  onToggle={() => setForecastOpen((v) => !v)}
+                />
+              ) : null}
+            </div>
+
+            {/*
+             * Columna izquierda: las dos tarjetas que hablan del auto elegido y
+             * no del par que la carrera ofrezca en ese momento. Van juntas
+             * porque son las dos caras de la misma decisión — cuándo podría
+             * parar él, y qué pasa si para el de atrás.
+             */}
+            <div className="overlay__rail">
+              <PitWindowCard
+                car={focalCar}
+                lap={scenarioLap}
+                openNow={inWindow}
+                windowsProjected={windowsProjected}
+                running={running}
+                stopsMade={focalStops.length}
+                lastStopLap={focalStops.length > 0 ? focalStops[focalStops.length - 1].lap : null}
+                open={windowOpen}
+                onToggle={() => setWindowOpen((v) => !v)}
               />
-            ) : null}
+
+              <UndercutThreatCard
+                threat={threat}
+                driver={focal}
+                open={threatOpen}
+                onToggle={() => setThreatOpen((v) => !v)}
+              />
+            </div>
           </div>
 
           <InsightOverlay
@@ -167,6 +285,8 @@ export function RaceView({
             plan={insightPlan}
             open={insightOpen}
             onToggle={() => setInsightOpen((v) => !v)}
+            /* Sólo hay algo que mostrar mientras haya un auto en el carril. */
+            aside={<InPitBox cars={inPit} />}
           />
         </CircuitMap>
       </Panel>

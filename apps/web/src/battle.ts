@@ -195,3 +195,122 @@ export function noBattleReason(cars: DriverState[], timing: Timing, lap: number)
 export function battleKey(battle: StrategyBattle): string {
   return `${battle.chaser}-${battle.leader}`
 }
+
+/* ------------------------------------------------------------------ amenaza */
+
+/**
+ * El mismo duelo, mirado desde el que va ADELANTE.
+ *
+ * `liveBattles` contesta la pregunta del perseguidor —«si paro, ¿salgo
+ * adelante?»—. Desde adelante la pregunta es la inversa y es la que atiende el
+ * muro del que está siendo perseguido: **«el de atrás me puede undercutear,
+ * ¿cuánto peligro corro?»**.
+ *
+ * El cálculo es exactamente el mismo `solveBattle`, con los mismos insumos: no
+ * hay un modelo nuevo ni un número nuevo, hay un punto de vista nuevo. Lo que
+ * para el perseguidor es una probabilidad de éxito, para el de adelante es la
+ * probabilidad de perder el puesto sin que lo pasen en pista.
+ */
+
+/** Cuánto peligro corre el de adelante. Misma escala que el veredicto. */
+export type ThreatLevel = 'ALTA' | 'MEDIA' | 'BAJA'
+
+/**
+ * Se deriva de `verdictFor` en vez de repetir los cortes: si algún día se
+ * mueven, se mueven en un solo lugar y las dos tarjetas siguen coincidiendo.
+ * Dos tarjetas que muestran el mismo duelo no pueden discrepar.
+ */
+export function threatFor(probability: number): ThreatLevel {
+  const verdict = verdictFor(probability)
+  if (verdict === 'SALE_ADELANTE') return 'ALTA'
+  if (verdict === 'CARA_O_CRUZ') return 'MEDIA'
+  return 'BAJA'
+}
+
+/** Por qué no hay amenaza que mostrar. Cuál de las condiciones falló importa. */
+export type NoThreatReason =
+  | 'formation'
+  | 'out'
+  | 'nobody-behind'
+  | 'chaser-no-window'
+  | 'chaser-far'
+  /**
+   * No hay ventana proyectada para NINGÚN auto en este origen.
+   *
+   * Distinto de `chaser-no-window`, y la diferencia no es cosmética: allá el
+   * modelo corrió y dijo que ese auto no tiene cruce que anticipar; acá el
+   * modelo no corrió. Decir «no va a parar» cuando lo que pasa es que no
+   * tenemos el dato sería afirmar algo que además es falso — el auto tiene un
+   * plan y va a parar.
+   */
+  | 'no-projection'
+
+/**
+ * Estado de la amenaza para un auto.
+ *
+ * Unión discriminada y no un `null`: el auto lo elige el usuario y la tarjeta
+ * se queda fija, así que cuando no hay amenaza hay que **decir por qué** en vez
+ * de dejar el hueco mudo. «Nadie atrás va a parar» y «el de atrás está lejos»
+ * son carreras distintas.
+ */
+export type ThreatView =
+  | { kind: 'live'; battle: StrategyBattle; level: ThreatLevel; chaserWindowOpen: boolean }
+  | { kind: 'idle'; reason: NoThreatReason; chaser: string | null; gapBehind: number | null }
+
+/**
+ * ¿Cuánto peligro de undercut corre `leaderIndex`?
+ *
+ * Se exigen las **mismas dos condiciones** que para ofrecer el duelo desde el
+ * otro lado —el perseguidor en ventana de parada y dentro de rango—, porque es
+ * el mismo hecho: si el de atrás no va a parar, no hay undercut que temer por
+ * más pegado que vaya.
+ */
+export function undercutThreat(
+  cars: DriverState[],
+  timing: Timing,
+  lap: number,
+  leaderIndex: number,
+  /**
+   * Si este origen trae ventanas proyectadas. Desde la largada no: el export
+   * pre-carrera trae el plan del algoritmo y no la salida de `pit_window()`.
+   */
+  windowsProjected = true,
+): ThreatView {
+  const idle = (
+    reason: NoThreatReason,
+    chaser: string | null = null,
+    gapBehind: number | null = null,
+  ): ThreatView => ({ kind: 'idle', reason, chaser, gapBehind })
+
+  if (timing.formation) return idle('formation')
+  if (!windowsProjected) return idle('no-projection')
+
+  const place = timing.order.indexOf(leaderIndex)
+  const leader = cars[leaderIndex]
+  // Fuera del orden en pista está el que abandonó: no tiene a nadie atrás
+  // porque no está corriendo.
+  if (place < 0 || !leader) return idle('out')
+
+  const chaserIndex = timing.order[place + 1]
+  const chaser = chaserIndex === undefined ? undefined : cars[chaserIndex]
+  if (!chaser) return idle('nobody-behind')
+
+  // El intervalo del de atrás al de adelante es, justamente, el hueco que el
+  // líder tiene por detrás. Sale de la simulación, no del dato de la vuelta 30.
+  const gapBehind = timing.gapAhead[chaserIndex]
+  if (gapBehind == null) return idle('nobody-behind', chaser.code)
+
+  if (!nearPitWindow(chaser, lap)) return idle('chaser-no-window', chaser.code, gapBehind)
+  if (gapBehind > IN_RANGE_S) return idle('chaser-far', chaser.code, gapBehind)
+
+  const battle = { ...solveBattle(chaser, leader, gapBehind), chaserWindow: chaser.pitWindow }
+  return {
+    kind: 'live',
+    battle,
+    level: threatFor(battle.probability),
+    chaserWindowOpen:
+      chaser.pitWindow != null &&
+      lap >= chaser.pitWindow.opensLap &&
+      lap <= chaser.pitWindow.closesLap,
+  }
+}

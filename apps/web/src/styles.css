@@ -1185,12 +1185,35 @@ body {
 /* ------------------------------------- duelo sobre el mapa (Pit Strategy Battle) */
 
 /* La franja va arriba del mapa; el resto de la superposición queda abajo. */
+/*
+ * Todo lo anclado arriba: la fila de tarjetas anchas y, debajo, la columna de
+ * las angostas. En columna y no en dos capas absolutas, así la segunda fila
+ * sube sola cuando la primera se minimiza.
+ */
 .overlay--top {
   bottom: auto;
   top: calc(var(--pad) * 0.8);
+  flex-direction: column;
   justify-content: flex-start;
-  /* Las dos tarjetas cuelgan del borde de arriba y tienen alturas distintas. */
+  /* Las tarjetas cuelgan del borde de arriba y tienen alturas distintas. */
   align-items: flex-start;
+}
+
+.overlay__row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--gap);
+  width: 100%;
+  min-width: 0;
+}
+
+/* La columna angosta de la izquierda: ventana de boxes y amenaza de undercut. */
+.overlay__rail {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--gap);
+  min-width: 0;
 }
 
 /* Tarjeta compacta, no una banda: en la transmisión ocupa poco más de un tercio. */
@@ -2876,4 +2899,393 @@ body {
 
 .tower-table .MuiTableBody-root .row--focal .MuiTableCell-root:first-of-type {
   box-shadow: inset 2px 0 0 var(--txt-0);
+}
+
+/* ---------------------------------------------- ventana de boxes / amenaza */
+
+/*
+ * Las dos tarjetas de la columna izquierda comparten caja: más angostas que el
+ * duelo, porque no llevan un número gigante sino dos o tres líneas de lectura.
+ */
+.pw,
+.ut {
+  pointer-events: auto;
+  width: clamp(215px, 21vw, 290px);
+  background: #0b0a0a;
+  border: 2px solid var(--line-strong);
+  box-shadow: 0 0 0 4px rgba(11, 10, 10, 0.6);
+}
+
+.pw__head,
+.ut__head {
+  display: flex;
+  align-items: baseline;
+  gap: calc(var(--gap) * 0.6);
+  padding: 4px 9px;
+  background: var(--bg-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.pw__title,
+.ut__title {
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--txt-1);
+  white-space: nowrap;
+}
+
+.pw__sub,
+.ut__sub {
+  font-size: var(--fs-micro);
+  color: var(--txt-3);
+  margin-left: auto;
+  margin-right: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pw__body,
+.ut__body {
+  display: grid;
+  gap: 5px;
+  padding: calc(var(--pad) * 0.75) var(--pad);
+}
+
+/* El borde de arriba lleva el estado, que además va escrito adentro. */
+.pw--open {
+  border-top-color: var(--green);
+}
+
+.pw--pending {
+  border-top-color: var(--yellow);
+}
+
+.pw--closed {
+  border-top-color: var(--red);
+}
+
+.pw__state {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap);
+}
+
+.pw__phase {
+  font-size: var(--fs-md);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.05;
+}
+
+/*
+ * La cuenta de vueltas, debajo del rótulo. Significa una cosa distinta en cada
+ * fase, así que va escrita entera y no como un sufijo pegado al estado.
+ */
+.pw__tail {
+  margin-top: -2px;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--txt-2);
+}
+
+.pw__range {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--txt-1);
+}
+
+/* Misma línea de tiempo que la torre: vuelta 1 a la última. */
+.pw__track {
+  position: relative;
+  height: 11px;
+  background: var(--bg-4);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.pw__band {
+  position: absolute;
+  inset-block: 0;
+  background: var(--green);
+  opacity: 0.55;
+}
+
+.pw__now {
+  position: absolute;
+  inset-block: 0;
+  width: 2px;
+  background: var(--red);
+}
+
+.pw__scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--fs-micro);
+  color: var(--txt-4);
+}
+
+.pw__note {
+  font-size: var(--fs-micro);
+  line-height: 1.35;
+  color: var(--txt-2);
+}
+
+.pw__note strong {
+  color: var(--txt-0);
+}
+
+.pw__foot,
+.ut__foot {
+  font-size: var(--fs-micro);
+  line-height: 1.35;
+  color: var(--txt-3);
+  border-top: 1px solid var(--line-soft);
+  padding-top: 4px;
+}
+
+.pw__foot strong,
+.ut__foot strong {
+  color: var(--txt-1);
+}
+
+/* ------------------------------------------------------ amenaza de undercut */
+
+.ut--ALTA {
+  border-top-color: var(--red);
+}
+
+.ut--MEDIA {
+  border-top-color: var(--yellow);
+}
+
+.ut--BAJA {
+  border-top-color: var(--green);
+}
+
+.ut__gauge {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap);
+}
+
+.ut__level {
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.ut--ALTA .ut__level,
+.ut--ALTA .ut__pct {
+  color: var(--red);
+}
+
+.ut--MEDIA .ut__level,
+.ut--MEDIA .ut__pct {
+  color: var(--yellow);
+}
+
+.ut--BAJA .ut__level,
+.ut--BAJA .ut__pct {
+  color: var(--green);
+}
+
+.ut__pct {
+  font-size: var(--fs-lg);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.ut__who {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  font-size: var(--fs-micro);
+  color: var(--txt-2);
+}
+
+.ut__bar {
+  width: 3px;
+  height: 0.95em;
+  flex: none;
+}
+
+.ut__code {
+  font-weight: 800;
+  font-size: var(--fs-tiny);
+  color: var(--txt-0);
+}
+
+.ut__gap {
+  color: var(--txt-1);
+}
+
+.ut__win {
+  color: var(--txt-3);
+}
+
+.ut__math {
+  font-size: var(--fs-micro);
+  line-height: 1.4;
+  color: var(--txt-2);
+}
+
+.ut__math .num {
+  color: var(--txt-0);
+  font-weight: 700;
+}
+
+.ut__body--idle {
+  gap: 6px;
+}
+
+.ut__idle {
+  font-size: var(--fs-tiny);
+  color: var(--txt-2);
+}
+
+/* Minimizadas, las dos se encogen a su cabecera. */
+.pw:has(.card__toggle[aria-expanded='false']),
+.ut:has(.card__toggle[aria-expanded='false']) {
+  width: auto;
+}
+
+/* ------------------------------------------------------------ recuadro boxes */
+
+/*
+ * Caja de transmisión: borde claro y cabecera invertida, como la del plan. Se
+ * distingue de las cinco gráficas a propósito — no es un pronóstico, es lo que
+ * está pasando ahora.
+ *
+ * Vive en el hueco del medio de la banda de abajo, entre la referencia de
+ * compuestos y el plan. Abajo a la izquierda chocaba contra la columna de
+ * tarjetas, que baja mientras este recuadro sube.
+ */
+.inpit {
+  pointer-events: auto;
+  width: clamp(225px, 22vw, 300px);
+  background: #0b0a0a;
+  border: 2px solid var(--txt-0);
+  box-shadow: 0 0 0 4px rgba(11, 10, 10, 0.6);
+}
+
+.inpit__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap);
+  padding: 4px 9px;
+  background: var(--txt-0);
+  color: var(--bg-0);
+}
+
+.inpit__flag {
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.inpit__car {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--fs-sm);
+  font-weight: 800;
+}
+
+.inpit__bar {
+  width: 3px;
+  height: 0.95em;
+  flex: none;
+}
+
+.inpit__rows {
+  display: grid;
+  gap: 4px;
+  padding: calc(var(--pad) * 0.6) var(--pad);
+}
+
+.inpit__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: var(--gap);
+}
+
+.inpit__k {
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--txt-2);
+}
+
+.inpit__v {
+  font-size: var(--fs-md);
+  font-weight: 800;
+  line-height: 1;
+  color: var(--txt-0);
+}
+
+/*
+ * El dato que no tenemos se muestra tachado y en gris, no en blanco y grande:
+ * tiene que leerse como un hueco declarado y no como una medición más.
+ */
+.inpit__v--none {
+  font-size: var(--fs-tiny);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--txt-4);
+  text-decoration: line-through;
+}
+
+.inpit__row--missing .inpit__k {
+  color: var(--txt-4);
+}
+
+.inpit__src {
+  grid-column: 1 / -1;
+  font-size: var(--fs-micro);
+  line-height: 1.25;
+  color: var(--txt-3);
+}
+
+.inpit__foot {
+  margin: 0;
+  padding: 4px var(--pad) calc(var(--pad) * 0.6);
+  border-top: 1px solid var(--line-soft);
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  color: var(--txt-3);
+}
+
+.inpit__foot strong {
+  color: var(--txt-1);
+}
+
+.inpit__also {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding: 4px var(--pad) calc(var(--pad) * 0.7);
+  font-size: var(--fs-micro);
+  color: var(--txt-3);
+}
+
+.inpit__alsocar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 800;
+  color: var(--txt-1);
 }

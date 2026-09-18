@@ -284,6 +284,12 @@ export default function App() {
           timing={timing}
           focal={focal}
           plans={origin === 'start' ? plans : null}
+          /*
+           * Los autos paran en los dos orígenes, así que el recuadro de boxes y
+           * la ventana necesitan las paradas del sorteo siempre. `plans` sigue
+           * siendo sólo lo que la torre puede llamar «plan».
+           */
+          drawnPlans={plans}
         />
       ) : view === 'forecast' ? (
         <ForecastView />
