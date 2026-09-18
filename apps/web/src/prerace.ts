@@ -37,6 +37,27 @@ export type Objective = 'points' | 'in_points' | 'position'
 /** Apetito de riesgo con el que se ordenaron los planes. */
 export type RiskAppetite = 'averse' | 'neutral' | 'seeking'
 
+/** Una de las tres salidas evaluadas para un auto. */
+export interface StartOption {
+  compound: DryCompound
+  plan: string
+  stops: { lap: number; compound: Compound }[]
+  /** Resueltos, y pueden diferir entre salidas del mismo auto. */
+  objective: Objective
+  risk: RiskAppetite
+  p_ganar: number
+  p_podio: number
+  p_puntos: number
+  p_mejora: number
+  expected_position: number
+  sd_position: number
+  expected_points: number
+  score: number
+  decision_value: number
+  /** La elegida por la vara común. Exactamente una por auto. */
+  chosen: boolean
+}
+
 export interface PreRaceCar {
   code: string
   driver: string
@@ -46,13 +67,44 @@ export interface PreRaceCar {
   gap_to_pole_s: number
   /** Ritmo de carrera respecto del poleman, en segundos por vuelta. */
   pace_s: number
-  /** Con qué larga. Es un supuesto declarado del export: medio para todos. */
+  /**
+   * Con qué larga: **lo que la búsqueda eligió**, no un supuesto.
+   *
+   * El export corre los tres compuestos de salida por auto y se queda con el
+   * mejor. Antes esto era «medio para todos», que era el supuesto que la
+   * comparación contra la grilla real terminó desmintiendo.
+   */
   start_compound: DryCompound
+  /**
+   * Con qué vara se eligió entre los tres compuestos de salida.
+   *
+   * No se pueden comparar directamente: cada corrida resuelve su propio objetivo
+   * —puntos, zona de puntos o posición— y esos valores están en unidades
+   * distintas. Así que se elige con una sola vara por auto: puntos esperados si
+   * alguno de los tres los alcanza, puesto esperado si ninguno.
+   */
+  start_yardstick: 'points' | 'position'
   /** Las tandas como las diría el muro: «M18-H26-H27». */
   plan: string
   stops: { lap: number; compound: Compound }[]
   objective: Objective
   risk: RiskAppetite
+  /**
+   * Con qué larga y qué plan corre este mismo auto **cuando es rival de los
+   * otros veintiuno**: sorteados, no optimizados.
+   *
+   * Darle a los veintidós el óptimo describiría una carrera que nadie corrió.
+   */
+  rival_start_compound: DryCompound
+  rival_plan: string
+  /**
+   * Las tres corridas, una por compuesto de salida, y no sólo la ganadora.
+   *
+   * Está acá porque **para media grilla la elección es ruido**: once de los
+   * veintidós márgenes están por debajo de 0,10 puntos o puestos. Publicar las
+   * tres es lo que impide leer la recomendación como una certeza.
+   */
+  start_options: StartOption[]
   p_ganar: number
   p_podio: number
   p_puntos: number
@@ -114,7 +166,6 @@ export interface PreRaceExport {
     total_laps: number
     pole_s: number
     cars: number
-    start_compound: DryCompound
     excluded: string[]
   }
   model: {
@@ -137,6 +188,16 @@ export interface PreRaceExport {
     draws: number
     max_stops: number
     seed: number
+    /** Los tres compuestos de salida que se evaluaron por auto. */
+    start_compounds: DryCompound[]
+    /** Semilla del sorteo de compuesto de los rivales, aparte de rival_seed. */
+    compound_seed: number
+    /**
+     * Con qué larga un rival según su banda de grilla, medido sobre 294
+     * pilotos-carrera de 2026. El frente converge al medio; el fondo se dispersa,
+     * que es lo que hace el que no tiene nada que perder.
+     */
+    rival_start_compound_shares: Record<string, Record<DryCompound, number>>
   }
   /** Lo que el export asume y no midió. Se muestra en pantalla, no se esconde. */
   assumptions: string[]
@@ -151,6 +212,12 @@ export interface PreRaceExport {
     p_ganar_total: number
     position_histogram_sums_draws: boolean
     history_generations: number
+    /** Cuántas salidas se evaluaron por auto: tres. */
+    start_options: number
+    /** Que las 66 corridas —22 autos por 3 salidas— traen su historia completa. */
+    history_complete: boolean
+    /** Que p_ganar <= p_podio <= p_puntos en las 66, no sólo en las elegidas. */
+    chances_ordered: boolean
   }
   cars: PreRaceCar[]
 }
