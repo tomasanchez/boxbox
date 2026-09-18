@@ -2159,6 +2159,153 @@ body {
   cursor: default;
 }
 
+/*
+ * El plan del momento y por dónde pasó: qué encontró la búsqueda, no sólo
+ * cuánto vale.
+ *
+ * La caja de adentro se monta de nuevo con cada plan (`key` por plan en el
+ * componente), así que la animación de aviso vuelve a arrancar sola. Las tandas
+ * NO hacen transición de ancho a propósito: interpolarlas dibujaría planes
+ * intermedios que nunca existieron.
+ */
+.evo__plan {
+  display: grid;
+  gap: 3px;
+}
+
+.evo__planbox {
+  padding: 2px 5px 3px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-soft);
+  border-radius: 2px;
+}
+
+/* La generación donde cambió: el borde se enciende, pero lo que dice el estado
+   es el texto de `.evo__since`, no el color. */
+.evo__planbox--new {
+  border-color: var(--line-strong);
+}
+
+.evo__planhead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 1px;
+}
+
+.evo__planseq {
+  font-size: var(--fs-tiny);
+  font-weight: 700;
+  color: var(--txt-0);
+}
+
+.evo__planstops {
+  font-size: var(--fs-micro);
+  color: var(--txt-2);
+}
+
+.evo__since {
+  margin-left: auto;
+  font-size: var(--fs-micro);
+  color: var(--txt-3);
+  white-space: nowrap;
+}
+
+/* Mayúsculas y negrita además del color: el aviso tiene que leerse en blanco y
+   negro. */
+.evo__since--new {
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--yellow);
+}
+
+/* Misma escala que `.plan__bar`: sobre las 72 vueltas de la carrera, para que
+   la barra que la búsqueda va encontrando termine midiendo lo mismo que la del
+   plan recomendado. */
+.evo__bar {
+  display: flex;
+  gap: 1px;
+  height: 12px;
+}
+
+.evo__stint {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  overflow: hidden;
+  color: #0f0e0d;
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* ----------------------------------------- por dónde pasó el mejor plan */
+
+.evo__storyl {
+  font-size: var(--fs-micro);
+  color: var(--txt-3);
+}
+
+/* El rótulo es un ítem más de la fila: comparte renglón con las fichas. */
+.evo__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px 4px;
+}
+
+.evo__chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 0 4px;
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  color: var(--txt-2);
+  font-family: inherit;
+  font-size: var(--fs-micro);
+  line-height: 1.35;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.evo__chip:hover {
+  border-color: var(--txt-4);
+  color: var(--txt-1);
+}
+
+.evo__chip:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: 1px;
+}
+
+/* El plan que está en efecto. El triángulo va además del color: quien no
+   distinga los tonos igual ve cuál es. */
+.evo__chip--now {
+  background: var(--bg-5);
+  border-color: var(--txt-4);
+  color: var(--txt-0);
+  font-weight: 700;
+}
+
+.evo__chip--now::before {
+  content: '▸';
+  color: var(--yellow);
+}
+
+/* Ya se vio, pero está más adelante que la generación que se está mirando: el
+   borde punteado lo dice sin depender del tono. */
+.evo__chip--ahead {
+  border-style: dashed;
+  opacity: 0.5;
+}
+
+.evo__chipg {
+  color: var(--txt-4);
+}
+
 .evo__scrub {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -2176,7 +2323,7 @@ body {
 .evo__plot {
   position: relative;
   flex: 1 1 0;
-  min-height: 36px;
+  min-height: 30px;
   background: var(--bg-2);
   border: 1px solid var(--line-soft);
   border-radius: 2px;
@@ -2194,7 +2341,8 @@ body {
  */
 .evo__line,
 .evo__rule,
-.evo__now {
+.evo__now,
+.evo__mark {
   vector-effect: non-scaling-stroke;
   fill: none;
 }
@@ -2214,6 +2362,14 @@ body {
 .evo__now {
   stroke: var(--red);
   stroke-width: 1.5;
+}
+
+/* Dónde cambió el mejor plan. Punteado y apagado: es anotación sobre la
+   escalera, no otro dato encima. */
+.evo__mark {
+  stroke: var(--txt-3);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
 }
 
 /* Las generaciones que todavía no ocurrieron: el hueco reservado, vacío. */
@@ -2254,6 +2410,12 @@ body {
   color: var(--yellow);
 }
 
+/* El pie va sin margen: en este panel el alto es el recurso escaso y el hueco
+   del flex ya separa. Los demás paneles conservan el margen del navegador. */
+.evo__foot {
+  margin: 0;
+}
+
 .evo__legend {
   display: flex;
   flex-wrap: wrap;
@@ -2276,6 +2438,78 @@ body {
 
 .evo__keyv {
   color: var(--txt-3);
+}
+
+/*
+ * El aviso de plan nuevo.
+ *
+ * Los cambios son raros —siete en veinticinco generaciones para NOR, ninguno
+ * para OCO— y sin un golpe de atención pasan entre dos generaciones donde no
+ * pasó nada. Es refuerzo, no el único aviso: el texto, las tandas redibujadas,
+ * la marca en la escalera y la ficha nueva dicen lo mismo sin moverse, así que
+ * con movimiento reducido no se pierde nada.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .evo__planbox {
+    animation: evo-plan-in 600ms ease-out;
+  }
+}
+
+@keyframes evo-plan-in {
+  from {
+    background: var(--bg-5);
+    border-color: var(--yellow);
+  }
+
+  to {
+    background: var(--bg-2);
+    border-color: var(--line-soft);
+  }
+}
+
+/*
+ * Pantallas bajas y anchas: de 1600×800 para arriba.
+ *
+ * La tipografía de la hoja escala con el ANCHO, pero lo que le falta al panel
+ * es ALTO. A 1600×800 las letras son las de una pantalla grande y el alto es el
+ * de una chica, así que el contenido crece justo donde no hay lugar. Esta
+ * tarjeta —la que más filas tiene— se compacta en vez de cortarse: usa el
+ * `--fs-micro` de una pantalla de 1400 px y deja que los gráficos cedan un poco
+ * más. **No se esconde nada**: se achica el aire, no el dato.
+ *
+ * Abajo de 1500 px no cambia nada, que es donde están las capturas de
+ * referencia.
+ */
+@media (max-height: 900px) and (min-width: 1500px) {
+  /* En este panel el aire vale menos que el dato: el hueco entre filas y el
+     margen interno ceden antes que el pie de la tarjeta. */
+  .panel--evo {
+    --pad: 9.5px;
+    --gap: 7px;
+  }
+
+  .evo__plan,
+  .evo__label,
+  .evo__legend,
+  .evo__foot {
+    --fs-micro: 9.5px;
+  }
+
+  .evo__plan {
+    gap: 2px;
+  }
+
+  .evo__planbox {
+    padding: 1px 4px 2px;
+  }
+
+  .evo__bar {
+    height: 11px;
+  }
+
+  .evo__plot {
+    min-height: 26px;
+  }
 }
 
 /* ------------------------------------------------------ plan recomendado */

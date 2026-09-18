@@ -85,6 +85,23 @@ export interface PreRaceCar {
     /** Mejor valor de la generación, en las unidades del objetivo de este auto. */
     best: number
     stop_distribution: Record<string, number>
+    /**
+     * El mejor plan de esa generación, escrito como lo diría el muro.
+     *
+     * Es el campo que convierte la animación en una explicación: sin él se veía
+     * que la búsqueda mejora, no **qué encontró**. El último de la historia es
+     * siempre `plan`, así que la animación termina exactamente en la tarjeta de
+     * al lado.
+     */
+    best_plan: string
+    /**
+     * El mismo plan como paradas, para no tener que volver a parsear la cadena.
+     *
+     * Es redundante con `best_plan` **y consistente con él** —se verificaron las
+     * 572 generaciones del export, vuelta por vuelta y compuesto por compuesto—,
+     * así que las dos formas se pueden mezclar sin que se contradigan.
+     */
+    best_stops: { lap: number; compound: Compound }[]
   }[]
 }
 
@@ -252,6 +269,50 @@ export function historyStopKeys(car: PreRaceCar): number[] {
     for (const key of stopKeys(generation.stop_distribution)) keys.add(key)
   }
   return [...keys].sort((a, b) => a - b)
+}
+
+/** Un momento en el que la búsqueda cambió de mejor plan. */
+export interface PlanChange {
+  /** Índice en `car.history`. Es también la posición en la línea de tiempo. */
+  index: number
+  generation: number
+  plan: string
+  /** Cuántas paradas tiene, contadas del dato estructurado y no de los guiones. */
+  stops: number
+  best: number
+  /** Cuánto ganó sobre el plan anterior. Cero en el primero: no hay anterior. */
+  gain: number
+}
+
+/**
+ * Los planes por los que pasó el mejor de la población: uno por cambio.
+ *
+ * El primero es la semilla heurística de la generación cero. No es un cambio
+ * —no hay nada antes— pero es de donde sale todo, y sin él la lista arrancaría
+ * por la mitad de la historia.
+ *
+ * Acá se compara **el plan**, no el valor. En este export las dos cosas son el
+ * mismo evento: en las 572 generaciones de los 22 autos no hay ni una sola donde
+ * el mejor valor suba sin que cambie el plan, ni una donde el plan cambie sin
+ * que el valor suba. Es lo esperable de un elitismo que sólo reemplaza al mejor
+ * cuando encuentra algo estrictamente mejor. Pero si mañana el buscador admite
+ * empates, comparar planes sigue diciendo la verdad y comparar valores no.
+ */
+export function planChanges(car: PreRaceCar): PlanChange[] {
+  const changes: PlanChange[] = []
+  car.history.forEach((entry, index) => {
+    const previous = index > 0 ? car.history[index - 1] : null
+    if (previous && previous.best_plan === entry.best_plan) return
+    changes.push({
+      index,
+      generation: entry.generation,
+      plan: entry.best_plan,
+      stops: entry.best_stops.length,
+      best: entry.best,
+      gain: previous ? entry.best - previous.best : 0,
+    })
+  })
+  return changes
 }
 
 /**

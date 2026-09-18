@@ -8,16 +8,22 @@ export function Panel({
   title,
   note,
   fill,
+  className,
   children,
 }: {
   title: string
   note?: string
   /** El contenido ocupa todo el alto en vez de medir lo que necesita. */
   fill?: boolean
+  /**
+   * Un gancho para que un panel con más filas que los demás pueda ajustar sus
+   * propias medidas sin tocar las del resto.
+   */
+  className?: string
   children: ReactNode
 }) {
   return (
-    <section className="panel">
+    <section className={className ? `panel ${className}` : 'panel'}>
       <header className="panel__head">
         <h2 className="panel__title">{title}</h2>
         {note ? <span className="panel__note">{note}</span> : null}
