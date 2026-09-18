@@ -860,6 +860,61 @@ vueltas estaba de nuevo 2.º con HAM 5.º.
 Degradar poco no es lo mismo que no degradar. Que el medio sea el mejor compuesto
 de Monza es la razón para tener **dos juegos frescos**, no para estirar uno.
 
+### La tercera prueba: qué compuesto elige el modelo, y qué eligen los equipos
+
+Monza y Madrid pusieron a prueba *cuándo* parar. Esta prueba es sobre *con qué
+largar*, y es la primera que señala una **pieza que falta en el modelo** en vez de
+un insumo mal medido.
+
+Desde que la búsqueda elige el compuesto de salida en lugar de recibirlo impuesto,
+se la puede contrastar contra lo que hicieron veintidós equipos reales. Para
+Zandvoort 2026 el modelo dice **blando 12, duro 9, medio 1**.
+
+Lo que la grilla hizo de verdad fue blando 14, medio 7, duro 1 — ocho coincidencias
+de veintidós. Pero esa comparación **no vale**, y por qué no vale es la mitad del
+hallazgo: Zandvoort tuvo **bandera roja en la vuelta 2 y veintiún autos pararon
+ahí**. El compuesto de largada duró dos vueltas y se cambió gratis. Elegir el que
+menos gusta y descartarlo bajo bandera es exactamente la jugada con la que
+Antonelli ganó Monza: tanda de cumplimiento, no preferencia.
+
+Separando las dos cosas sobre las catorce fechas de 2026:
+
+| | duro | medio | blando |
+|---|---|---|---|
+| tandas que corrieron de verdad (≥6 vueltas) | 0,114 | **0,741** | 0,145 |
+| tandas de cumplimiento (<6 vueltas) | 0,121 | 0,439 | **0,439** |
+
+**El blando triplica su presencia cuando la tanda es un trámite.** Los blandos de
+Zandvoort eran mayoritariamente cumplimiento.
+
+Con la muestra limpia — sólo autos que efectivamente corrieron con lo que
+eligieron — la elección real es abrumadora:
+
+| banda de grilla | duro | medio | blando |
+|---|---|---|---|
+| P1-P5 | 0,019 | **0,815** | 0,167 |
+| P6-P10 | 0,056 | **0,852** | 0,093 |
+| P11-P15 | 0,145 | **0,782** | 0,073 |
+| P16-P22 | 0,215 | **0,554** | 0,231 |
+
+El modelo pone medio **una vez de veintidós**; la realidad lo pone entre el 55% y
+el 85% según dónde largue. Y se equivoca **en los dos extremos a la vez**: pone de
+más el blando y de más el duro.
+
+**Por qué, y es estructural.** El simulador modela una sola propiedad del
+neumático: cuánto se degrada por vuelta. No modela cuánto más rápido es un
+compuesto que otro con goma nueva —
+`COMPOUND_OFFSET_S` está en cero, y la sección 4 explica que medirlo no se pudo.
+
+Sin esa segunda dimensión, **un compuesto que es intermedio en todo no puede ganar
+nunca**: siempre hay otro que lo domina en la única dimensión que el modelo ve. Por
+eso elige los extremos — el blando cuando quiere pocas vueltas, el duro cuando
+quiere muchas. El medio gana en la realidad por el *balance* entre ritmo y
+durabilidad, y **ése es un argumento que el modelo no puede formular.**
+
+Es la limitación más cara que tiene el trabajo, y ahora está medida contra una
+grilla real en vez de declarada como sospecha.
+
 ### Por qué es difícil ganarle a una regla razonable
 
 Desde mitad de carrera el espacio de planes es casi unidimensional: una parada, y
