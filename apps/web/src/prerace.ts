@@ -76,6 +76,15 @@ export interface PreRaceCar {
    */
   start_compound: DryCompound
   /**
+   * Cuándo **podría** parar, proyectado. `null` si no hay cruce proyectable.
+   *
+   * No es el plan, que es cuándo **va a** parar y vive en `stops`. Se proyecta
+   * con el desgaste medido del compuesto con el que larga y no con un ritmo
+   * propio, porque antes de largar ningún auto tiene historia de la cual sacarlo:
+   * dos autos que largan con lo mismo tienen la misma ventana, y está bien.
+   */
+  pit_window: { opens_lap: number; closes_lap: number } | null
+  /**
    * Con qué vara se eligió entre los tres compuestos de salida.
    *
    * No se pueden comparar directamente: cada corrida resuelve su propio objetivo
@@ -505,7 +514,9 @@ export const PRERACE_GRID: DriverState[] = PRERACE_CARS.map((car) => ({
   degradationRate: medianOf(PRERACE.model.wear_cuts_s_lap[car.start_compound]),
   gapAheadS: null,
   gapLeaderS: null,
-  pitWindow: null,
+  pitWindow: car.pit_window
+    ? { opensLap: car.pit_window.opens_lap, closesLap: car.pit_window.closes_lap }
+    : null,
   paceS: car.pace_s,
 }))
 

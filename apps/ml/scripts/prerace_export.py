@@ -102,7 +102,7 @@ from pathlib import Path
 
 import numpy as np
 
-from boxbox_ml import qualifying, strategy
+from boxbox_ml import insights, qualifying, strategy
 from boxbox_ml.qualifying import Entry, Qualifying
 from boxbox_ml.strategy import (
     Car,
@@ -580,7 +580,66 @@ def option_entry(option: StartOption, chosen: bool, laps: int) -> dict:
     }
 
 
-def car_entry(run: CarRun, laps: int) -> dict:
+#: Cuánto desgaste está dispuesto a absorber un equipo antes de parar, en
+#: segundos por vuelta. Es el mismo valor por omisión de :func:`insights.pit_window`
+#: y el que usa ``scripts/broadcast_demo.py``.
+WINDOW_TOLERANCE_S = 1.0
+
+#: Vueltas que se espera que dure el PRÓXIMO juego, para saber cuándo la ventana
+#: se cierra por quedarse sin carrera.
+#:
+#: Es el mismo valor que usa ``scripts/broadcast_demo.py``, para que los dos
+#: productos digan lo mismo. Y es del próximo juego y no del actual: pasar la vida
+#: del compuesto que el auto lleva puesto hacía que el duro —que dura más— cerrara
+#: su ventana ANTES que el blando, que es al revés de lo razonable. Antes de
+#: largar no se sabe con qué va a cambiar, así que el valor es neutral: la mediana
+#: medida de vida de una tanda va de 13 vueltas en blando a 25 en duro.
+EXPECTED_NEXT_STINT = 22
+
+
+def projected_window(car: Car, model: RaceModel) -> dict[str, int] | None:
+    """La ventana de parada proyectada para un auto que todavía no largó.
+
+    Es una cantidad distinta del plan y hay que mantenerlas separadas: la ventana
+    dice **cuándo podría** parar y el plan dice **cuándo va a**. La web ya las
+    distingue en pantalla; acá se exportan las dos.
+
+    El ritmo de caída con el que se proyecta **no es el del auto**, porque antes
+    de largar ningún auto tiene historia de la cual sacarlo. Es el del **compuesto
+    con el que larga**, medido en este circuito. Eso hace que la ventana
+    diferencie por compuesto y por nada más, que es exactamente lo que se sabe en
+    la grilla: dos autos que largan con lo mismo tienen la misma ventana, y está
+    bien que así sea.
+
+    Args:
+        car: El auto, con el compuesto que la búsqueda le eligió.
+        model: El modelo del circuito, de donde sale el desgaste medido.
+
+    Returns:
+        ``{"opens_lap", "closes_lap"}`` en numeración de vueltas de carrera, o
+        ``None`` si no hay cruce proyectable.
+    """
+    rate = model.wear_cuts[car.compound][len(strategy.CUT_AT) // 2]
+    driver = insights.Driver(
+        code=car.code,
+        compound=car.compound,
+        tyre_age=car.tyre_age,
+        degradation_s=car.degradation_s,
+        degradation_rate=rate,
+    )
+    window = insights.pit_window(
+        driver,
+        laps_remaining=model.total_laps - car.from_lap,
+        expected_stint_life=EXPECTED_NEXT_STINT,
+        tolerance_s=WINDOW_TOLERANCE_S,
+    )
+    if window is None:
+        return None
+    opens, closes = window
+    return {"opens_lap": car.from_lap + opens, "closes_lap": car.from_lap + closes}
+
+
+def car_entry(run: CarRun, laps: int, model: RaceModel) -> dict:
     """Todo lo que la vista necesita de un auto, en un objeto.
 
     Los campos de siempre describen la salida **elegida**, que es la
@@ -604,6 +663,11 @@ def car_entry(run: CarRun, laps: int) -> dict:
         "gap_to_pole_s": entry.gap_to_pole_s,
         "pace_s": round(car.pace_s or 0.0, 4),
         "start_compound": car.compound,
+        # La ventana proyectada, que NO es el plan. Ver projected_window: acá dice
+        # cuándo podría parar y `stops` dice cuándo va a parar. Sin esto, las
+        # gráficas de ventana y de amenaza de undercut quedan inertes en este
+        # origen, que es como estaban hasta ahora.
+        "pit_window": projected_window(car, model),
         # Con qué se compararon las tres salidas. Sin esto, «eligió el duro» no
         # dice si lo eligió por puntos o por puestos, que no es lo mismo.
         "start_yardstick": run.yardstick,
@@ -823,7 +887,7 @@ def main() -> None:
             flush=True,
         )
 
-    cars = [car_entry(run, model.total_laps) for run in runs]
+    cars = [car_entry(run, model.total_laps, model) for run in runs]
     every = [option for run in runs for option in run.options]
 
     payload = {

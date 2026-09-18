@@ -177,8 +177,14 @@ export function RaceView({
    * Sin esto las dos tarjetas explicaban ese `null` como «la goma está plana» y
    * «no va a parar», que en ese origen son afirmaciones que nadie midió — y la
    * segunda además es falsa, porque el auto tiene plan y para.
+   *
+   * **Ya no hace falta distinguir por origen**: el export pre-carrera ahora trae
+   * la ventana proyectada de cada auto, y un `null` significa lo mismo en los dos
+   * lados —no hay cruce proyectable— así que la bandera se decide por el dato y
+   * no por de dónde vino. Se deja porque sigue siendo verdad que un origen sin
+   * ventanas existiría, y explicarlo mal fue el error que esto vino a atajar.
    */
-  const windowsProjected = plans === null
+  const windowsProjected = cars.some((car) => car.pitWindow !== null)
 
   const threat = useMemo(
     () => undercutThreat(cars, timing, scenarioLap, focalIndex, windowsProjected),

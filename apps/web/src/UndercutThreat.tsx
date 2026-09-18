@@ -50,7 +50,10 @@ function idleText(reason: NoThreatReason, chaser: string | null, gap: number | n
     case 'nobody-behind':
       return 'nadie atrás: va último'
     case 'chaser-no-window':
-      return `${chaser ?? 'el de atrás'} no está en ventana: no va a parar`
+      // «no va a parar» seria mentira: casi todos paran, y el plan lo dice. Lo
+      // que la ventana sostiene es que no esta POR parar ahora, que es otra
+      // cosa y es la que importa para un undercut.
+      return `${chaser ?? 'el de atrás'} no está en ventana: no está por parar`
     case 'chaser-far':
       return `${chaser ?? 'el de atrás'} a ${fmt(gap ?? 0, 1)} s, fuera de rango (${fmt(
         IN_RANGE_S,
