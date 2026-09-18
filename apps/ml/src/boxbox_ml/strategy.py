@@ -1205,6 +1205,13 @@ class Generation:
     #: Cómo se reparte la población entre cantidades de parada, en el mismo formato
     #: que :attr:`Search.stop_distribution`.
     stop_distribution: dict[int, float]
+    #: El plan que sacó esa aptitud. Sin él el registro muestra que la búsqueda
+    #: mejora pero no **qué** encontró, y la diferencia entre «el valor subió en la
+    #: generación 12» y «en la generación 12 pasó de dos paradas al duro a tres»
+    #: es la diferencia entre un gráfico y una explicación.
+    #:
+    #: ``None`` sólo si la población llegó vacía, que no pasa.
+    best_plan: Plan | None = None
 
 
 def _stop_shares(plans: Sequence[Plan]) -> dict[int, float]:
@@ -1228,10 +1235,12 @@ def _stop_shares(plans: Sequence[Plan]) -> dict[int, float]:
 
 def _generation(index: int, scored: Sequence[tuple[Plan, float]]) -> Generation:
     """Anotar el estado de una población sin exigirle que venga ordenada."""
+    champion = max(scored, key=lambda pair: pair[1])
     return Generation(
         index=index,
-        best=max(value for _, value in scored),
+        best=champion[1],
         stop_distribution=_stop_shares([plan for plan, _ in scored]),
+        best_plan=champion[0],
     )
 
 

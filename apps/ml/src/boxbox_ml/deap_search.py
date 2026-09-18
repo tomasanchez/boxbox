@@ -130,6 +130,18 @@ def _shares_of(individuals: list) -> tuple[tuple[int, float], ...]:
     return tuple(_stop_shares([Plan(tuple(individual)) for individual in individuals]).items())
 
 
+def _champion_of(individuals: list) -> tuple:
+    """Las paradas del mejor individuo de la población.
+
+    Se anota como tupla de :class:`~boxbox_ml.strategy.Stop` y no como texto,
+    porque el registro tiene que servir para reconstruir el plan y no sólo para
+    mostrarlo. Un ``dict`` acá volvería a romper ``Logbook.record``; una tupla de
+    dataclasses la anota tal cual.
+    """
+    best = max(individuals, key=lambda individual: individual.fitness.values[0])
+    return tuple(best)
+
+
 def _stop_statistics() -> tools.Statistics:
     """Estadística que mira el individuo entero y no su aptitud.
 
@@ -140,6 +152,7 @@ def _stop_statistics() -> tools.Statistics:
     """
     statistics = tools.Statistics()
     statistics.register("shares", _shares_of)
+    statistics.register("champion", _champion_of)
     return statistics
 
 
@@ -151,11 +164,17 @@ def _history(logbook: tools.Logbook) -> tuple[Generation, ...]:
     motor propio, así que los dos registros se leen igual y son comparables.
     """
     return tuple(
-        Generation(index=int(gen), best=float(best), stop_distribution=dict(shares))
-        for gen, best, shares in zip(
+        Generation(
+            index=int(gen),
+            best=float(best),
+            stop_distribution=dict(shares),
+            best_plan=Plan(tuple(champion)),
+        )
+        for gen, best, shares, champion in zip(
             logbook.select("gen"),
             logbook.chapters["fitness"].select("max"),
             logbook.chapters["stops"].select("shares"),
+            logbook.chapters["stops"].select("champion"),
             strict=True,
         )
     )

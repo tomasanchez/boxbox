@@ -347,6 +347,21 @@ def car_entry(entry: Entry, car: Car, found: Search, laps: int) -> dict:
                 "stop_distribution": {
                     str(k): round(v, 4) for k, v in generation.stop_distribution.items()
                 },
+                # El plan que sacó ese valor, para que el registro muestre QUÉ
+                # encontró la búsqueda y no sólo que mejoró.
+                "best_plan": (
+                    generation.best_plan.describe(car, laps)
+                    if generation.best_plan is not None
+                    else None
+                ),
+                "best_stops": (
+                    [
+                        {"lap": stop.lap, "compound": stop.compound}
+                        for stop in generation.best_plan.stops
+                    ]
+                    if generation.best_plan is not None
+                    else []
+                ),
             }
             for generation in found.history
         ],

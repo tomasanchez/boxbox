@@ -175,3 +175,24 @@ def test_instrumentar_no_cambia_el_resultado(
     assert encendida.mean_points == apagada.mean_points
     assert encendida.decision_value == apagada.decision_value
     assert encendida.alternatives == apagada.alternatives
+
+
+@pytest.mark.parametrize("engine", [Engine.BUILTIN, Engine.DEAP])
+def test_cada_generacion_trae_el_plan_que_saco_ese_valor(
+    focal: Car, rivals: list[Car], rival_plans: list[Plan], engine: Engine
+) -> None:
+    """Sin el plan, el registro muestra que la búsqueda mejora pero no qué encontró.
+
+    Se verifica lo que de verdad importa, que no es que el campo esté lleno sino
+    que el plan anotado sea **el que saca ese valor**: la última generación es la
+    que eligió el plan final, así que tienen que coincidir, y su valor tiene que
+    ser el puntaje en muestra que la búsqueda reporta.
+    """
+    found = search(focal, rivals, rival_plans, instrument=True, engine=engine)
+
+    assert all(one.best_plan is not None for one in found.history)
+    assert found.history[-1].best_plan.stops == found.best.stops
+    assert found.history[-1].best == pytest.approx(found.score_in_sample)
+    # El mejor nunca empeora: la élite sobrevive a cada generación.
+    valores = [one.best for one in found.history]
+    assert valores == sorted(valores)
