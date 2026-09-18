@@ -161,6 +161,15 @@ export interface Timing {
   gapAhead: (number | null)[]
   /** Distancia en segundos al líder. */
   gapLeader: number[]
+  /**
+   * Quién está en boxes ahora mismo.
+   *
+   * La torre necesita decirlo: un auto detenido en el pit lane no tiene un
+   * intervalo que signifique nada, igual que uno formado en la parrilla. Sin
+   * esto, la columna mostraba el hueco creciendo como si lo estuviera perdiendo
+   * en pista.
+   */
+  inPit: boolean[]
 }
 
 export interface FieldState {
@@ -195,6 +204,72 @@ function approach(current: number, target: number, rate: number, dt: number): nu
 
 function clamp(value: number, low: number, high: number): number {
   return Math.min(high, Math.max(low, value))
+}
+
+/**
+ * Cuánto de la línea para adelante sigue contando como estar entrando a boxes.
+ *
+ * Los autos que van **delante** del de referencia cruzaron la meta un instante
+ * antes que él, así que cuando el contador de vueltas cambia ya la pasaron. Sin
+ * margen, `Math.ceil` los manda a la línea siguiente y hacen su parada una
+ * vuelta tarde: medido, le pasaba a uno de los treinta y seis por carrera.
+ *
+ * 0,02 vueltas son 1,6 s de carrera y 85 m de Zandvoort: alcanza para los que
+ * cruzaron **en el mismo momento** y no para el que va liderando —que a veces
+ * saca 0,14 vueltas— y que sí tiene que esperar a la próxima.
+ */
+const PIT_ENTRY_REACH = 0.02
+
+/**
+ * Avance real de un auto que debe una parada.
+ *
+ * Rueda hasta la línea de largada —ahí está la entrada al pit lane— y recién
+ * ahí se queda quieto, pagando la deuda con lo que habría avanzado. Expresar la
+ * pérdida en avance cedido y no en distancia restada es lo que la deja medida
+ * en tiempo de carrera, que es como se mide una parada; y un auto no retrocede.
+ *
+ * Vale para **todos, incluida la cabeza**. Antes el primero del arreglo pagaba
+ * su parada donde estuviera y la torre nunca podía declararlo, porque a ese
+ * auto no se le anotaba la línea. Corriendo desde la largada ese es el de la
+ * pole, que además es el piloto que la vista trae elegido: la única parada que
+ * el usuario mira de cerca era justo la que no se veía.
+ *
+ * Devuelve el avance del cuadro y actualiza la deuda y la línea en el lugar.
+ */
+function payPitStop(
+  car: number,
+  travelled: number,
+  advance: number,
+  /**
+   * En qué vuelta entera entraría a boxes si la deuda naciera ahora. Se calcula
+   * distinto para la cabeza que para el resto; ver los dos usos en el bucle.
+   */
+  entryLine: number,
+  stall: number[],
+  pitLine: (number | null)[],
+): number {
+  const owed = stall[car] ?? 0
+  if (owed <= 0) return advance
+
+  // Se anota la línea la primera vez y después se respeta: al llegar, el avance
+  // queda en un entero más un epsilon, y recalcular apuntaría a la vuelta
+  // siguiente — el auto saldría de boxes y volvería a entrar.
+  const line = pitLine[car] ?? entryLine
+  pitLine[car] = line
+
+  const toLine = Math.max(0, line - travelled)
+  // Todavía viene llegando: sigue girando y su intervalo sigue siendo real.
+  if (advance <= toLine) return advance
+
+  const left = owed - Math.min(owed, advance - toLine)
+  stall[car] = left
+  // Mientras deba, no pasa de la línea. Sin este tope un cuadro largo —a 4× lo
+  // son— pagaba la parada entera y cruzaba de una, así que el auto nunca se
+  // veía detenido y la torre nunca llegaba a decir BOXES.
+  if (left > 0) return toLine
+
+  pitLine[car] = null
+  return advance - owed
 }
 
 /**
@@ -283,6 +358,7 @@ export function useField(
     order: drivers.map((_, i) => i),
     gapAhead: drivers.map((d) => d.gapAheadS ?? null),
     gapLeader: drivers.map((d) => d.gapLeaderS ?? 0),
+    inPit: drivers.map(() => false),
   }))
   const lastTiming = useRef(0)
 
@@ -325,6 +401,13 @@ export function useField(
   // Deuda de avance por la parada, y cuánto de la pérdida total ya se convirtió
   // en deuda. Sin lo segundo, cada cuadro volvería a cobrar la misma parada.
   const stall = useRef<number[]>(paceNoise.map(() => 0))
+  // En qué vuelta entera entra a boxes cada auto que debe una parada, o nulo si
+  // no debe ninguna. Un auto no para en cualquier lado: la entrada al pit lane
+  // está en la línea de largada, así que hasta llegar ahí sigue girando. Antes
+  // la deuda se pagaba donde el auto estuviera cuando cambiaba la vuelta —el
+  // bucle de animación corre por su cuenta, sin sincronizar con el contador— y
+  // se veían autos detenidos en mitad de una curva. Ver `payPitStop`.
+  const pitLine = useRef<(number | null)[]>(paceNoise.map(() => null))
   const charged = useRef<number[]>(progressLost.slice())
   // Espejo para el salto de vuelta: ese efecto necesita el último valor sin
   // volver a correr cada vez que cambia, que reiniciaría la deuda a cada vuelta.
@@ -362,7 +445,13 @@ export function useField(
     const s = sim.current
     // Saltar de vuelta reubica el pelotón, así que la deuda pendiente ya no
     // corresponde: la parada de esa vuelta queda saldada por el reposicionamiento.
+    //
+    // La línea de boxes se borra **junto con** la deuda. Si quedara la vieja, el
+    // próximo que parara la encontraría ya anotada y la reusaría: una línea de
+    // otra vuelta, que después del salto queda o muy atrás —el auto para donde
+    // esté, en mitad de una curva— o vueltas adelante, y entonces no para nunca.
     stall.current = drivers.map(() => 0)
+    pitLine.current = drivers.map(() => null)
     charged.current = lost.current.slice()
     if (lap <= 1) {
       s.travelled = gridTravelled(drivers)
@@ -414,6 +503,26 @@ export function useField(
       // gana ni pierde terreno, así que no hay adelantamientos.
       const held = s.frozen
 
+      // La vuelta entera que el auto de referencia acaba de cruzar.
+      //
+      // La deuda de boxes no nace en este bucle sino cuando cambia el contador
+      // de vueltas, y ese contador lo dispara **el auto del índice 0 cruzando la
+      // meta** (ver el efecto `crossed` en App). Así que cuando a ese auto le
+      // toca parar, su entrada a boxes es la línea que acaba de pasar, no la
+      // siguiente: por eso es el único que no la calcula con `Math.ceil`.
+      //
+      // `round` y no `floor` porque para cuando React anota la deuda el auto ya
+      // se movió —medido, entre 0,0015 y 0,021 vueltas, lo peor a 4×, que es
+      // donde el cuadro dura más— y la línea correcta es la de atrás. `round`
+      // aguanta hasta media vuelta de atraso; con `Math.ceil` y un margen fijo
+      // de 0,02 vueltas no alcanzaba, porque a 4× ese margen son 15 ms de
+      // reloj, un solo cuadro: en cuanto React tardaba dos, ese auto hacía su
+      // parada **una vuelta tarde**, con la goma ya cambiada en la tabla y el
+      // auto todavía girando. Lo que no se puede arreglar desde acá es ese
+      // sobrepaso: el auto ya avanzó y de acá no se retrocede, así que se queda
+      // hasta 0,021 vueltas —90 m— pasando la línea.
+      const lapLine = Math.round(s.travelled[0])
+
       if (t.field === 'grid') {
         // Se elige la próxima línea de meta y la cabeza rueda hasta ahí, cada
         // vez más despacio, hasta detenerse encima. El margen evita elegir una
@@ -428,18 +537,14 @@ export function useField(
         gridLine.current = null
         // La cabeza dicta el ritmo (B5.12.2): avanza sola y el resto se acomoda
         // detrás.
-        // La cabeza **también paga su parada**. Antes no: el bucle descontaba
-        // la deuda de boxes sólo del segundo auto para atrás, así que el
-        // primero del arreglo entraba a boxes y salía sin perder nada. Con la
-        // carrera corriendo desde la largada eso era justo el auto de la pole.
-        let step = dt * base * carPace(cars[0], noise.current[0] ?? 0, held, RACE.greenLapS)
-        const owed = stall.current[0] ?? 0
-        if (owed > 0) {
-          const paid = Math.min(owed, step)
-          stall.current[0] = owed - paid
-          step -= paid
-        }
-        s.travelled[0] += step
+        // La cabeza **también paga su parada**, y la paga en la línea como
+        // todos: es el mismo `payPitStop` que corre para el resto del pelotón.
+        // Antes el bucle descontaba la deuda sólo del segundo auto para atrás,
+        // así que el primero del arreglo entraba a boxes y salía sin perder
+        // nada; y cuando empezó a pagarla, la pagaba donde estuviera y sin
+        // anotarse la línea, con lo cual la torre no podía declararlo.
+        const step = dt * base * carPace(cars[0], noise.current[0] ?? 0, held, RACE.greenLapS)
+        s.travelled[0] += payPitStop(0, s.travelled[0], step, lapLine, stall.current, pitLine.current)
       }
 
       // Sin intervalos medidos —la largada— el hueco deseado es el **cajón de
@@ -474,19 +579,21 @@ export function useField(
         // como estaban, y aplicar la corrección las devolvía a los valores del
         // dato original en vez de dejarlas quietas.
         const reforming = Math.max(s.uniform, s.gridded)
-        let advance = Math.max(0, dt * (own + correction * reforming))
+        const advance = Math.max(0, dt * (own + correction * reforming))
 
-        // El que está en boxes no avanza hasta saldar la deuda. Pagarla con lo
-        // que habría avanzado deja la pérdida expresada en tiempo de carrera,
-        // que es como se mide una parada.
-        const owed = stall.current[i] ?? 0
-        if (owed > 0) {
-          const paid = Math.min(owed, advance)
-          stall.current[i] = owed - paid
-          advance -= paid
-        }
-
-        s.travelled[i] += advance
+        // El que está en boxes no avanza hasta saldar la deuda, y sólo la paga
+        // cuando llega a la línea. Para los que no son el auto de referencia la
+        // entrada se calcula desde su propio avance y no desde `lapLine`: al que
+        // está doblado le toca **su** línea y no la de la cabeza, y al que ya
+        // pasó la suya por más que el margen, la próxima. Ver `payPitStop`.
+        s.travelled[i] += payPitStop(
+          i,
+          s.travelled[i],
+          advance,
+          Math.ceil(s.travelled[i] - PIT_ENTRY_REACH),
+          stall.current,
+          pitLine.current,
+        )
       }
 
       // El orden en pista sale de la distancia recorrida, así que un
@@ -537,7 +644,19 @@ export function useField(
       // La tabla se refresca aparte, más lento: ver TIMING_INTERVAL_MS.
       if (now - lastTiming.current >= TIMING_INTERVAL_MS) {
         lastTiming.current = now
-        setTiming({ formation: s.gridded > 0.5, order, gapAhead, gapLeader })
+        setTiming({
+          formation: s.gridded > 0.5,
+          order,
+          gapAhead,
+          gapLeader,
+          // Detenido en boxes es el que ya llegó a la línea y todavía debe: si
+          // no llegó, está girando y su intervalo sigue siendo real.
+          inPit: cars.map((_, i) => {
+            const owed = stall.current[i] ?? 0
+            const line = pitLine.current[i]
+            return owed > 0 && line !== null && s.travelled[i] >= line - 1e-9
+          }),
+        })
       }
       frame = requestAnimationFrame(tick)
     }

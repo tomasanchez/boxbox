@@ -56,18 +56,29 @@ function isOut(driver: DriverState, lap: number): boolean {
 function metricValue(
   d: DriverState,
   metric: Metric,
-  live: { gapAhead: number | null; gapLeader: number; place: number; formation: boolean },
+  live: {
+    gapAhead: number | null
+    gapLeader: number
+    place: number
+    formation: boolean
+    inPit: boolean
+  },
 ): { text: string; tone: 'normal' | 'gaining' | 'muted' } {
   switch (metric) {
     case 'interval':
       // Detenidos en formación no hay intervalo que medir.
       if (live.formation) return { text: '—', tone: 'muted' }
+      // Ni parado en boxes. El hueco al de adelante sigue creciendo mientras el
+      // auto está quieto, pero no lo está perdiendo en pista: lo está pagando en
+      // el pit lane, y mostrarlo como intervalo dice otra cosa.
+      if (live.inPit) return { text: 'BOXES', tone: 'muted' }
       return {
         text: live.gapAhead === null ? '—' : `+${fmt(live.gapAhead)}`,
         tone: 'normal',
       }
     case 'leader': {
       if (live.formation) return { text: live.place === 1 ? 'pole' : '—', tone: 'muted' }
+      if (live.inPit) return { text: 'BOXES', tone: 'muted' }
       if (live.place === 1) return { text: 'líder', tone: 'muted' }
       // Más de una vuelta de diferencia se dice en vueltas, como en la
       // transmisión: «+96,4» no avisa que ese auto está doblado. Pasa desde la
@@ -137,6 +148,7 @@ export function GridPanel({
         place: place.get(index) ?? 0,
         gapAhead: timing.gapAhead[index] ?? null,
         gapLeader: timing.gapLeader[index] ?? 0,
+        inPit: timing.inPit[index] ?? false,
       }))
       .sort((a, b) => {
         if (a.out !== b.out) return a.out ? 1 : -1
@@ -202,7 +214,7 @@ export function GridPanel({
           </TableHead>
 
           <TableBody>
-            {rows.map(({ driver: d, index, out, place, gapAhead, gapLeader }) => {
+            {rows.map(({ driver: d, index, out, place, gapAhead, gapLeader, inPit }) => {
               const w = d.pitWindow
               const stops = plans?.[index] ?? []
               const chosen = d.code === focal
@@ -211,6 +223,7 @@ export function GridPanel({
                 gapLeader,
                 place,
                 formation: timing.formation,
+                inPit,
               })
               return (
                 <TableRow
