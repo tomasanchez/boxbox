@@ -1,8 +1,23 @@
 /**
  * Simulador de estrategia — armazón.
  *
- * Todo entra en el viewport: el `.app` es una grilla de tres filas con la
- * última en `minmax(0,1fr)`, y ningún contenedor scrollea. Ver `styles.css`.
+ * **De 1024 px de ancho para arriba** todo entra en el viewport: el `.app` es
+ * una grilla de tres filas más la vista, la última en `minmax(0,1fr)`, y ningún
+ * contenedor scrollea. Ese es el diseño, y es el rango donde se toman las
+ * capturas de referencia.
+ *
+ * Abajo de 1024 el principio **se abandona a propósito**, porque sostenerlo
+ * ahí sólo se puede recortando dato:
+ *
+ *   768–1024  una sola columna con scroll vertical, en el orden de lectura de
+ *             una transmisión: torre de tiempos → mapa → tarjetas. Es el orden
+ *             que ya tiene el DOM, así que no se reordena nada: las tarjetas
+ *             del mapa dejan de ser capa absoluta y pasan a fluir.
+ *   < 768     sin soporte, y dicho en pantalla (`Viewport.tsx`). Abajo de ese
+ *             ancho `App` ni siquiera se monta.
+ *
+ * Todo eso vive en el bloque final de `styles.css`, que es donde está también
+ * la explicación de por qué el corte es 1024 y no otro número.
  *
  * Acá viven tres cosas que las tres vistas comparten y que por eso no pueden
  * vivir más abajo (ADR-007):

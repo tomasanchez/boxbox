@@ -1,12 +1,19 @@
 /*
  * Panel de estrategia — hoja de estilos.
  *
- * Restricción central: NADA SCROLLEA. Todo entra en el viewport.
+ * Restricción central, **de 1024 px de ancho para arriba**: NADA SCROLLEA.
+ * Todo entra en el viewport.
  *
  * En una grilla CSS los ítems tienen `min-height:auto` por defecto, así que un
  * hijo con mucho contenido estira la fila y rompe el alto fijo. Por eso cada
  * contenedor de la cadena lleva `min-height:0`. Si algo empieza a scrollear,
  * casi siempre falta ese `min-height:0` en algún nivel intermedio.
+ *
+ * Abajo de 1024 px la restricción se levanta a propósito y el panel pasa a una
+ * columna con scroll. Todo eso está junto al final del archivo, en el bloque
+ * «hasta tablet, y dicho»: leelo antes de tocar medidas, porque varias reglas
+ * de acá arriba (`height:100%`, `flex:1 1 0`, `minmax(0,1fr)`) suponen un alto
+ * definido que ahí deja de existir.
  */
 
 :root {
@@ -3288,4 +3295,350 @@ body {
   gap: 4px;
   font-weight: 800;
   color: var(--txt-1);
+}
+
+/* ============================================================ hasta tablet */
+
+/*
+ * Hasta tablet, y dicho.
+ *
+ * El principio del encabezado —nada scrollea, todo entra en el viewport— vale
+ * de 1024 px de ancho para arriba. Abajo de eso no se puede sostener sin
+ * recortar dato, así que se abandona a propósito y se acepta scroll vertical:
+ *
+ *   >= 1024   tres columnas, sin scroll. Es el diseño de referencia.
+ *   768-1024  UNA columna con scroll, en el orden de lectura de una
+ *             transmisión: torre de tiempos -> mapa -> tarjetas. Ese ya es el
+ *             orden del DOM, así que no se reordena nada: alcanza con que las
+ *             tarjetas del mapa dejen de ser capa absoluta y pasen a fluir.
+ *   < 768     sin soporte, y se dice en pantalla. Ver `Viewport.tsx`: abajo de
+ *             ese ancho `App` ni se monta.
+ *
+ * Por qué 1024 y no otro número: a 1024x768 —iPad horizontal— las tres
+ * columnas entran sin que se corte nada. Está medido, no supuesto. A 834 de
+ * ancho ya se recorta. El corte va donde deja de entrar.
+ *
+ * Lo que rompe al pasar a alto automático, y por eso está casi todo este
+ * bloque: `height:100%`, `flex:1 1 0` y las filas `minmax(0,1fr)` suponen un
+ * contenedor de alto definido. Sin él `100%` se vuelve `auto`, y un `1 1 0`
+ * sin espacio libre que repartir colapsa a su `min-height` — que es como el
+ * gráfico de la evolución y el histograma se quedaban en una tira de 30 px.
+ */
+@media (max-width: 1023.98px) {
+  /*
+   * Tipografía y aire con piso fijo. La escala fluida de arriba toca su mínimo
+   * justo en este rango (8,5 px de `--fs-micro` a 768 de ancho), y eso se lee
+   * a 40 cm de un monitor pero no en una tablet en la mano. Ya que hay scroll,
+   * el alto deja de ser el recurso escaso.
+   */
+  :root {
+    --fs-micro: 10px;
+    --fs-tiny: 12px;
+    --fs-sm: 12px;
+    --fs-md: 14px;
+    --fs-lg: 18px;
+    --fs-xl: 24px;
+    --fs-huge: 30px;
+
+    --gap: 8px;
+    --pad: 10px;
+  }
+
+  /* ------------------------------------------ el documento vuelve a scrollear */
+
+  html,
+  body,
+  #root {
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
+  }
+
+  .app {
+    height: auto;
+    min-height: 100dvh;
+    /* La última fila ya no reparte el alto sobrante: mide lo que necesita. */
+    grid-template-rows: auto auto auto auto;
+  }
+
+  /*
+   * La cabecera se queda a la vista. En una columna la vista pre-carrera pasa
+   * de los 2.000 px de alto, y sin esto cambiar de pestaña obliga a volver
+   * hasta arriba de todo. La primera sombra no tiene desenfoque: es la que
+   * tapa la franja de padding que queda por encima al pegarse.
+   */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--gap);
+    box-shadow:
+      0 calc(var(--gap) * -1) 0 var(--bg-0),
+      0 6px 14px rgba(0, 0, 0, 0.5);
+  }
+
+  /* Pestañas y escenarios a todo el ancho, con objetivos cómodos para el dedo. */
+  .tabs {
+    justify-self: stretch;
+  }
+
+  .tab {
+    flex: 1 1 0;
+    min-height: 40px;
+    text-align: center;
+  }
+
+  .scenario {
+    min-height: 34px;
+  }
+
+  /* Cinco KPI en una fila no entran: dos por fila, y la reproducción entera. */
+  .strip {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .kpi--wide {
+    grid-column: 1 / -1;
+  }
+
+  /* Tres textos y el último pegado a la derecha: que baje en vez de apretarse. */
+  .statusbar {
+    flex-wrap: wrap;
+  }
+
+  /* -------------------------------------------------------------- una columna */
+
+  .view--race,
+  .view--forecast,
+  .view--prerace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /*
+   * Las pilas repartían el alto de la columna entre sus filas con
+   * `minmax(0,1fr)`. Sin alto que repartir eso no quiere decir nada: cada
+   * panel mide lo suyo.
+   */
+  .stack,
+  .stack--centre,
+  .stack--forecast-left,
+  .stack--forecast-right,
+  .stack--prerace-left,
+  .stack--prerace-mid,
+  .stack--prerace-right {
+    grid-template-rows: none;
+  }
+
+  /* ------------------------------------------------------------------ el mapa */
+
+  /*
+   * El trazado es geometría real y no se deforma: el `preserveAspectRatio` del
+   * SVG sigue siendo `xMidYMid meet`. Lo único que cambia es la caja, que pasa
+   * a tener la proporción del propio viewBox (-40 -40 1080 932), así que el
+   * mapa la llena sin bandas y sin estirarse. El tope en `vh` evita que en una
+   * tablet vertical el circuito se coma la pantalla entera.
+   */
+  .circuit {
+    height: auto;
+    /* El aire de los costados lo pone la regla de «etiquetas», más abajo. */
+    padding-block: 0;
+  }
+
+  .circuit svg {
+    height: auto;
+    aspect-ratio: 1080 / 932;
+    max-height: 62vh;
+  }
+
+  /* ---------------------------------------------- las tarjetas, ya no encima */
+
+  /*
+   * Dejan de ser capa y pasan a fluir debajo del mapa, en el orden en que ya
+   * están escritas. Sin mapa debajo no hace falta el halo que las despegaba
+   * del trazado, ni los anchos fijos que las mantenían chicas para no taparlo.
+   */
+  .overlay {
+    position: static;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: var(--gap);
+    margin-top: var(--gap);
+    pointer-events: auto;
+  }
+
+  .overlay--top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .overlay__row,
+  .overlay__rail {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: stretch;
+  }
+
+  /* La referencia de compuestos se lleva su propia línea. */
+  .overlay__legend {
+    flex: 1 1 100%;
+  }
+
+  .battle,
+  .bf {
+    width: auto;
+    max-width: none;
+    flex: 1 1 320px;
+    box-shadow: none;
+  }
+
+  .pw,
+  .ut,
+  .insight,
+  .inpit {
+    width: auto;
+    flex: 1 1 250px;
+    box-shadow: none;
+  }
+
+  /* Minimizada, la tarjeta se sigue encogiendo a su cabecera. */
+  .battle:has(.card__toggle[aria-expanded='false']),
+  .bf:has(.card__toggle[aria-expanded='false']),
+  .pw:has(.card__toggle[aria-expanded='false']),
+  .ut:has(.card__toggle[aria-expanded='false']),
+  .insight:has(.card__toggle[aria-expanded='false']) {
+    flex: 0 0 auto;
+  }
+
+  /* --------------------------------------------------- lo que vivía de `1 1 0` */
+
+  /*
+   * Estos dos se estiraban con el panel. Sin alto sobrante que absorber
+   * colapsan a su `min-height`, así que acá se les da uno propio. Los valores
+   * salen de lo medido en escritorio: a 1280x720 el gráfico de la evolución
+   * queda en 40 px y el histograma en 34 —ya apretados—, y a 1920x1080 en 145
+   * y 175. En tablet se apunta a la parte alta de ese rango, que es lo que la
+   * animación de la búsqueda necesita para verse.
+   */
+  .evo__plot {
+    flex: 0 0 auto;
+    height: clamp(120px, 15vh, 180px);
+  }
+
+  .hist {
+    flex: 0 0 auto;
+    height: clamp(100px, 13vh, 170px);
+  }
+
+  /* ----------------------------------------- listas que se tocan con el dedo */
+
+  /*
+   * Las filas repartían el alto de la columna; ahora miden su contenido, que
+   * son unos 20 px. Un piso de 32 las deja tocables sin volverlas botones de
+   * formulario: esto sigue siendo un panel denso.
+   */
+  .picker {
+    grid-auto-rows: minmax(32px, auto);
+  }
+
+  .tower-table .MuiTableCell-root {
+    padding: 4px 6px;
+  }
+}
+
+/* -------------------------------------------------- 1024 a 1280: que respire */
+
+/*
+ * En ese rango entra todo, pero justo: a 1024 el mapa queda en 489 px y las
+ * tarjetas de duelo y pronóstico se encogen a 236 y 243 contra los 330 y 340
+ * que piden. La torre no necesita todo lo que se lleva —su contenido entra en
+ * menos—, así que se le baja el techo y el aire va al mapa, que es el que lo
+ * está pidiendo. Nada más: el resto del rango queda como estaba.
+ */
+@media (min-width: 1024px) and (max-width: 1279.98px) {
+  .view--race {
+    grid-template-columns: minmax(360px, 420px) minmax(420px, 1fr);
+  }
+}
+
+/* ----------------------------- aire lateral para las etiquetas del mapa */
+
+/*
+ * Las etiquetas de los autos salen del viewBox a propósito —para eso
+ * `.circuit svg` lleva `overflow: visible`— y lo que las corta es el
+ * `overflow: hidden` del panel. Sobre la parrilla completa, la que más se sale
+ * es LEC: 31 unidades de viewBox a la izquierda; OCO se sale 15 a la derecha.
+ * Sobre 1080 de ancho eso es 2,87% y 1,39%. Está medido, no estimado.
+ *
+ * Mientras al mapa le sobra ancho —el dibujo lo limita el alto— esas unidades
+ * caen en la banda vacía de los costados y no se ven. Abajo de 1280 el mapa
+ * pasa a estar limitado por el ancho, la banda desaparece y las etiquetas se
+ * van contra el borde del panel: a 1024 ya se comía 4 px de LEC antes de este
+ * trabajo, y a 1180, 7.
+ *
+ * 3,5% a cada lado alcanza con margen. El mínimo exacto es 2,72%, porque el
+ * aire también achica el dibujo y con él lo que se sale. De 1280 para arriba
+ * no se toca: ahí el mapa lo sigue limitando el alto y sobra banda.
+ */
+@media (max-width: 1279.98px) {
+  .circuit {
+    padding-inline: 3.5%;
+  }
+}
+
+/* ------------------------------------------- el aviso por debajo del piso */
+
+/*
+ * Lo único que se ve abajo de 768 px de ancho. Centrado, con aire y legible:
+ * es la pantalla entera, no una notificación al paso.
+ */
+.toosmall {
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  padding: clamp(16px, 6vw, 40px);
+  background: var(--bg-0);
+}
+
+.toosmall__alert {
+  /* Ancho de lectura, pero sin quedar perdido en el medio de un iPad girado. */
+  width: 100%;
+  max-width: 520px;
+  background: var(--bg-1);
+  border-color: var(--line-strong);
+}
+
+/*
+ * Dos clases y no una: `AlertTitle` es un `Typography` y su clase de emotion se
+ * inyecta en el `<head>` DESPUÉS de esta hoja, así que con la misma
+ * especificidad gana MUI y el título salía en peso 500 y 13,7 px — un párrafo
+ * en negrita, no un título. Es la misma maniobra que `.panel
+ * .MuiToggleButton-root` unas secciones más arriba.
+ */
+.toosmall .toosmall__title {
+  /* Es un `h1` dentro de un `AlertTitle`: el margen de abajo lo pone esta hoja. */
+  margin: 0 0 0.6em;
+  font-family: var(--sans);
+  font-size: var(--fs-lg);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+  color: var(--txt-0);
+}
+
+.toosmall__body {
+  margin: 0 0 0.8em;
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+  color: var(--txt-1);
+}
+
+.toosmall__foot {
+  margin: 0;
+  font-size: var(--fs-micro);
+  line-height: 1.5;
+  color: var(--txt-3);
 }
