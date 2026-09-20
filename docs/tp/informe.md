@@ -37,7 +37,7 @@ de paradas.
 
 Ese resultado corrige una versión anterior de este informe, que reportaba que el algoritmo apenas
 le ganaba a una regla simple. Esa conclusión salía de una comparación mal armada, a favor de la
-regla, y de cuatro defectos de método en la búsqueda. Las secciones 4, 5 y 6 documentan los ocho
+regla, y de cuatro defectos de método en la búsqueda. Las secciones 4, 5 y 6 documentan los nueve
 errores propios que se encontraron y corrigieron, porque todos daban números confiados y plausibles
 hasta que algo aguas abajo salió absurdo.
 
@@ -985,6 +985,53 @@ tiempos por vuelta: **el orden de las tandas determina a la vez qué compuesto
 lleva un auto y cuándo lo lleva**, así que compuesto y avance de carrera son
 colineales por construcción.
 
+Dos mediciones más lo aprietan desde otro lado, y son las más nítidas que tiene
+el trabajo porque se leen sin interpretar nada.
+
+*Repetir compuesto en la primera parada.* Los equipos casi no lo hacen: sobre 171
+pilotos-carrera de 2026 que llegaron a bandera habiendo corrido su primera tanda
+de verdad, **el 1,8%** —tres casos— pone el mismo compuesto en la primera parada,
+y los tres son medio-medio. Duro-duro no lo hizo nadie. El modelo lo hace en el
+**45,5%** de sus planes, y arranca `H27-H24-S20` para el poleman.
+
+*Cuántos compuestos distintos se usan.* En las carreras sin neutralización
+temprana, el **28,8%** de los pilotos usa los **tres**. El modelo usa dos el
+**100%** de las veces: exactamente el mínimo que B6.3.8 exige, y ni uno más.
+
+Las dos dicen lo mismo con distintas palabras. **El modelo trata los compuestos
+como un requisito que cumplir, no como herramientas con distinto equilibrio.**
+Sin escalón de ritmo, variar es puro costo: si el duro es el que menos se gasta
+se lo pone dos veces, y el segundo compuesto queda para el final como trámite —
+la jugada con la que Antonelli ganó Monza, pero aplicada siempre, que es lo que
+la delata.
+
+> **Tres cosas que también se midieron, y resultaron falsas.** Vale escribirlas
+> porque el error es de una familia que no estaba en la sección 7: no medir mal,
+> sino **leer mal lo medido**.
+>
+> *«El modelo propone demasiadas paradas.»* Salía de comparar sus dos paradas
+> contra el 43,8% de una parada de la temporada. Pero las carreras de 2026 no se
+> parecen entre sí —Japón y España rondan el 90% de una parada, Barcelona y
+> Austria el 0%, Mónaco tiene mediana de cinco— así que el promedio no describe
+> ninguna. En Zandvoort, que es lo que el modelo simula, **ningún auto de los
+> trece que llegaron hizo una parada**.
+>
+> *«Se apoya en los safety car para justificar la parada extra.»* Apagando las
+> tres banderas por completo, el plan de dos paradas le sigue ganando al de una
+> por los mismos 2,3 puntos. Barriendo **todos** los planes de una parada, el
+> mejor pierde **17,6 s** contra el mejor de dos. Lo que manda es el desgaste.
+>
+> *«Zandvoort contradice al modelo, que propone dos donde la mediana real es
+> tres.»* Al revés: **la roja de la vuelta 2 le regaló una parada a los trece
+> autos**, y los VSC de las vueltas 52-57 y 67-70 abarataron otra. Descontando
+> las regaladas, el **85%** hizo **dos paradas pagas** — que es justo lo que el
+> modelo propone para el 95,5% de la grilla.
+>
+> Lo incómodo de la tercera: es la tesis de Monza —el 90,6% de aquellas paradas
+> fueron bajo neutralización y eso invierte la cuenta— aplicada a otra carrera.
+> Estaba escrita en la sección 6 de este mismo informe y no se aplicó al leer una
+> tabla propia.
+
 **2. Los rivales no reaccionan.** Sus planes se sortean una vez y se congelan. Es
 lo que hace barata la búsqueda —una traza por rival, reusada para miles de
 candidatos— y es falso exactamente cuando dos autos se pelean, que es cuando
@@ -1069,8 +1116,11 @@ ventaja de reaccionar saldría optimista.
    referencia de pérdida de boxes que hacía parecer cara la parada bajo safety
    car; el escalado por circuito que duplicaba el tráfico de Zandvoort al revés;
    los planes comparados contra carreras distintas; una comparación amañada a
-   favor de la regla que invertía la conclusión principal; y una cifra de este
-   mismo informe que quedó rancia al aplicar B6.3.8 y que nadie volvió a medir.
+   favor de la regla que invertía la conclusión principal; una cifra de este
+   mismo informe que quedó rancia al aplicar B6.3.8 y que nadie volvió a medir; y
+   tres lecturas equivocadas de mediciones correctas, que es una familia aparte:
+   comparar contra el promedio de la temporada donde las carreras no se parecen
+   entre sí, y contar paradas totales donde había que contar las decididas.
    Todos daban números confiados y plausibles hasta que algo aguas abajo salió
    absurdo. El último es el más aleccionador: no hubo ningún error de cálculo, y
    el número siguió pareciendo correcto durante una semana.
