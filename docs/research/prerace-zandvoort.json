@@ -195,6 +195,10 @@
       "gap_to_pole_s": 0.0,
       "pace_s": 0.0,
       "start_compound": "HARD",
+      "pit_window": {
+        "opens_lap": 17,
+        "closes_lap": 50
+      },
       "start_yardstick": "points",
       "rival_start_compound": "SOFT",
       "rival_plan": "S25-M21-S12-S13",
@@ -863,6 +867,10 @@
       "gap_to_pole_s": 0.102,
       "pace_s": 0.0852,
       "start_compound": "HARD",
+      "pit_window": {
+        "opens_lap": 17,
+        "closes_lap": 50
+      },
       "start_yardstick": "points",
       "rival_start_compound": "SOFT",
       "rival_plan": "S25-H6-H40",
@@ -1537,6 +1545,10 @@
       "gap_to_pole_s": 0.133,
       "pace_s": 0.1111,
       "start_compound": "HARD",
+      "pit_window": {
+        "opens_lap": 17,
+        "closes_lap": 50
+      },
       "start_yardstick": "points",
       "rival_start_compound": "SOFT",
       "rival_plan": "S25-H6-H40",
@@ -2215,6 +2227,10 @@
       "gap_to_pole_s": 0.142,
       "pace_s": 0.1186,
       "start_compound": "SOFT",
+      "pit_window": {
+        "opens_lap": 16,
+        "closes_lap": 50
+      },
       "start_yardstick": "points",
       "rival_start_compound": "MEDIUM",
       "rival_plan": "M22-S25-S24",
@@ -2870,6 +2886,10 @@
       "gap_to_pole_s": 0.331,
       "pace_s": 0.2764,
       "start_compound": "SOFT",
+      "pit_window": {
+        "opens_lap": 16,
+        "closes_lap": 50
+      },
       "start_yardstick": "points",
       "rival_start_compound": "MEDIUM",
       "rival_plan": "M6-H29-S19-H17",
@@ -3531,6 +3551,10 @@
       "gap_to_pole_s": 0.395,
       "pace_s": 0.3298,
       "start_compound": "SOFT",
+      "pit_window": {
+        "opens_lap": 16,
+        "closes_lap": 50
+      },
       "start_yardstick": "points",
       "rival_start_compound": "SOFT",
       "rival_plan": "S25-H6-H40",
@@ -4188,6 +4212,10 @@
       "gap_to_pole_s": 0.455,
       "pace_s": 0.3799,
       "start_compound": "HARD",
+      "pit_window": {
+        "opens_lap": 17,
+        "closes_lap": 50
+      },
       "start_yardstick": "points",
       "rival_start_compound": "MEDIUM",
       "rival_plan": "M22-S25-S24",
@@ -4867,6 +4895,10 @@
       "gap_to_pole_s": 0.57,
       "pace_s": 0.4759,
       "start_compound": "HARD",
+      "pit_window": {
+        "opens_lap": 17,
+        "closes_lap": 50
+      },
       "start_yardstick": "points",
       "rival_start_compound": "HARD",
       "rival_plan": "H41-M30",
@@ -5543,6 +5575,10 @@
       "gap_to_pole_s": 0.916,
       "pace_s": 0.7649,
       "start_compound": "SOFT",
+      "pit_window": {
+        "opens_lap": 16,
+        "closes_lap": 50
+      },
       "start_yardstick": "points",
       "rival_start_compound": "SOFT",
       "rival_plan": "S25-M31-S15",
@@ -6204,6 +6240,10 @@
       "gap_to_pole_s": 1.022,
       "pace_s": 0.8534,
       "start_compound": "HARD",
+      "pit_window": {
+        "opens_lap": 17,
+        "closes_lap": 50
+      },
       "start_yardstick": "points",
       "rival_start_compound": "SOFT",
       "rival_plan": "S25-S25-H21",
@@ -6853,6 +6893,10 @@
       "gap_to_pole_s": 1.453,
       "pace_s": 1.2133,
       "start_compound": "SOFT",
+      "pit_window": {
+        "opens_lap": 16,
+        "closes_lap": 50
+      },
       "start_yardstick": "points",
       "rival_start_compound": "MEDIUM",
       "rival_plan": "M26-M16-S6-H23",
@@ -7518,6 +7562,10 @@
       "gap_to_pole_s": 1.464,
       "pace_s": 1.2224,
       "start_compound": "SOFT",
+      "pit_window": {
+        "opens_lap": 16,
+        "closes_lap": 50
+      },
       "start_yardstick": "points",
       "rival_start_compound": "MEDIUM",
       "rival_plan": "M31-H40",
@@ -8178,6 +8226,10 @@
       "gap_to_pole_s": 1.634,
       "pace_s": 1.3644,
       "start_compound": "SOFT",
+      "pit_window": {
+        "opens_lap": 16,
+        "closes_lap": 50
+      },
       "start_yardstick": "points",
       "rival_start_compound": "HARD",
       "rival_plan": "H15-H27-M14-H15",
@@ -8853,6 +8905,10 @@
       "gap_to_pole_s": 1.637,
       "pace_s": 1.3669,
       "start_compound": "HARD",
+      "pit_window": {
+        "opens_lap": 17,
+        "closes_lap": 50
+      },
       "start_yardstick": "points",
       "rival_start_compound": "MEDIUM",
       "rival_plan": "M31-H40",
@@ -9416,6 +9472,10 @@
       "gap_to_pole_s": 1.974,
       "pace_s": 1.6483,
       "start_compound": "SOFT",
+      "pit_window": {
+        "opens_lap": 16,
+        "closes_lap": 50
+      },
       "start_yardstick": "position",
       "rival_start_compound": "MEDIUM",
       "rival_plan": "M31-H40",
@@ -10076,6 +10136,10 @@
       "gap_to_pole_s": 2.019,
       "pace_s": 1.6859,
       "start_compound": "SOFT",
+      "pit_window": {
+        "opens_lap": 16,
+        "closes_lap": 50
+      },
       "start_yardstick": "position",
       "rival_start_compound": "MEDIUM",
       "rival_plan": "M31-S25-S15",
@@ -10725,6 +10789,10 @@
       "gap_to_pole_s": 2.411,
       "pace_s": 2.0132,
       "start_compound": "HARD",
+      "pit_window": {
+        "opens_lap": 17,
+        "closes_lap": 50
+      },
       "start_yardstick": "position",
       "rival_start_compound": "MEDIUM",
       "rival_plan": "M31-M6-M6-H28",
@@ -11381,6 +11449,10 @@
       "gap_to_pole_s": 2.487,
       "pace_s": 2.0766,
       "start_compound": "SOFT",
+      "pit_window": {
+        "opens_lap": 16,
+        "closes_lap": 50
+      },
       "start_yardstick": "position",
       "rival_start_compound": "HARD",
       "rival_plan": "H41-M30",
@@ -12043,6 +12115,10 @@
       "gap_to_pole_s": 2.655,
       "pace_s": 2.2169,
       "start_compound": "MEDIUM",
+      "pit_window": {
+        "opens_lap": 12,
+        "closes_lap": 50
+      },
       "start_yardstick": "position",
       "rival_start_compound": "SOFT",
       "rival_plan": "S6-S6-S6-S25-M28",
@@ -12718,6 +12794,10 @@
       "gap_to_pole_s": 2.663,
       "pace_s": 2.2236,
       "start_compound": "SOFT",
+      "pit_window": {
+        "opens_lap": 16,
+        "closes_lap": 50
+      },
       "start_yardstick": "position",
       "rival_start_compound": "MEDIUM",
       "rival_plan": "M31-H40",
@@ -13372,6 +13452,10 @@
       "gap_to_pole_s": 3.208,
       "pace_s": 2.6787,
       "start_compound": "SOFT",
+      "pit_window": {
+        "opens_lap": 16,
+        "closes_lap": 50
+      },
       "start_yardstick": "position",
       "rival_start_compound": "MEDIUM",
       "rival_plan": "M27-H7-M31-S6",
@@ -14033,6 +14117,10 @@
       "gap_to_pole_s": 3.437,
       "pace_s": 2.8699,
       "start_compound": "HARD",
+      "pit_window": {
+        "opens_lap": 17,
+        "closes_lap": 50
+      },
       "start_yardstick": "position",
       "rival_start_compound": "SOFT",
       "rival_plan": "S15-S22-S8-H26",
