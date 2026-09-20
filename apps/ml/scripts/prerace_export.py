@@ -805,7 +805,11 @@ def main() -> None:
         print(f"  afuera: {out.code} - {out.reason}")
     wear = {c: round(cuts[4], 4) for c, cuts in model.wear_cuts.items()}
     print(f"desgaste mediano de {quali.circuit}, s/vuelta: {wear}")
-    print(f"pérdida de boxes en verde (p25, mediana, p75): {model.pit_loss_green}")
+    mid = len(strategy.CUT_AT) // 2
+    print(
+        f"pérdida de boxes en verde: mediana {model.pit_loss_green[mid]:.1f} s, "
+        f"p95 {model.pit_loss_green[-1]:.1f} s ({len(model.pit_loss_green)} cortes medidos)"
+    )
     print(f"safety car en {1 - model.n_sc[0]:.0%} de las carreras, VSC en {1 - model.n_vsc[0]:.0%}")
     print(
         f"búsqueda: población {args.population}, {args.generations} generaciones, "

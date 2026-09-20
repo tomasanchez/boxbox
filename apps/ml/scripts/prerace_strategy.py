@@ -119,7 +119,11 @@ print("recommendation can actually answer.")
 print()
 print(f"median wear per compound: { ({k: round(v, 4) for k, v in MEDIAN_WEAR.items()}) }")
 print(f"longest stint the evidence covers: {strategy.MAX_STINT}")
-print(f"pit loss (p25, median, p75): {MODEL.pit_loss_green}")
+_MID = len(strategy.CUT_AT) // 2
+print(
+    f"pit loss: median {MODEL.pit_loss_green[_MID]:.1f} s, "
+    f"p95 {MODEL.pit_loss_green[-1]:.1f} s ({len(MODEL.pit_loss_green)} measured cuts)"
+)
 print()
 print(f"parrilla: {QUALI.event} {QUALI.year}, pole {QUALI.pole_s:.3f} s, {len(FIELD)} autos")
 ultimo = QUALI.gaps[-1]

@@ -136,6 +136,9 @@ CANDIDATES = {
     "dos paradas": plan_of((18, "HARD"), (37, "HARD")),
 }
 
+shape: dict[str, list[tuple[int, int]]] = {
+    str(a): [] for a in (Risk.NEUTRAL, Risk.AVERSE, Risk.SEEKING)
+}
 rows = []
 for label, plan in CANDIDATES.items():
     times = race_time(plan, car, MODEL, np.random.default_rng(4242), DRAWS, flags, rival_trace)
@@ -158,9 +161,13 @@ for label, plan in CANDIDATES.items():
 table = pd.DataFrame(rows)
 print(table.to_string(index=False))
 print()
+# Los dos números salen de la tabla, no escritos a mano: son la misma cifra que
+# la columna «cuarto peor» de arriba y se movieron cuando cambió la pérdida de
+# boxes. Copiarlos al texto es cómo se envejece una conclusión sin notarlo.
+_one, _two = (table.set_index("plan").loc[k, "cuarto peor"] for k in table["plan"])
 print("  El paradón es mejor en media, mejor en el cuarto bueno, y PEOR en el malo.")
 print("  Eso es una apuesta, y el promedio la esconde. Las dos paradas cuestan")
-print("  posición esperada y compran el mal caso: 12,4 en vez de 13,7.")
+print(f"  posición esperada y compran el mal caso: {_two:.1f} en vez de {_one:.1f}.")
 print()
 print("  AVERSE elige el de dos paradas, SEEKING el de una, y las dos respuestas")
 print("  son correctas — para autos distintos.")
@@ -180,6 +187,7 @@ for slot in (0, 4, 8, 9, 10, 12, 15, 19):
             focal, rivals, rival_plans, MODEL, objective=Objective.ADAPTIVE, risk=appetite, **SEARCH
         )
         row[str(appetite)] = f"{found.best.describe(focal, LAPS)} {str(found.objective)[:3]}"
+        shape[str(appetite)].append((found.best.count, found.best.stops[0].lap))
     resolved = optimise(
         focal,
         rivals,
@@ -194,9 +202,31 @@ for slot in (0, 4, 8, 9, 10, 12, 15, 19):
     rows.append(row)
 print(pd.DataFrame(rows).to_string(index=False))
 print()
-print("  El patrón es consistente y se lee solo: AVERSE parte la carrera en más")
-print("  tandas, SEEKING se juega a menos. Un paradón es una apuesta a que la goma")
-print("  aguante y a que salga un safety car; dos paradas compran previsibilidad.")
+# El patrón se LEE del cuadro en vez de estar escrito a mano. Una versión
+# anterior afirmaba que el conservador parte la carrera en más tandas, y dejó de
+# ser cierto cuando la pérdida de boxes pasó de una triangular a su distribución
+# medida: con la cola representada, parar dos veces expone dos veces a una
+# parada mala, y el conservador dejó de comprar previsibilidad con una parada
+# extra. La afirmación sobrevivió tres corridas a su propia evidencia. Ahora no
+# puede: sale del dato.
+mean_stops = {k: sum(c for c, _ in v) / len(v) for k, v in shape.items()}
+mean_lap = {k: sum(lap for _, lap in v) / len(v) for k, v in shape.items()}
+AV, SK = str(Risk.AVERSE), str(Risk.SEEKING)
+print(f"  paradas promedio   AVERSE {mean_stops[AV]:.2f}   SEEKING {mean_stops[SK]:.2f}")
+print(f"  primera parada     AVERSE vuelta {mean_lap[AV]:.1f}   SEEKING vuelta {mean_lap[SK]:.1f}")
+print()
+if mean_stops[AV] > mean_stops[SK] + 0.1:
+    print("  El conservador parte la carrera en más tandas y el arriesgado se juega")
+    print("  a menos: un paradón apuesta a que la goma aguante y a que salga un")
+    print("  safety car, y una parada extra compra previsibilidad.")
+elif mean_lap[AV] > mean_lap[SK] + 1.0:
+    print("  Los dos apetitos paran la MISMA cantidad de veces, y se separan en")
+    print("  CUANDO. El arriesgado para temprano y se juega una tanda final larga")
+    print("  a que la goma aguante; el conservador estira la primera tanda y parte")
+    print("  la carrera más parejo, que es la apuesta más chica de las dos.")
+else:
+    print("  Los dos apetitos eligen planes de forma parecida en este cuadro: la")
+    print("  diferencia que separa AVERSE de SEEKING no se lee acá.")
 print()
 print("  Y el apetito adaptativo hace lo que pediste: AVERSE mientras haya algo que")
 print("  defender, SEEKING cuando ya no queda nada que perder.")

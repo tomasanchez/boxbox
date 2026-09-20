@@ -100,11 +100,13 @@ for _driver, entries in frame.groupby("Driver"):
         if np.isfinite(pair) and np.isfinite(expected) and pair > 0:
             losses.append(pair - expected)
 loss = np.array(losses)
-REAL_PIT = (
-    round(float(np.percentile(loss, 25)), 1),
-    round(float(np.median(loss)), 1),
-    round(float(np.percentile(loss, 75)), 1),
-)
+# Los nueve cortes de la distribución, no tres cuartiles: es la forma que
+# `RaceModel` espera desde que la pérdida de boxes dejó de sortearse de una
+# triangular. Madrid es justamente la carrera donde importa —Norris perdió 7 s
+# parado— y una triangular topada en el p75 no podía representar esa parada.
+REAL_PIT = tuple(round(float(np.quantile(loss, q)), 1) for q in strategy.CUT_AT)
+#: Índice del medio en los nueve cortes, para leer la mediana.
+MID = len(strategy.CUT_AT) // 2
 
 # ------------------------------------------------------------- 1. el marcador
 
@@ -198,8 +200,8 @@ for compound in ("SOFT", "MEDIUM", "HARD"):
         f"  desgaste {compound:13s} {predicted:10.4f} {actual:10.4f}   sobreestimado {factor:.1f}x"
     )
 print(
-    f"  {'pérdida de boxes':22s} {22.6:10.1f} {REAL_PIT[1]:10.1f}"
-    f"   subestimada {REAL_PIT[1] - 22.6:.1f} s"
+    f"  {'pérdida de boxes':22s} {22.6:10.1f} {REAL_PIT[MID]:10.1f}"
+    f"   subestimada {REAL_PIT[MID] - 22.6:.1f} s"
 )
 print()
 print("  Madrid resultó el circuito MAS SUAVE de la temporada, no uno severo.")
@@ -227,7 +229,12 @@ def cuts_for(targets: dict[str, float]) -> dict[str, tuple[float, ...]]:
     }
 
 
-def model(wear: dict[str, float], pit: tuple[float, float, float]) -> RaceModel:
+#: La pérdida de boxes del modelo por defecto, para la fila «supuestos previos».
+#: Se lee de `RaceModel` en vez de copiarse, así no se desincroniza cuando cambia.
+DEFAULT_PIT = RaceModel().pit_loss_green
+
+
+def model(wear: dict[str, float], pit: tuple[float, ...]) -> RaceModel:
     return RaceModel(total_laps=TOTAL_LAPS, wear_cuts=cuts_for(wear), pit_loss_green=pit, **STREET)
 
 
@@ -258,8 +265,8 @@ print(f"  plan de ANT:      {WINNER.describe(CAR, TOTAL_LAPS)}")
 print()
 rows = []
 for label, wear, pit in (
-    ("supuestos previos", PREDICTION["desgaste_estimado_s_vuelta"], (20.2, 22.6, 25.5)),
-    ("+ desgaste real", REAL_WEAR, (20.2, 22.6, 25.5)),
+    ("supuestos previos", PREDICTION["desgaste_estimado_s_vuelta"], DEFAULT_PIT),
+    ("+ desgaste real", REAL_WEAR, DEFAULT_PIT),
     ("+ pérdida de boxes real", REAL_WEAR, REAL_PIT),
 ):
     race = model(wear, pit)
@@ -292,7 +299,14 @@ print()
 print(f"  búsqueda con los insumos REALES:  {found.best.describe(CAR, TOTAL_LAPS)}")
 print(f"  lo que hizo ANT:                  {winner_real}")
 print()
-print("  Una vuelta de diferencia en la parada. Dándole los números correctos, la")
+# La distancia entre los dos planes se CALCULA. Estuvo escrita a mano como «una
+# vuelta» y dejó de ser cierta al cambiar la pérdida de boxes, que movió la
+# parada recomendada sin que nadie volviera a leer la frase.
+_mine = found.best.stops[0].lap
+_theirs = int(winner_real.split("-")[0][1:]) + CAR.from_lap
+_gap = abs(_mine - _theirs)
+_word = "Una vuelta" if _gap == 1 else f"{_gap} vueltas"
+print(f"  {_word} de diferencia en la parada. Dándole los números correctos, la")
 print("  búsqueda reproduce la estrategia ganadora; con los números estimados antes")
 print("  de la carrera, no. Todo el error estuvo en los insumos.")
 

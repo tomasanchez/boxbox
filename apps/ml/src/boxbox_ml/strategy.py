@@ -345,10 +345,27 @@ class RaceModel:
     lap_noise_s: float = 0.457
     #: Wear rate per compound, as measured distribution cuts.
     wear_cuts: dict[str, tuple[float, ...]] = field(default_factory=lambda: dict(WEAR_CUTS))
-    #: Effective pit loss under green — seconds conceded to the field. 2,614 stops.
-    pit_loss_green: tuple[float, float, float] = (20.2, 22.6, 25.5)
-    #: The same under a safety car. 264 stops, and far wider: timing matters.
-    pit_loss_sc: tuple[float, float, float] = (7.5, 19.5, 31.5)
+    #: Effective pit loss under green — seconds conceded to the field, as measured
+    #: distribution cuts over 2,614 stops.
+    #:
+    #: This was a triangular over ``(20.2, 22.6, 25.5)``, and those three numbers
+    #: are still the p25, median and p75 below: **the centre did not move**. What
+    #: was added is the tail, which the assumed shape could not represent — a
+    #: triangular cannot exceed its maximum, and its maximum here was the p75, so
+    #: a quarter of real stops lay outside the model's reach by construction. That
+    #: quarter averaged 31.5 s and reached 81.9.
+    #:
+    #: The argument is the one that justifies :data:`WEAR_CUTS`: a stop can go very
+    #: wrong — a cross-threaded wheel, an unsafe release, traffic in the lane — in
+    #: ways it cannot go equally right. The good method was being used for wear and
+    #: the bad one for the stop, twenty lines apart in this same file.
+    pit_loss_green: tuple[float, ...] = (16.8, 19.1, 20.2, 21.2, 22.6, 24.1, 25.5, 27.9, 34.3)
+    #: The same under a safety car, over 264 stops, and far wider: the p5 is
+    #: negative — time can be gained — and the p95 is double the green one. That is
+    #: not noise. Under a safety car **38% of stops are double-stacked**, with the
+    #: team's second car waiting its turn, against 2% under green. A cheap median
+    #: and an expensive tail coexist here, and a triangular could not hold both.
+    pit_loss_sc: tuple[float, ...] = (-2.5, 2.1, 7.5, 13.7, 19.5, 24.7, 31.5, 43.3, 53.3)
     #: Probability a race sees at least one safety car. 103 races; Zandvoort 0.600.
     #: Kept for the older single-period draw; the richer model below supersedes it.
     p_safety_car: float = 0.600
@@ -414,9 +431,17 @@ class RaceModel:
     #: What a stop costs under a red flag. The race is stopped and the tyres are
     #: changed in the pit lane at no cost in track position — this is the case the
     #: model was missing entirely, and at Monza 2026 it applied to 22 of 32 stops.
-    pit_loss_red: tuple[float, float, float] = (0.0, 0.0, 0.5)
-    #: And under a VSC. 199 stops measured.
-    pit_loss_vsc: tuple[float, float, float] = (14.8, 18.8, 27.1)
+    #:
+    #: It is the only one of the four that is **not measured**: ``free_stop``
+    #: excludes these stops from the sample by definition, because with the race
+    #: stopped there is no field to measure what was conceded against. The cuts
+    #: below are the exact translation of the ``(0, 0, 0.5)`` triangular that was
+    #: here before, so this case does not change behaviour when the representation
+    #: changes. The half second is still an assumption, not a measurement.
+    pit_loss_red: tuple[float, ...] = (0.01, 0.04, 0.07, 0.10, 0.15, 0.20, 0.25, 0.31, 0.39)
+    #: And under a VSC, over 199 stops. Like the other two, the p25, median and p75
+    #: are the ``(14.8, 18.8, 27.1)`` of before; what is new is what lies outside.
+    pit_loss_vsc: tuple[float, ...] = (9.5, 12.0, 14.8, 16.6, 18.8, 23.0, 27.1, 33.8, 44.9)
     #: Where it starts, as cuts of the share-of-distance distribution. 72 periods.
     sc_start_cuts: tuple[float, ...] = (
         0.014,
@@ -670,14 +695,6 @@ def _from_cuts(cuts: Sequence[float], u: np.ndarray) -> np.ndarray:
     return np.interp(u, CUT_AT, np.asarray(cuts, dtype=float))
 
 
-def _triangular(
-    rng: np.random.Generator, spread: tuple[float, float, float], size: int
-) -> np.ndarray:
-    """Draw from a triangular over (p25, median, p75)."""
-    low, mode, high = spread
-    return rng.triangular(low, mode, high, size)
-
-
 def _stints(plan: Plan, car: Car, total_laps: int) -> list[tuple[str, int, int]]:
     """Break a plan into ``(compound, start_lap, end_lap)`` stints."""
     out = []
@@ -789,10 +806,10 @@ def _pit_cost(
     flags: np.ndarray, lap: int, model: RaceModel, rng: np.random.Generator, draws: int
 ) -> np.ndarray:
     """What a stop on ``lap`` costs in each drawn race, given the flag it meets."""
-    green = _triangular(rng, model.pit_loss_green, draws)
-    vsc = _triangular(rng, model.pit_loss_vsc, draws)
-    sc = _triangular(rng, model.pit_loss_sc, draws)
-    red = _triangular(rng, model.pit_loss_red, draws)
+    green = _from_cuts(model.pit_loss_green, rng.random(draws))
+    vsc = _from_cuts(model.pit_loss_vsc, rng.random(draws))
+    sc = _from_cuts(model.pit_loss_sc, rng.random(draws))
+    red = _from_cuts(model.pit_loss_red, rng.random(draws))
 
     at_lap = flags[min(lap, flags.shape[0] - 1)]
     cost = green.copy()

@@ -41,8 +41,10 @@ plt.rcParams.update({"figure.figsize": (9, 3.4), "figure.dpi": 110, "font.size":
 MODELO = RaceModel()
 print(f"vueltas totales:            {MODELO.total_laps}")
 print(f"ruido de una vuelta:        {MODELO.lap_noise_s} s")
-print(f"pérdida en verde:           {MODELO.pit_loss_green} (p25, mediana, p75)")
-print(f"pérdida bajo safety car:    {MODELO.pit_loss_sc}")
+_MID = len(strategy.CUT_AT) // 2
+_PERDIDAS = (("en verde", MODELO.pit_loss_green), ("bajo safety car", MODELO.pit_loss_sc))
+for _donde, _cortes in _PERDIDAS:
+    print(f"pérdida {_donde:16s} mediana {_cortes[_MID]:5.1f} s, p95 {_cortes[-1]:5.1f} s")
 print(f"P(safety car):              {MODELO.p_safety_car}")
 print(f"duración del safety car:    {MODELO.sc_laps} vueltas")
 print(f"tanda más larga admitida:   {strategy.MAX_STINT}")

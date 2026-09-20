@@ -10,7 +10,7 @@ laps 27-29 made the second stop cheap for the ten cars that took one. 90.6% of
 the strategic stops in that race happened under a neutralisation, against the
 23% measured across 103 races.
 
-The whole model is built around a stop costing 22.6 seconds. At Monza that price
+The whole model is built around a stop costing 22.6 seconds at the median. At Monza that price
 was paid by hardly anyone, and the optimum flipped: with free stops, three are
 better than two and two are better than one.
 
@@ -33,7 +33,11 @@ pd.set_option("display.width", 200)
 
 # Monza is 53 laps, not Zandvoort's 72.
 MONZA = RaceModel(total_laps=53)
-FREE = RaceModel(total_laps=53, pit_loss_green=(0.0, 0.0, 0.1), pit_loss_sc=(0.0, 0.0, 0.1))
+# La parada gratis: con la carrera detenida no cuesta posición. Nueve cortes
+# planos porque eso es lo que `RaceModel` espera; que sean todos casi cero es el
+# punto, no una distribución medida.
+_FREE_CUTS = (0.0,) * 8 + (0.1,)
+FREE = RaceModel(total_laps=53, pit_loss_green=_FREE_CUTS, pit_loss_sc=_FREE_CUTS)
 SEP = "=" * 88
 
 ant = Car("ANT", "HARD", 0, 0.0, strategy.ROLLING_MEDIAN_S, 0.0, 1)
@@ -70,7 +74,7 @@ print("  llega:    1ro, desde el 19no de la grilla")
 print("\n" + SEP)
 print("### COMO PUNTUAN LOS DOS PLANES, SEGUN LO QUE COSTARON LAS PARADAS")
 rows = []
-for label, model in (("precio normal (22,6 s)", MONZA), ("paradas gratis", FREE)):
+for label, model in (("precio normal", MONZA), ("paradas gratis", FREE)):
     rows.append(
         {
             "escenario": label,
@@ -83,8 +87,8 @@ table = pd.DataFrame(rows)
 print(table.to_string(index=False))
 print()
 print("Con las paradas a precio de lista, el plan de ANT es peor: pagar dos veces")
-print("veintidos segundos no lo compensa el neumatico mas fresco. Con las paradas")
-print("gratis se da vuelta, y por mucho.")
+print("el precio de una parada no lo compensa el neumatico mas fresco. Con las")
+print("paradas gratis se da vuelta, y por mucho.")
 vuelco = table.loc[0, "diferencia"] - table.loc[1, "diferencia"]
 print(f"\nEl vuelco vale {vuelco:.1f} s de carrera. Eso es lo que valieron las dos")
 print("neutralizaciones, y es la tesis del proyecto medida en un caso real.")

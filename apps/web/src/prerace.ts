@@ -472,16 +472,15 @@ export function recommendedPlan(car: PreRaceCar): RecommendedPlan {
  * pre-carrera sorteara con la otra, la carrera animada estaría contradiciendo al
  * buscador que emitió la recomendación que la misma pantalla muestra.
  *
- * La pérdida de boxes viene como terna por estado de pista; se lee
- * [p25, mediana, p75], igual que el resto de las ternas del modelo.
+ * La pérdida de boxes viene por estado de pista, y se toma la de verde: es la
+ * que paga una parada planificada, que son las que la vista anima. Son los
+ * mismos nueve cortes que el desgaste — el export los emite tal como los tiene
+ * `RaceModel`, así que la pantalla sortea de la misma distribución que el
+ * buscador que emitió la recomendación que la pantalla muestra.
  */
 export const PRERACE_MODEL: DrawModel = {
   wearCuts: PRERACE.model.wear_cuts_s_lap,
-  pitLoss: {
-    p25: PRERACE.model.pit_loss_s.green[0],
-    median: PRERACE.model.pit_loss_s.green[1],
-    p75: PRERACE.model.pit_loss_s.green[2],
-  },
+  pitLoss: PRERACE.model.pit_loss_s.green,
 }
 
 /**

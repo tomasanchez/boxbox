@@ -357,6 +357,30 @@ desvío mienta: el blando tiene desvío 0,66 s/vuelta pero entre el percentil 5 
 a 0,14. El simulador no asume forma: guarda nueve cortes de la distribución medida y sortea
 interpolando.
 
+**La misma corrección hizo falta en la pérdida de boxes, y tardó en hacerse.** El argumento de
+arriba —una tanda puede salir muy mal de maneras en que no puede salir igual de bien— vale
+palabra por palabra para una parada: una rueda trabada, una salida insegura, tráfico en el
+carril. Y sin embargo la pérdida de boxes se sorteaba de una **triangular** ajustada a tres
+cuartiles. Se usaba el método bueno para el desgaste y el malo para la parada, en el mismo
+archivo y a veinte líneas de distancia.
+
+Lo que la forma asumida no podía representar es la cola, y por una razón estructural: **una
+triangular no puede pasarse de su máximo**, y su máximo acá era el p75. Un cuarto de las paradas
+reales quedaba fuera del alcance del modelo por construcción, no por mala suerte en el sorteo.
+Ese cuarto mediaba 31,5 s en verde y llegó hasta 81,9; los siete segundos parado de Norris en
+Madrid caían ahí.
+
+| | verde | safety car | VSC |
+|---|---|---|---|
+| media, triangular | 22,77 s | 19,49 s | 20,23 s |
+| media, medida | **23,43 s** | **21,24 s** | **22,00 s** |
+| p95, triangular | 24,62 s | 27,69 s | 24,83 s |
+| p95, medida | **34,27 s** | **53,30 s** | **44,90 s** |
+
+El p25, la mediana y el p75 **no se movieron**: son los mismos tres números de antes. Lo único
+que se agregó es lo que hay más allá, y alcanzó para mover resultados publicados. Se detalla en
+«Lo que cambió al medir la parada» y se reproduce con `scripts/effective_pit_loss.py`.
+
 #### Hubo que ajustar el efecto del combustible, y no fue rápido
 
 La propuesta anterior decía que reajustarlo era «rápido». No lo fue, y el problema es
@@ -440,9 +464,10 @@ el resultado**. La hipótesis era razonable y era equivocada.
   neutralización, contra 23% global.
 - **La cantidad de paradas depende del compuesto de largada**: largando en duro, 1 parada el 56%
   de las veces; largando en blando, 2 paradas el 55% y 3 el 26%.
-- El costo efectivo de una parada es **22,6 s en verde y 19,5 bajo Safety Car**, pero el primer
-  cuartil bajo Safety Car es **7,5 s**: reaccionar rápido y reaccionar tarde no son la misma
-  decisión.
+- El costo efectivo *mediano* de una parada es **22,6 s en verde y 19,5 bajo Safety Car**, pero
+  el primer cuartil bajo Safety Car es **7,5 s** y el percentil 95 son **53,3**: reaccionar
+  rápido y reaccionar tarde no son la misma decisión, y el promedio esconde las dos. El
+  simulador sortea los nueve cortes de cada distribución, no su mediana.
 
 #### El escalón de ritmo entre compuestos existe, y no se puede usar todavía
 
@@ -504,7 +529,10 @@ VSC es mucho más plano.
 Y el número que más importa: **el 44,7% de las carreras tiene dos o más períodos de
 neutralización**, y el modelo sorteaba uno. Ése era el agujero estructural, más que la bandera roja
 en sí. Ahora se sortean las tres por separado, con cantidad, momento y duración medidos, y una
-parada paga según la bandera que encuentre: verde 22,6 s, VSC 18,8, safety car 19,5, roja 0.
+parada paga según la bandera que encuentre, sorteando de la distribución medida de esa bandera
+—medianas de 22,6 s en verde, 18,8 bajo VSC y 19,5 bajo safety car, con colas que llegan a 34,
+45 y 53— y cero bajo bandera roja, que es el único de los cuatro casos que no está medido sino
+supuesto: con la carrera detenida no hay campo contra el cual medir lo que se concede.
 
 #### El desgaste por circuito es lo único que casi replica
 
@@ -670,17 +698,35 @@ puntúa el plan. Medido, sobre un auto que larga décimo:
 
 | plan | posición media | cuarto peor | cuarto mejor |
 |---|---|---|---|
-| una parada `M15-H41` | 10,67 | **13,64** | **7,38** |
-| dos paradas `M17-H19-H20` | 10,95 | **12,37** | **9,55** |
+| una parada `M15-H41` | 10,58 | **13,62** | **7,18** |
+| dos paradas `M17-H19-H20` | 10,93 | **12,58** | **9,28** |
 
 El paradón es mejor en media, mejor en el buen caso, y **peor en el malo**. Eso es
 una apuesta, y el promedio la escondía. Un apetito conservador elige el de dos
 paradas y uno arriesgado el de una, y **las dos respuestas son correctas — para
 autos distintos**.
 
-El patrón se repite en toda la grilla: **el apetito conservador parte la carrera
-en más tandas y el arriesgado se juega a menos.** Un paradón es una apuesta a que
-la goma aguante y a que salga un safety car; dos paradas compran previsibilidad.
+El patrón se repite en toda la grilla, aunque **no** de la forma en que este
+informe lo afirmó durante tres versiones. La redacción anterior decía que el
+apetito conservador parte la carrera en más tandas y el arriesgado se juega a
+menos. Dejó de ser cierto al cambiar la pérdida de boxes por su distribución
+medida: con la cola representada, parar dos veces expone dos veces a una parada
+mala, y el conservador dejó de comprar previsibilidad con una parada extra.
+
+Medido sobre los ocho puestos de largada de la grilla, los dos apetitos eligen
+ahora **una parada en los ocho casos**, y se separan en *cuándo*:
+
+| | paradas | primera parada |
+|---|---|---|
+| conservador | 1,00 | vuelta **26,9** |
+| arriesgado | 1,00 | vuelta **18,0** |
+
+Nueve vueltas de diferencia, consistentes en toda la grilla. El arriesgado para
+temprano y se juega una tanda final de 35 vueltas a que la goma aguante; el
+conservador estira la primera tanda y parte la carrera más pareja, que es la
+apuesta más chica de las dos. La idea de fondo no cambió —el conservador compra
+previsibilidad— pero el mecanismo por el que la compra sí, y estaba escrito a
+mano en el script en vez de leerse del cuadro. Ahora se lee del cuadro.
 
 **Dos cosas que costaron y conviene que queden escritas.**
 
@@ -764,6 +810,55 @@ que se corrigieron:
 El piso de sorteos por defecto subió de 400 a 1.200. Con 400, la búsqueda salía
 0,71 s por carrera **peor** que una regla; con 1.200 la iguala o la supera.
 
+### Lo que cambió al medir la parada
+
+Cambiar la pérdida de boxes de una triangular a su distribución medida (§4) movió
+cifras que este informe ya había publicado. Van todas, porque el criterio del
+trabajo es que una cifra que se mueve se declara:
+
+| Cifra | Antes | Ahora |
+|---|---|---|
+| Monza, diferencia a precio normal | +18,40 s | **+19,03 s** |
+| Monza, lo que valieron las neutralizaciones | 21,6 s | **22,2 s** |
+| Tiempo del plan del AG desde la vuelta 1 | 91,7 s | **93,3 s** |
+| Ventaja del AG sobre la mejor regla enunciable | −0,1 s | **−0,2 s** |
+| Cuarto peor del plan de una parada | 13,64 | **13,62** |
+| Cuarto peor del plan de dos paradas | 12,37 | **12,58** |
+
+**Ninguna conclusión se dio vuelta.** Los tiempos absolutos suben porque una
+parada ahora cuesta entre 0,7 y 1,8 s más en promedio, y suben para todos los
+planes por igual, así que las comparaciones —que es lo único que la búsqueda
+usa— casi no se mueven.
+
+Hubo **un resultado que sí cambió de forma**, y es el más interesante de los
+cuatro. El apetito conservador dejó de comprar previsibilidad con una parada
+extra y pasó a comprarla retrasando la única parada: con la cola representada,
+parar dos veces expone dos veces a una parada mala. Está desarrollado en «El
+apetito de riesgo».
+
+Y **el cambio destapó una inconsistencia de método que la forma asumida venía
+tapando.** La pantalla sorteaba sus paradas con cortes de Zandvoort medidos
+contra la mediana verde *de la carrera* —un solo número por carrera, que le carga
+al auto el combustible, la evolución de la pista y el tráfico de esa vuelta—
+mientras el simulador usaba la mediana del campo *en esa misma vuelta*, que es la
+referencia correcta y para la que existe `scripts/effective_pit_loss.py`. Con una
+triangular sólo se le pedían tres cuartiles a cada método y la diferencia pasaba
+inadvertida: 19,8 / 22,7 / 26,7 contra 20,6 / 23,5 / 31,3. Con los nueve cortes se
+separan justo en la cola, que es lo que los nueve cortes vinieron a representar:
+**p95 de 41,1 s con la referencia buena contra 64,7 con la mala**. La pantalla
+pasó a usar la buena.
+
+Pasar a la distribución empírica no creó ese problema: lo hizo visible. Es el
+argumento del trabajo aplicado a sí mismo — asumirle una forma a algo que se
+puede medir no sólo pierde la cola, también esconde los errores que viven en ella.
+
+**Lo que quedó sin corregir, y se declara.** El cálculo del duelo de undercut
+(`insights.py` y su espejo `battle.ts`) sortea la *diferencia* entre las pérdidas
+de dos autos, y para eso sigue usando una triangular. No se cambió porque los
+nueve cortes medidos son los de una parada, no los de una diferencia entre dos, y
+poner unos donde van los otros sería cambiar una forma asumida por otra peor
+disfrazada. Medir la distribución de la diferencia es trabajo pendiente.
+
 ### Qué se mide
 
 | Qué | Cómo | Estado |
@@ -796,10 +891,10 @@ neutralización, contra el 23% medido sobre 103 carreras.
 
 | Escenario | Plan recomendado | Lo que hizo ANT | Diferencia |
 |---|---|---|---|
-| Paradas a 22,6 s | 60,51 s | 78,91 s | **+18,40** |
-| Paradas gratis | 38,37 s | 35,16 s | **−3,21** |
+| Paradas a precio normal | 61,32 s | 80,35 s | **+19,03** |
+| Paradas gratis | 38,39 s | 35,19 s | **−3,19** |
 
-El vuelco vale **21,6 segundos** de carrera, y la cantidad óptima se invierte: a
+El vuelco vale **22,2 segundos** de carrera, y la cantidad óptima se invierte: a
 precio de lista una parada le gana a dos y a tres; con las paradas gratis el
 orden se da vuelta por completo.
 
@@ -808,7 +903,8 @@ orden se da vuelta por completo.
 > números se midieron cuando se escribió `scripts/monza_2026.py` y **nunca se
 > volvieron a medir después de aplicar B6.3.8**. Trazado commit por commit: al
 > crear el script daba 21,01; al meter las tres banderas al sorteo, 20,74; al
-> obligar los dos compuestos secos, 18,40, y ahí se quedó.
+> obligar los dos compuestos secos, 18,40; al cambiar la pérdida de boxes por su
+> distribución medida, **19,03**.
 >
 > Tiene sentido que baje: la obligación reglamentaria **empeora el plan
 > recomendado** (57,95 → 60,51) porque le saca libertad, y eso achica la
@@ -819,6 +915,11 @@ orden se da vuelta por completo.
 > Lo incómodo es de dónde venía: esta misma sección usa B6.3.8 como su
 > explicación central mientras citaba un número medido antes de que B6.3.8
 > existiera en el modelo.
+>
+> El último paso —de 18,40 a 19,03— es del cambio de la pérdida de boxes, y sube
+> por el motivo esperable: con la cola representada una parada cuesta más en
+> promedio, y el plan de Antonelli tenía una parada más que el recomendado. La
+> conclusión aguantó los cuatro movimientos.
 
 ### Por qué se calza el duro si el medio degrada menos
 
@@ -1124,6 +1225,17 @@ ventaja de reaccionar saldría optimista.
    Todos daban números confiados y plausibles hasta que algo aguas abajo salió
    absurdo. El último es el más aleccionador: no hubo ningún error de cálculo, y
    el número siguió pareciendo correcto durante una semana.
+
+   Dos de la lista merecen una nota porque son la misma lección desde dos lados.
+   **La referencia de pérdida de boxes aparece dos veces**: se encontró, se
+   corrigió en el script del simulador, y la versión equivocada **siguió viva en
+   el camino que alimenta la pantalla** hasta que otro cambio la destapó. Arreglar
+   un error donde se lo encontró no es arreglarlo. Y **la pérdida de boxes se
+   sorteaba de una forma asumida mientras el desgaste se sorteaba de la medida**,
+   en el mismo archivo y a veinte líneas de distancia, durante todo el proyecto:
+   el argumento que justifica los nueve cortes estaba escrito ahí al lado y no se
+   aplicó al vecino. Las dos veces el síntoma fue el mismo — ningún número se veía
+   mal — y las dos veces lo que lo destapó fue tocar otra cosa.
 
 6. **La granularidad por circuito casi nunca la sostienen los datos, pero la
    pregunta estaba mal planteada.** Cuatro cantidades, cuatro correlaciones entre

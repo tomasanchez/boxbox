@@ -17,7 +17,7 @@
  *                     **empírica** de Zandvoort. Acumula.
  *
  *   pérdida de boxes  se sortea en la parada, de los cuartiles medidos en
- *                     Zandvoort: mediana 23,5 s, p25 20,6, p75 31,3.
+ *                     Zandvoort: mediana 22,7 s, p25 19,8, p75 26,7.
  *
  * ## Por qué la distribución empírica y no una normal
  *
@@ -95,8 +95,31 @@ const WEAR_CUTS: Record<Compound, number[]> = {
   WET: [-0.163, -0.0003, 0.032, 0.0394, 0.0611, 0.0759, 0.0979, 0.1085, 0.1592],
 }
 
-/** Pérdida de boxes en verde en Zandvoort, en segundos. 164 paradas medidas. */
-const PIT_LOSS_CUTS = { p25: 20.6, median: 23.5, p75: 31.3 }
+/**
+ * Pérdida de boxes en verde en Zandvoort, en segundos. 172 paradas medidas.
+ *
+ * Cortes en las mismas probabilidades que `CUT_AT`, igual que el desgaste de
+ * arriba. Antes eran tres cuartiles sorteados con una **triangular**, y eso no
+ * podía representar una parada mala: una triangular no puede pasarse de su
+ * máximo, y su máximo era el p75. El recuadro «IN PIT» no podía mostrar la
+ * rueda trabada ni los 7 s parado de Norris en Madrid por más veces que se
+ * corriera la simulación — quedaba fuera de su alcance por construcción, no por
+ * suerte. Con estos cortes, una de cada cuatro paradas sorteadas pasa el viejo
+ * tope.
+ *
+ * **También cambió de dónde se miden, y conviene saber por qué.** Antes salían
+ * de `zandvoort_distributions.py`, que compara la vuelta de entrada contra la
+ * mediana verde *de la carrera* —un solo número— y por eso le carga al auto el
+ * combustible, la evolución de la pista y el tráfico de esa vuelta. Ahora salen
+ * de `effective_pit_loss.py`, que compara contra la mediana del campo *en esa
+ * misma vuelta*, que es la referencia que ese script existe para usar.
+ *
+ * Con la triangular la diferencia entre los dos métodos era chica y pasaba
+ * inadvertida —19,8 / 22,7 / 26,7 contra 20,6 / 23,5 / 31,3—. Con los nueve
+ * cortes se ve donde importa: el p95 da 41,1 con la referencia buena y 64,7 con
+ * la mala. Pasar a la distribución empírica no creó el problema, lo mostró.
+ */
+const PIT_LOSS_CUTS = [15.8, 18.4, 19.8, 20.8, 22.7, 24.3, 26.7, 30.2, 41.1]
 
 /**
  * De dónde salen los sorteos de una carrera.
@@ -117,7 +140,8 @@ export interface DrawModel {
    * prometer una medición que no existe.
    */
   wearCuts: Partial<Record<Compound, number[]>> & Record<'MEDIUM', number[]>
-  pitLoss: { p25: number; median: number; p75: number }
+  /** Cortes de la pérdida de boxes en verde, en las probabilidades de `CUT_AT`. */
+  pitLoss: number[]
 }
 
 /** El modelo de la foto de la vuelta 30, que es el que se usaba hasta acá. */
@@ -232,14 +256,9 @@ function drawWear(model: DrawModel, compound: Compound, ...parts: number[]): num
   return fromCuts(model.wearCuts[compound] ?? model.wearCuts.MEDIUM, hash(...parts))
 }
 
-/** Pérdida de boxes sorteada, triangular sobre los cuartiles medidos. */
+/** Pérdida de boxes sorteada de la distribución medida, sin forma asumida. */
 function drawPitLoss(model: DrawModel, ...parts: number[]): number {
-  const { p25: a, median: c, p75: b } = model.pitLoss
-  const u = hash(...parts)
-  const split = (c - a) / (b - a)
-  return u < split
-    ? a + Math.sqrt(u * (b - a) * (c - a))
-    : b - Math.sqrt((1 - u) * (b - a) * (b - c))
+  return fromCuts(model.pitLoss, hash(...parts))
 }
 
 export interface PitStop {

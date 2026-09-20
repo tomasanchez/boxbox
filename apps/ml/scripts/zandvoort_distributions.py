@@ -261,3 +261,29 @@ for compound in ("SOFT", "MEDIUM", "HARD"):
     cuts = ", ".join(f"{v:.4f}" for v in sample.quantile(DECILES))
     print(f"  {compound}: [{cuts}],{note}")
 print(f"\n  probabilities: [{', '.join(str(p) for p in DECILES)}]")
+
+# La pérdida de boxes también se sorteaba de una TRIANGULAR sobre tres cuartiles,
+# mientras el desgaste de al lado se sorteaba de la empírica. Una triangular no
+# puede pasarse de su máximo, así que el recuadro «IN PIT» de la pantalla no
+# podía mostrar una parada mala —los 7 s parado de Norris en Madrid, una rueda
+# trabada— por más veces que se corriera la simulación. Va con los mismos nueve
+# cortes que el desgaste, que es la distribución sin forma asumida.
+green_stops = stop[~stop["neutralised"]]
+green_here = green_stops[green_stops["circuit"] == CIRCUIT]
+pit_sample = green_here if len(green_here) >= 30 else green_stops
+pit_where = CIRCUIT if len(green_here) >= 30 else "todos los circuitos"
+pit_cuts = ", ".join(f"{v:.1f}" for v in pit_sample["loss"].quantile(DECILES))
+print("")
+print(f"  pérdida de boxes en verde, {pit_where}: [{pit_cuts}]  // {len(pit_sample)} paradas")
+print("")
+print("  ESTOS NO SON LOS QUE USA LA PANTALLA, y la diferencia importa. Acá la")
+print("  referencia es la mediana verde DE LA CARRERA —un solo número— así que le")
+print("  carga al auto el combustible, la evolución de la pista y el tráfico de esa")
+print("  vuelta. `effective_pit_loss.py` compara contra la mediana del campo EN ESA")
+print("  MISMA VUELTA, que es la correcta, y de ahí sale el PIT_LOSS_CUTS de")
+print("  apps/web/src/tyres.ts.")
+print("")
+print("  Con la triangular que había antes los dos métodos casi no se distinguían,")
+print("  porque sólo se le pedían tres cuartiles. Con los nueve cortes se separan en")
+print("  la cola, que es justo lo que los nueve cortes vinieron a representar: el")
+print(f"  p95 de acá da {pit_sample['loss'].quantile(0.95):.1f} s contra 41,1 del método bueno.")
