@@ -66,6 +66,24 @@ Nearly 40% of neutralised stops are double-stacked against 2% of green stops. Re
 single stops brings SC down from 32.6 s to **25.6 s** — most of the apparent penalty was
 teammates queueing, not the stop being expensive.
 
+> **Correction, 2026-09-20. The twelve seconds are not there.** The paragraph above compares the
+> double-stacked *group* against the single-stop *group*, with **n=18** under SC and no pairing.
+> That comparison mixes two things: that the second car queues, and that teams choose to stack
+> precisely when a stop is cheap. Subtracting **within the same pair** — same team, same lap, same
+> race, so the second effect cancels — the surcharge the second car pays is:
+>
+> | | n | median | mean | second loses more |
+> |---|---|---|---|---|
+> | Green | 63 | **+1.0 s** | +1.9 s | 65% of pairs |
+> | Safety car | 47 | **+3.5 s** | +3.9 s | 72% of pairs |
+> | VSC | 42 | **+3.2 s** | +2.8 s | 81% of pairs |
+>
+> Three and a half seconds, not twelve. That **reverses the strategic reading**: stacking is cheap,
+> which is why teams do it in 70% of the cases where they bring both cars in during the same
+> neutralisation. The original figure was not a calculation error — it was the wrong comparison,
+> on a sample too small to notice. Measured by `scripts/rival_reaction.py`, which also supplies the
+> reaction policy the simulator now uses.
+
 **Mid-lap deployment.** A lap flagged `sc` may have been run mostly at racing speed before the
 car came out. Splitting by whether the flag was already active on the previous lap:
 
@@ -88,7 +106,9 @@ are per-lap and cannot resolve within-lap timing.
   the 3.20× over-representation shows real pit walls agree.
 - **The simulator should model position, not clock time**, as the cost of a stop. This changes
   what the Monte Carlo optimises.
-- Exclude or flag double-stacked stops before fitting anything to pit-loss seconds.
+- ~~Exclude or flag double-stacked stops before fitting anything to pit-loss seconds.~~ Superseded
+  by the correction above: the paired surcharge is +3.5 s under SC, so double-stacked stops are not
+  a contaminant worth excluding. They are modelled explicitly instead — see ADR-014.
 
 ## Open items
 

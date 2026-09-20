@@ -361,10 +361,18 @@ class RaceModel:
     #: the bad one for the stop, twenty lines apart in this same file.
     pit_loss_green: tuple[float, ...] = (16.8, 19.1, 20.2, 21.2, 22.6, 24.1, 25.5, 27.9, 34.3)
     #: The same under a safety car, over 264 stops, and far wider: the p5 is
-    #: negative — time can be gained — and the p95 is double the green one. That is
-    #: not noise. Under a safety car **38% of stops are double-stacked**, with the
-    #: team's second car waiting its turn, against 2% under green. A cheap median
-    #: and an expensive tail coexist here, and a triangular could not hold both.
+    #: negative — time can be gained — and the p95 is double the green one. A cheap
+    #: median and an expensive tail coexist here, and a triangular could not hold
+    #: both.
+    #:
+    #: An earlier version of this docstring blamed the tail on double-stacking —
+    #: 38% of safety-car stops bring both team cars in on the same lap. That
+    #: attribution does not survive measurement. Paired inside the same pair, the
+    #: second car's surcharge is **+3.5 s**, not the twelve that
+    #: ``docs/research/pit-loss-under-neutralisation.md`` claimed from n=18
+    #: unpaired. Stacking is a real cost and it is modelled (ADR-014), but it is
+    #: not what makes this tail. What the tail is remains unattributed, and saying
+    #: so is better than naming the wrong cause twice.
     pit_loss_sc: tuple[float, ...] = (-2.5, 2.1, 7.5, 13.7, 19.5, 24.7, 31.5, 43.3, 53.3)
     #: Probability a race sees at least one safety car. 103 races; Zandvoort 0.600.
     #: Kept for the older single-period draw; the richer model below supersedes it.
