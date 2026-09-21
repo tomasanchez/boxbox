@@ -645,7 +645,7 @@ def projected_window(car: Car, model: RaceModel) -> dict[str, int] | None:
     return {"opens_lap": car.from_lap + opens, "closes_lap": car.from_lap + closes}
 
 
-def car_entry(run: CarRun, laps: int, model: RaceModel) -> dict:
+def car_entry(run: CarRun, laps: int, model: RaceModel, window: dict[str, int] | None) -> dict:
     """Todo lo que la vista necesita de un auto, en un objeto.
 
     Los campos de siempre describen la salida **elegida**, que es la
@@ -673,7 +673,7 @@ def car_entry(run: CarRun, laps: int, model: RaceModel) -> dict:
         # cuándo podría parar y `stops` dice cuándo va a parar. Sin esto, las
         # gráficas de ventana y de amenaza de undercut quedan inertes en este
         # origen, que es como estaban hasta ahora.
-        "pit_window": projected_window(car, model),
+        "pit_window": window,
         # Con qué se compararon las tres salidas. Sin esto, «eligió el duro» no
         # dice si lo eligió por puntos o por puestos, que no es lo mismo.
         "start_yardstick": run.yardstick,
@@ -907,7 +907,44 @@ def main() -> None:
             flush=True,
         )
 
-    cars = [car_entry(run, model.total_laps, model) for run in runs]
+    # La ventana se mide, no se proyecta con una fórmula. `stop_window` mueve la
+    # primera parada por todas las vueltas representables y se queda con la banda
+    # que cae dentro de un cuarto de puesto del óptimo, puntuando sobre las mismas
+    # carreras sorteadas.
+    #
+    # Lo que había antes daba 35 vueltas de ancho con el cierre en una constante
+    # igual para los veintidós, porque calculaba FACTIBILIDAD con nombre de
+    # optimalidad. Medida de verdad, la banda va de nueve vueltas en blando a
+    # catorce o dieciséis en duro, que es la forma que tiene en la transmisión.
+    windows: dict[str, dict[str, int] | None] = {}
+    window_rng = np.random.default_rng(args.seed + 5150)
+    window_flags = strategy.draw_neutralisations(model, window_rng, args.draws)
+    for index, run in enumerate(runs):
+        rivals = [other for slot, other in enumerate(field) if slot != index]
+        plans = [plan for slot, plan in enumerate(rival_plans) if slot != index]
+        trace = np.stack(
+            [
+                strategy.race_trace(
+                    plan, rival, model, np.random.default_rng(7), args.draws, window_flags
+                )
+                for rival, plan in zip(rivals, plans, strict=True)
+            ]
+        )
+        band = strategy.stop_window(
+            run.chosen.found.best,
+            run.chosen.car,
+            rivals,
+            trace,
+            model,
+            window_rng,
+            args.draws,
+            window_flags,
+        )
+        windows[run.entry.code] = (
+            None if band is None else {"opens_lap": int(band[0]), "closes_lap": int(band[1])}
+        )
+
+    cars = [car_entry(run, model.total_laps, model, windows[run.entry.code]) for run in runs]
     every = [option for run in runs for option in run.options]
 
     payload = {

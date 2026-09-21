@@ -2078,6 +2078,86 @@ class Search:
         return self.score_in_sample - self.score
 
 
+#: Cuánta posición esperada se está dispuesto a resignar para que una vuelta
+#: siga contando como parte de la ventana.
+#:
+#: Es un **supuesto declarado**, no una medición: nadie publicó cuánto vale un
+#: cuarto de puesto. Se eligió así porque la posición es discreta y las
+#: diferencias reales entre vueltas vecinas son fracciones de puesto; con una
+#: tolerancia mucho más chica la ventana colapsa a una sola vuelta y deja de ser
+#: una ventana, y con una mucho más grande se come media carrera.
+WINDOW_TOLERANCE_POS = 0.25
+
+
+def stop_window(
+    plan: Plan,
+    car: Car,
+    rivals: Sequence[Car],
+    rival_trace: np.ndarray,
+    model: RaceModel,
+    rng: np.random.Generator,
+    draws: int,
+    flags: np.ndarray,
+    tolerance: float = WINDOW_TOLERANCE_POS,
+) -> tuple[int, int] | None:
+    """El rango de vueltas en que parar cuesta casi lo mismo que parar en la mejor.
+
+    Mueve la **primera** parada del plan por todas las vueltas donde el plan
+    sigue teniendo la misma forma, puntúa cada una sobre **las mismas carreras
+    sorteadas**, y devuelve la banda que queda dentro de ``tolerance`` puestos del
+    óptimo. Los números aleatorios comunes son lo que hace comparable a dos
+    vueltas vecinas: sin ellos la diferencia entre la 24 y la 25 se perdería bajo
+    el ruido del Monte Carlo.
+
+    **Se puntúa en PUESTOS y no en segundos, y eso cambia el resultado por
+    completo.** Medida en tiempo, la banda de un auto en duro da diez vueltas;
+    medida en puestos, quince. Y al revés para los blandos, que en puestos quedan
+    más angostos. Es la misma lección que este proyecto ya aprendió con las
+    paradas bajo neutralización: una diferencia de un segundo casi nunca cambia
+    una posición, y la posición es lo que gana carreras.
+
+    Existe porque lo que había antes no era esto. :func:`boxbox_ml.insights
+    .pit_window` calcula desde que el desgaste cruza una tolerancia hasta la
+    última vuelta en la que todavía entra una tanda — un rango de **factibilidad**
+    con nombre de rango de **optimalidad**, y factible es enorme: daba 35 vueltas
+    de ancho, con el cierre en una constante igual para los veintidós autos.
+    Aquella queda como lo que siempre fue, la regla del muro de boxes; ésta es la
+    que mide.
+
+    Args:
+        plan: El plan cuya primera parada se mueve. Su forma se conserva.
+        car: El auto focal.
+        rivals: Los demás, para que la posición signifique algo.
+        rival_trace: Sus trazas, ya calculadas sobre ``flags``.
+        flags: Las carreras sorteadas, compartidas por todas las vueltas.
+        tolerance: Puestos que se pueden resignar. Ver :data:`WINDOW_TOLERANCE_POS`.
+
+    Returns:
+        ``(desde, hasta)`` en numeración de vueltas de carrera, o ``None`` si el
+        plan no tiene paradas o ninguna vuelta alternativa es representable.
+    """
+    if not plan.stops or not rivals:
+        return None
+
+    rival_times = rival_trace[:, -1, :]
+    shape, first = plan.count, plan.stops[0]
+    scored: dict[int, float] = {}
+    for lap in range(car.from_lap + MIN_STINT, model.total_laps - MIN_STINT):
+        moved = Plan(_repair([replace(first, lap=lap), *plan.stops[1:]], car, model))
+        # `_repair` puede mover la parada o agregar otra; ahí esa vuelta no
+        # representa lo que se quiso probar y no entra en la comparación.
+        if moved.count != shape or not moved.stops or moved.stops[0].lap != lap:
+            continue
+        times = race_time(moved, car, model, np.random.default_rng(1729), draws, flags, rival_trace)
+        scored[lap] = float(_positions(times, rival_times).mean())
+
+    if not scored:
+        return None
+    floor = min(scored.values())
+    inside = sorted(lap for lap, value in scored.items() if value <= floor + tolerance)
+    return inside[0], inside[-1]
+
+
 def optimise(
     car: Car,
     rivals: Sequence[Car],
