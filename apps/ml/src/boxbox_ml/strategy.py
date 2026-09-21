@@ -2114,9 +2114,10 @@ def optimise(
        **A better score under ``REACTIVE`` is not a better plan.** Reactive rivals
        stop more often than their plans said — 2.11 times against the 1.86 real
        cars average — and every extra stop costs them time: over the same drawn
-       races the field finishes **1.31 s slower** than under ``FIXED``. So the
-       focal car's score improves without its plan changing at all. The field got
-       worse, it did not get better.
+       races the field finishes **1.35 s slower** than under ``FIXED`` (12,000
+       draws; at 1,200 the estimate swings by a second either way). So the focal
+       car's score improves without its plan changing at all. The field got worse,
+       it did not get better.
 
        Most of that is the search's own known bias, not this path's: with
        :data:`COMPOUND_OFFSET_S` at zero nothing is paid for fitting fresh rubber
