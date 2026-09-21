@@ -89,6 +89,8 @@ from pathlib import Path
 
 import numpy as np
 
+from boxbox_ml import reaction
+
 #: Championship points for the first ten places. Eleventh onward scores nothing,
 #: which is the discontinuity that makes strategy interesting outside the top ten.
 POINTS = (25, 18, 15, 12, 10, 8, 6, 4, 2, 1)
@@ -663,6 +665,22 @@ class Car:
     #: a lap time difference is already a per-lap quantity — and
     #: :func:`pace_from_qualifying` converts one into the other.
     pace_s: float | None = None
+    #: Which team this car belongs to, so its team-mate can be found.
+    #:
+    #: Only two cars share a value, and the pairing is the whole point: they share
+    #: one crew and one box, so when both come in on the same lap the second waits
+    #: and pays for it (ADR-014). ``None`` means unpaired, which is what every
+    #: caller written before reactive rivals gets, and it simply switches the
+    #: constraint off for that car.
+    team: str | None = None
+    #: The lap range this car is projected to stop in, as ``(opens, closes)``.
+    #:
+    #: Passed in as **data**, never computed here. :func:`boxbox_ml.insights
+    #: .pit_window` is what produces it, and that module is the rules engine — the
+    #: simulator importing it would tie together two things that are kept apart on
+    #: purpose (ADR-013). ``None`` falls back to the car's plan, which is what the
+    #: search itself supplies.
+    window: tuple[int, int] | None = None
 
 
 @dataclass(frozen=True)
@@ -764,6 +782,28 @@ def _traffic_penalty(
 #: Codes for what flag a lap is run under, ordered by how cheap a stop is on it.
 GREEN, VSC_FLAG, SC_FLAG, RED_FLAG = 0, 1, 2, 3
 
+#: The name :mod:`boxbox_ml.reaction` knows each flag by. Green has no entry:
+#: there is no neutralisation to react to, so the policy is never asked.
+FLAG_NAME: dict[int, str] = {VSC_FLAG: "vsc", SC_FLAG: "sc", RED_FLAG: "red"}
+
+
+class RivalMode(StrEnum):
+    """How the cars that are not the focal car behave.
+
+    The two modes exist side by side rather than one replacing the other, which
+    is what lets the interface offer the comparison instead of a correction
+    (ADR-016). ``FIXED`` has to keep producing exactly what it produced before
+    reactive rivals existed, or the comparison is not honest.
+    """
+
+    #: Every rival runs the plan it was handed, whatever the race does. This is
+    #: what the model did until now, and it is the baseline of the switch.
+    FIXED = "fixed"
+    #: Rivals see the flags and their own rubber, and decide. They do **not** see
+    #: the focal car here: that costs a re-simulation per candidate plan and is
+    #: applied once, at scoring time, not inside the search (ADR-012).
+    REACTIVE = "reactive"
+
 
 def _draw_count(weights: Sequence[float], rng: np.random.Generator, draws: int) -> np.ndarray:
     """How many periods of one kind each drawn race gets."""
@@ -810,20 +850,71 @@ def draw_neutralisations(model: RaceModel, rng: np.random.Generator, draws: int)
     return flags
 
 
-def _pit_cost(
-    flags: np.ndarray, lap: int, model: RaceModel, rng: np.random.Generator, draws: int
+def period_ids(flags: np.ndarray) -> np.ndarray:
+    """Number each neutralisation so the cars inside it can share one draw.
+
+    A period is a maximal run of consecutive laps under the same flag, numbered
+    from one within each drawn race; green laps are zero. Deriving it from the
+    finished ``flags`` rather than from the draw that built them is deliberate —
+    the draw lets periods overlap and resolves them by *cheapest flag wins*, so a
+    safety car swallowed by a red flag is not a safety-car period any more, and
+    only the resolved array knows that.
+
+    Returns:
+        ``(total_laps + 1, draws)``, matching ``flags``.
+    """
+    running = flags != GREEN
+    same_as_previous = np.zeros_like(running)
+    same_as_previous[1:] = running[:-1] & (flags[1:] == flags[:-1])
+    return (np.cumsum(running & ~same_as_previous, axis=0) * running).astype(np.int32)
+
+
+def draw_period_shift(ids: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+    """One standard normal per period per drawn race, shared by every car in it.
+
+    This is what turns a field of independent coins into one that stampedes or
+    freezes. The measured spread of how much of the field pits under a safety car
+    runs from 0.05 at the tenth percentile to 0.85 at the ninetieth, and no
+    per-car model reproduces that: the count of stops came out 1.9 times too
+    stable under a safety car and 2.8 under a VSC.
+
+    It matters beyond realism. The case that actually costs a plan its race is
+    *the field took a cheap stop and I did not*, and independent coins almost
+    never deal it. :data:`boxbox_ml.reaction.PERIOD_SIGMA` scales this; it is kept
+    separate so the same draw serves every car and every flag.
+
+    Returns:
+        ``(1 + highest period number, draws)``. Row 0 is unused padding so a
+        green lap's id of zero indexes somewhere harmless.
+    """
+    return rng.standard_normal((int(ids.max()) + 1 if ids.size else 1, ids.shape[1]))
+
+
+def _cost_under(
+    at_lap: np.ndarray, model: RaceModel, rng: np.random.Generator, draws: int
 ) -> np.ndarray:
-    """What a stop on ``lap`` costs in each drawn race, given the flag it meets."""
+    """What a stop costs in each drawn race, given the flag that race is under.
+
+    Split out from :func:`_pit_cost` because a reactive car does not stop on the
+    same lap in every draw — it stops when the race hands it a reason — so the
+    flag it meets has to arrive as one value per draw rather than as a lap number.
+    """
     green = _from_cuts(model.pit_loss_green, rng.random(draws))
     vsc = _from_cuts(model.pit_loss_vsc, rng.random(draws))
     sc = _from_cuts(model.pit_loss_sc, rng.random(draws))
     red = _from_cuts(model.pit_loss_red, rng.random(draws))
 
-    at_lap = flags[min(lap, flags.shape[0] - 1)]
     cost = green.copy()
     cost = np.where(at_lap == VSC_FLAG, vsc, cost)
     cost = np.where(at_lap == SC_FLAG, sc, cost)
     return np.where(at_lap == RED_FLAG, red, cost)
+
+
+def _pit_cost(
+    flags: np.ndarray, lap: int, model: RaceModel, rng: np.random.Generator, draws: int
+) -> np.ndarray:
+    """What a stop on ``lap`` costs in each drawn race, given the flag it meets."""
+    return _cost_under(flags[min(lap, flags.shape[0] - 1)], model, rng, draws)
 
 
 def race_trace(
@@ -918,6 +1009,214 @@ def race_trace(
             deficit = np.zeros(draws)
             step = COMPOUND_OFFSET_S.get(stop.compound, 0.0) - own_offset
 
+        trace[offset + 1] = total
+
+    return trace
+
+
+def reactive_trace(
+    plan: Plan,
+    car: Car,
+    model: RaceModel,
+    rng: np.random.Generator,
+    draws: int,
+    flags: np.ndarray,
+    ids: np.ndarray,
+    shift: np.ndarray,
+    rival_trace: np.ndarray | None = None,
+    stops_out: np.ndarray | None = None,
+) -> np.ndarray:
+    """Like :func:`race_trace`, but the car decides when to stop as the race runs.
+
+    The difference that matters is in the shape of a stop. In :func:`race_trace`
+    a stop is a lap number, the same in every drawn race. Here it is a **mask over
+    draws**: the safety car comes out on lap 12 in one race and lap 44 in another,
+    so the same car stops at different points in each, and every piece of state
+    that a stop resets — the wear rate, the deficit, the compound step — becomes
+    per-draw too.
+
+    What reactivity does **not** change is how many times the car stops. The plan
+    still says that, and this only moves the stops earlier. Keeping the count
+    fixed is what stops a reactive field from quietly out-stopping the measured
+    distribution, and it means the only thing being modelled here is the thing
+    that was actually measured: whether a car takes a cheap window when one opens.
+
+    Two rules keep it honest:
+
+    * **The policy only pulls a stop forward.** A stop that was due anyway is
+      taken whatever flag the lap is under; the policy is asked only about a car
+      that was *not* going to stop yet. That split matters both ways. Without it
+      a car that planned to stop on lap 24 would decline a safety car on lap 24,
+      which no team does; and the measured shares already contain the cars that
+      were stopping anyway, so the pull-forward rate has to be checked against
+      them rather than added to them.
+    * **A pulled-forward stop respects ``MIN_STINT`` and ``MAX_STINT``.** A plan
+      whose next stop now falls too close is skipped rather than run, because a
+      set that has done four laps is not a set anybody changes; and a set that
+      reaches its measured limit forces a stop, because pulling one stop forward
+      must not leave the car on a stint longer than anything in the evidence.
+
+    * **A red flag is a free change and does not spend a planned stop.** The race
+      is stopped, so tyres go on at no cost in track position, and 94.9% of cars
+      take it. Counting it as the planned stop would leave a car that got one on
+      lap 3 with nothing left for the next forty, which is not what Monza 2026
+      looked like: the free change happened and ten cars still stopped again.
+      This is how the focal car is treated too (ADR-015).
+
+    Args:
+        plan: The stops the car intends. Their laps are targets, not commitments.
+        car: Its state now. ``car.window`` overrides the first target when set.
+        flags: ``(total_laps + 1, draws)`` from :func:`draw_neutralisations`.
+        ids: The matching :func:`period_ids`, so cars share one period.
+        shift: From :func:`draw_period_shift`, the shared stampede-or-freeze draw.
+        rival_trace: For pricing traffic, as in :func:`race_trace`.
+        stops_out: Optional ``(laps + 1, draws)`` boolean array, filled in with
+            where the car actually stopped. The policy is only worth having if it
+            reproduces the shares it was fitted to, and nothing else in the
+            returned trace can answer that — a lap time does not say whether the
+            car pitted on it. Left at ``None`` this costs nothing.
+
+    Returns:
+        ``(laps + 1, draws)``, same as :func:`race_trace`.
+
+    .. warning::
+
+       **This does not yet reproduce the shares it was fitted to, and the reason
+       is the rule above, not the tables.** Measured over a 22-car field on 3,000
+       drawn races, the model brings in 20.1% of running cars under a safety car
+       against 43.0% observed, 13.6% under a VSC against 24.2%, and 82.9% under a
+       red flag against 94.9%.
+
+       Roughly two thirds of the chances never reach the policy at all: a third
+       of the cars have already made every stop their plan allows and can never
+       react again, and another third are inside ``MIN_STINT`` of their last one.
+       Turning the probabilities up cannot fix that — those cars are refused
+       before the draw happens.
+
+       What it means is that *reactivity only moves stops* is too strong a rule.
+       A car that has finished its planned stops and is sitting on thirty-lap-old
+       rubber when a safety car appears does pit, and that case is a real part of
+       the 43%. Letting the policy **add** a stop rather than only move one is the
+       fix, and it changes the distribution of how many times a car stops, which
+       is measured elsewhere — so it is a decision, not a patch. Until it is
+       taken, this path under-stops and the number above is the size of it.
+    """
+    laps_left = model.total_laps - car.from_lap
+    trace = np.empty((laps_left + 1, draws), dtype=float)
+    total = np.full(draws, car.gap_leader_s, dtype=float)
+    trace[0] = total
+
+    current = float(np.clip(car.degradation_s, -MAX_DEFICIT_S, MAX_DEFICIT_S))
+    if car.pace_s is not None:
+        baseline = car.pace_s
+    elif car.from_lap <= 1:
+        baseline = 0.0
+    else:
+        baseline = car.gap_leader_s / (car.from_lap - 1) - current
+
+    # Targets, with a sentinel past the flag so "no stop left" needs no branch.
+    beyond = model.total_laps + 1
+    targets = [stop.lap for stop in plan.stops]
+    if targets and car.window is not None:
+        # The window is where this car is projected to stop, and it is a better
+        # first target than a plan lap when the caller has one (ADR-013). Later
+        # stops keep their plan laps: the window only ever describes the next one.
+        opens, closes = car.window
+        targets[0] = int(np.clip(round((opens + closes) / 2), car.from_lap + 1, model.total_laps))
+        targets = sorted(targets)
+    target_lap = np.array([*targets, beyond, beyond], dtype=int)
+    compounds = [stop.compound for stop in plan.stops]
+    # Life of the set the car is on after ``n`` stops, so the limit is a lookup
+    # per draw and the compound name never has to be tracked alongside it.
+    limit = np.array(
+        [
+            MAX_STINT.get(car.compound, MAX_STINT["HARD"]),
+            *(MAX_STINT.get(c, MAX_STINT["HARD"]) for c in compounds),
+            beyond,
+        ],
+        dtype=int,
+    )
+
+    rate = _from_cuts(model.wear_cuts[car.compound], rng.random(draws)) + RATE_SHRINK * (
+        car.degradation_rate - ROLLING_MEDIAN_S
+    )
+    deficit = np.full(draws, current)
+    own_offset = COMPOUND_OFFSET_S.get(car.compound, 0.0)
+    step = np.zeros(draws)
+    age = np.full(draws, car.tyre_age, dtype=int)
+    pending = np.zeros(draws, dtype=int)
+    column = np.arange(draws)
+    previous_id = np.zeros(draws, dtype=np.int32)
+
+    for offset in range(laps_left):
+        lap = car.from_lap + offset
+        total = total + baseline + deficit + step
+        deficit = np.clip(deficit + rate, 0.0, MAX_DEFICIT_S)
+        total = total + rng.normal(0.0, model.lap_noise_s, draws)
+        total = total + _traffic_penalty(total, rival_trace, offset + 1, model)
+        age = age + 1
+
+        index = min(lap + 1, flags.shape[0] - 1)
+        at_lap, at_id = flags[index], ids[index]
+
+        # Whatever is left to do, and whether there is room to do it.
+        left = pending < len(targets)
+        room = (age >= MIN_STINT) & (lap + 1 <= model.total_laps - MIN_STINT)
+        opened = left & room & (at_id != previous_id) & (at_lap != GREEN)
+
+        chance = np.zeros(draws)
+        for code, name in FLAG_NAME.items():
+            here = opened & (at_lap == code)
+            if here.any():
+                chance[here] = reaction.pit_probability(
+                    name, age[here], shift[at_id[here], column[here]]
+                )
+        # A stop that was due anyway happens whatever the flag says. This is the
+        # line that a first version got wrong, by letting the policy decide every
+        # stop taken under a neutralisation: a car that planned to stop on lap 24
+        # and found a safety car there would decline it 83% of the time, because
+        # the measured 17% for fresh rubber describes cars that were nowhere near
+        # their window. The policy only ever **pulls a stop forward**.
+        #
+        # A target already behind us still counts as due, which is how a stop
+        # skipped for being too close gets taken at the next chance. So does a set
+        # at its measured limit: pulling one stop forward must not strand the car
+        # on a stint longer than anything the evidence contains.
+        due = left & room & ((lap + 1 >= target_lap[pending]) | (age >= limit[pending]))
+        reacting = opened & ~due & (rng.random(draws) < chance)
+        planned = reacting | due
+
+        # The free change. It costs no track position and does not spend a planned
+        # stop, so a car that takes one on lap 3 still has its race to run.
+        free = (
+            (at_lap == RED_FLAG)
+            & ~planned
+            & (rng.random(draws) < reaction.base_probability("red", age))
+        )
+        stopping = planned | free
+
+        if stopping.any():
+            total = total + np.where(stopping, _cost_under(at_lap, model, rng, draws), 0.0)
+            fresh = np.zeros(draws)
+            offsets = np.zeros(draws)
+            for which, compound in enumerate(compounds):
+                # A free change fits whatever the car was going to fit next.
+                taking = stopping & (np.minimum(pending, max(len(compounds) - 1, 0)) == which)
+                if taking.any():
+                    fresh[taking] = _from_cuts(
+                        model.wear_cuts[compound], rng.random(int(taking.sum()))
+                    )
+                    offsets[taking] = COMPOUND_OFFSET_S.get(compound, 0.0) - own_offset
+            rate = np.where(stopping, fresh, rate)
+            step = np.where(stopping, offsets, step)
+            deficit = np.where(stopping, 0.0, deficit)
+            age = np.where(stopping, 0, age)
+            pending = pending + planned
+
+            if stops_out is not None:
+                stops_out[offset + 1] = stopping
+
+        previous_id = at_id
         trace[offset + 1] = total
 
     return trace
