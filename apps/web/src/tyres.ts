@@ -61,7 +61,7 @@
  */
 
 import { RACE } from './data'
-import type { Compound, DriverState } from './types'
+import type { Compound, DriverState, TrackStatus } from './types'
 
 /** Desvío del ritmo de una vuelta, en segundos. Mediana de 4.407 tandas. */
 export const LAP_NOISE_S = 0.457
@@ -378,6 +378,17 @@ export interface EvolveOptions {
    * terminen distinto — la tesis del trabajo (ADR-006).
    */
   plans?: PlannedStop[][]
+  /**
+   * Bandera que ondea ahora, y desde qué vuelta.
+   *
+   * Sin esto la animación no sabía que existían las neutralizaciones: el
+   * selector de arriba pintaba la barra de estado y nada más, así que nadie
+   * paraba bajo VSC por más que el modelo de Python dijera que para el 24% del
+   * campo. El usuario lo vio en pantalla antes de que ningún test lo dijera.
+   */
+  status?: TrackStatus
+  /** Vuelta en que se puso esa bandera. Lo que hace la reacción reproducible. */
+  statusSince?: number | null
 }
 
 /**
@@ -386,6 +397,106 @@ export interface EvolveOptions {
  * Es la misma cuenta para adelante y para atrás: mover la vuelta con los botones
  * no altera la carrera, sólo mueve el reloj.
  */
+/**
+ * Probabilidad de que un auto entre a boxes durante una neutralización, según
+ * la edad de su goma al empezarla. Espejo de `boxbox_ml.reaction.REACT`.
+ *
+ * Una neutralización **no es una parada automática**, que era el supuesto que la
+ * animación tenía sin decirlo: bajo VSC para el 24,2% del campo y bajo safety
+ * car el 43,0%. Sólo bajo bandera roja —la carrera detenida, el cambio no cuesta
+ * posición— entra casi todo el mundo.
+ *
+ * Medido sobre 2.828 casos auto-por-período de 2022 a 2026 por
+ * `apps/ml/scripts/rival_reaction.py`. Las bandas son 0-5, 6-10, 11-15, 16-20,
+ * 21-25, 26-30 y 31+ vueltas de goma.
+ */
+const REACT: Partial<Record<TrackStatus, number[]>> = {
+  RED: [0.924, 0.982, 1.0, 1.0, 1.0, 1.0, 1.0],
+  SC: [0.17, 0.473, 0.605, 0.73, 0.825, 0.737, 0.938],
+  VSC: [0.088, 0.169, 0.356, 0.324, 0.246, 0.444, 0.447],
+}
+
+/** Bordes superiores de cada banda de edad de goma, en vueltas. */
+const AGE_EDGES = [5, 10, 15, 20, 25, 30]
+
+/**
+ * Cuánto se corre la probabilidad de todo el campo en un mismo período.
+ *
+ * Los períodos reales son estampidas o congelamientos: bajo safety car la cuota
+ * del campo que para va de 0,05 en el percentil diez a 0,85 en el noventa. Con
+ * una moneda por auto la pantalla mostraría siempre más o menos medio campo
+ * entrando, y nunca el caso que de verdad te arruina la carrera, que es que
+ * entren todos menos vos. El corrimiento es **uno solo por período** y lo
+ * sienten los veintidós.
+ */
+const PERIOD_SIGMA: Partial<Record<TrackStatus, number>> = { RED: 0, SC: 1.8, VSC: 1.15 }
+
+/** Normal estándar a partir de dos uniformes, por Box-Muller. */
+function normalFrom(u1: number, u2: number): number {
+  return Math.sqrt(-2 * Math.log(Math.max(u1, 1e-9))) * Math.cos(2 * Math.PI * u2)
+}
+
+/**
+ * Qué autos se tiran a boxes cuando la pista se neutraliza en `since`.
+ *
+ * Normalmente adelanta la **próxima parada pendiente**, pero también puede
+ * agregar una. Que sólo adelantara fue la primera versión del lado de Python y
+ * dejaba al modelo en la mitad de las cuotas medidas, porque un tercio de los
+ * autos ya había gastado todas las paradas de su plan y no podía reaccionar
+ * nunca más. En pantalla se veía peor todavía: con la bandera puesta tarde no
+ * entraba nadie. Un auto con goma de treinta vueltas cuando sale un safety car
+ * para, diga lo que diga el plan.
+ *
+ * Es determinista a partir de la semilla y de la vuelta en que se puso la
+ * bandera, así que mover el reloj para adelante y para atrás no cambia quién
+ * entró: la carrera sigue siendo la misma carrera.
+ */
+function reactToFlag(
+  plans: PitStop[][],
+  base: DriverState[],
+  status: TrackStatus,
+  since: number,
+  fromLap: number,
+  seed: number,
+): PitStop[][] {
+  const table = REACT[status]
+  const sigma = PERIOD_SIGMA[status]
+  if (!table || sigma === undefined || since < fromLap + MIN_STINT) return plans
+
+  // Un solo corrimiento para todo el campo, que es lo que produce la estampida
+  // y el período en que no se mueve nadie.
+  const shift = sigma * normalFrom(hash(seed, since, 0x5eed), hash(seed, since, 0x5eee))
+
+  return plans.map((plan, index) => {
+    const pending = plan.findIndex((stop) => stop.lap > since)
+    // Sin parada pendiente el auto igual puede entrar: es una parada agregada, y
+    // calza lo mismo que calzó la última vez.
+    const next = pending < 0 ? plan.length : pending
+    const previous = next > 0 ? plan[next - 1].lap : fromLap
+    const age = since - previous + (next > 0 ? 0 : base[index].tyreAge)
+    if (age < MIN_STINT || since > RACE.totalLaps - MIN_STINT) return plan
+
+    let band = 0
+    while (band < AGE_EDGES.length && age > AGE_EDGES[band]) band += 1
+    const p = table[band]
+    const logit = Math.log(Math.min(Math.max(p, 1e-6), 1 - 1e-6) / (1 - Math.min(Math.max(p, 1e-6), 1 - 1e-6)))
+    const chance = 1 / (1 + Math.exp(-(logit + shift)))
+    if (hash(seed, index, since, 0xb0c5) >= chance) return plan
+
+    // La parada se adelanta a esta vuelta. Las que siguen se quedan donde
+    // estaban salvo que queden demasiado cerca, en cuyo caso se caen: un juego
+    // de cuatro vueltas no lo cambia nadie.
+    const fitting = plan[next] ?? plan[plan.length - 1]
+    const moved = [...plan]
+    moved[next] = {
+      lap: since,
+      compound: fitting?.compound ?? base[index].compound,
+      lossS: fitting?.lossS ?? drawPitLoss(SNAPSHOT_MODEL, seed, index, 0x1055 + next),
+    }
+    return moved.filter((stop, n) => n <= next || stop.lap >= since + MIN_STINT)
+  })
+}
+
 export function evolve(
   base: DriverState[],
   lap: number,
@@ -404,9 +515,13 @@ export function evolve(
       lossS: drawPitLoss(model, seed, index, 0x1055 + n),
     }))
   })
+  const neutralised =
+    options.status !== undefined && options.statusSince != null
+      ? reactToFlag(plans, base, options.status, options.statusSince, fromLap, seed)
+      : plans
   // La última parada ya hecha es la que define con qué goma anda ahora.
-  const done = plans.map((plan) => plan.filter((stop) => lap >= stop.lap))
-  const stops = plans.map((plan) => plan.find((stop) => lap < stop.lap) ?? null)
+  const done = neutralised.map((plan) => plan.filter((stop) => lap >= stop.lap))
+  const stops = neutralised.map((plan) => plan.find((stop) => lap < stop.lap) ?? null)
 
   const cars = base.map((car, index) => {
     const stop = done[index][done[index].length - 1]
@@ -455,5 +570,8 @@ export function evolve(
     made.reduce((total, stop) => total + stop.lossS / RACE.greenLapS, 0),
   )
 
-  return { cars, paceNoise, stops, plans, progressLost }
+  // La torre muestra el plan YA REACCIONADO: si el auto se tiro a boxes bajo la
+  // bandera, eso es lo que hizo, y mostrarle al usuario el plan original seria
+  // contradecir en la torre lo que pasa en la pista.
+  return { cars, paceNoise, stops, plans: neutralised, progressLost }
 }

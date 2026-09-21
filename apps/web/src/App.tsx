@@ -87,6 +87,13 @@ export default function App() {
   const initial: View = VIEWS.has(hash) ? (hash as View) : 'prerace'
   const [view, setView] = useState<View>(initial)
   const [status, setStatus] = useState<TrackStatus>('GREEN')
+  /*
+   * Desde qué vuelta ondea esa bandera. La reacción del campo se decide UNA vez,
+   * en la vuelta en que se neutralizó, y no lap a lap: así mover el reloj para
+   * adelante y para atrás no cambia quién entró a boxes, que es lo que hace que
+   * la carrera siga siendo la misma carrera mientras se la revisa.
+   */
+  const [statusSince, setStatusSince] = useState<number | null>(null)
   const [origin, setOrigin] = useState<Origin>('snapshot')
   const [lap, setLap] = useState(RACE.currentLap)
   const [playing, setPlaying] = useState(false)
@@ -141,9 +148,14 @@ export default function App() {
   const { cars, paceNoise, progressLost, plans } = useMemo(
     () =>
       origin === 'start'
-        ? evolve(gridOf(rivals), lap, 1, seed, { model: PRERACE_MODEL, plans: plansOf(rivals) })
-        : evolve(FIELD_CARS, lap, RACE.currentLap, seed),
-    [lap, origin, seed, rivals],
+        ? evolve(gridOf(rivals), lap, 1, seed, {
+            model: PRERACE_MODEL,
+            plans: plansOf(rivals),
+            status,
+            statusSince,
+          })
+        : evolve(FIELD_CARS, lap, RACE.currentLap, seed, { status, statusSince }),
+    [lap, origin, seed, rivals, status, statusSince],
   )
 
   // El pelotón vive en useField: separación, ritmo y posición se interpolan
@@ -232,7 +244,15 @@ export default function App() {
               type="button"
               className="scenario"
               aria-pressed={status === id}
-              onClick={() => setStatus(id)}
+              onClick={() => {
+                setStatus(id)
+                // Verde no es una neutralización: apaga la reacción en vez de
+                // fecharla. Y volver a tocar la misma bandera no la re-fecha,
+                // porque sigue siendo el mismo período.
+                setStatusSince(id === 'GREEN' || id === 'YELLOW' ? null : (was) =>
+                  status === id ? was : lap,
+                )
+              }}
             >
               {STATUS[id].label}
             </button>
