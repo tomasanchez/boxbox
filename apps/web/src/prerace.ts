@@ -18,7 +18,8 @@ import { PALETTE } from './theme'
 import type { RecommendedPlan } from './plans'
 import type { Compound, DriverState } from './types'
 import type { DrawModel, PlannedStop } from './tyres'
-import raw from './prerace-zandvoort.json'
+import fixedRaw from './prerace-zandvoort.json'
+import reactiveRaw from './prerace-zandvoort-reactive.json'
 
 /** Los compuestos que el export mide. En el escenario no hay tandas de mojado. */
 export type DryCompound = 'SOFT' | 'MEDIUM' | 'HARD'
@@ -231,15 +232,56 @@ export interface PreRaceExport {
   cars: PreRaceCar[]
 }
 
-export const PRERACE = raw as unknown as PreRaceExport
+/**
+ * Cómo se comportan los veintiún autos que no son el elegido.
+ *
+ * `fixed` es el modelo como era: cada rival corre el plan que le tocó, pase lo
+ * que pase en la carrera. `reactive` los deja ver las banderas y su propia goma
+ * —bajo safety car para el 43% del campo, no todos— y responder a la parada del
+ * auto elegido.
+ *
+ * Los dos conviven en vez de que uno reemplace al otro, que es lo que permite
+ * ofrecer la comparación en lugar de una corrección (ADR-016): las cifras
+ * publicadas siguen saliendo de `fixed`, y se puede ver al lado qué pasa cuando
+ * el campo reacciona.
+ */
+export type RivalsMode = 'fixed' | 'reactive'
 
-/** Los veintidós, en orden de grilla — que es el orden en que vienen. */
-export const PRERACE_CARS: PreRaceCar[] = PRERACE.cars
+const EXPORTS: Record<RivalsMode, PreRaceExport> = {
+  fixed: fixedRaw as unknown as PreRaceExport,
+  reactive: reactiveRaw as unknown as PreRaceExport,
+}
 
-const BY_CODE = new Map(PRERACE_CARS.map((car) => [car.code, car]))
+/**
+ * Lo que las dos corridas comparten: la carrera, el modelo y la configuración
+ * de la búsqueda.
+ *
+ * No es una suposición cómoda, está verificado abajo. Lo único que cambia entre
+ * modos es el **resultado por auto**, y por eso el resto se lee de una sola.
+ */
+export const PRERACE = EXPORTS.fixed
 
-export function preraceCar(code: string): PreRaceCar {
-  const car = BY_CODE.get(code)
+/**
+ * Los veintidós, en orden de grilla — que es el orden en que vienen.
+ *
+ * El plan de cada uno depende del modo, así que quien lo necesite tiene que
+ * pedir `carsOf`. Esta lista sirve para lo que NO depende del modo: quiénes
+ * son, de qué equipo y en qué puesto largan.
+ */
+export const PRERACE_CARS: PreRaceCar[] = EXPORTS.fixed.cars
+
+/** Los autos con el resultado de la corrida que corresponda al modo. */
+export function carsOf(mode: RivalsMode): PreRaceCar[] {
+  return EXPORTS[mode].cars
+}
+
+const BY_CODE: Record<RivalsMode, Map<string, PreRaceCar>> = {
+  fixed: new Map(EXPORTS.fixed.cars.map((car) => [car.code, car])),
+  reactive: new Map(EXPORTS.reactive.cars.map((car) => [car.code, car])),
+}
+
+export function preraceCar(code: string, mode: RivalsMode = 'fixed'): PreRaceCar {
+  const car = BY_CODE[mode].get(code)
   if (!car) throw new Error(`Sin datos pre-carrera para ${code}`)
   return car
 }
@@ -502,25 +544,29 @@ export const PRERACE_MODEL: DrawModel = {
  *   `paceS`       el ritmo relativo medido, que es lo que separa al pelotón una
  *                 vez que larga.
  */
-export const PRERACE_GRID: DriverState[] = PRERACE_CARS.map((car) => ({
-  code: car.code,
-  team: car.team,
-  teamColor: teamColor(car.code),
-  position: car.grid_position,
-  compound: car.start_compound,
-  tyreAge: 0,
-  degradationS: 0,
-  degradationRate: medianOf(PRERACE.model.wear_cuts_s_lap[car.start_compound]),
-  gapAheadS: null,
-  gapLeaderS: null,
-  pitWindow: car.pit_window
-    ? { opensLap: car.pit_window.opens_lap, closesLap: car.pit_window.closes_lap }
-    : null,
-  paceS: car.pace_s,
-}))
+export function gridOf(mode: RivalsMode): DriverState[] {
+  return carsOf(mode).map((car) => ({
+    code: car.code,
+    team: car.team,
+    teamColor: teamColor(car.code),
+    position: car.grid_position,
+    compound: car.start_compound,
+    tyreAge: 0,
+    degradationS: 0,
+    degradationRate: medianOf(PRERACE.model.wear_cuts_s_lap[car.start_compound]),
+    gapAheadS: null,
+    gapLeaderS: null,
+    pitWindow: car.pit_window
+      ? { opensLap: car.pit_window.opens_lap, closesLap: car.pit_window.closes_lap }
+      : null,
+    paceS: car.pace_s,
+  }))
+}
 
 /** Cada auto corre el plan que le dio el algoritmo. El sorteo no los cambia. */
-export const PRERACE_PLANS: PlannedStop[][] = PRERACE_CARS.map((car) => car.stops)
+export function plansOf(mode: RivalsMode): PlannedStop[][] {
+  return carsOf(mode).map((car) => car.stops)
+}
 
 /** La mediana de una distribución dada por cortes es el corte del medio. */
 function medianOf(cuts: number[]): number {
@@ -537,4 +583,21 @@ if (PRERACE.race.total_laps !== RACE.totalLaps) {
   throw new Error(
     `El export es de ${PRERACE.race.total_laps} vueltas y la web corre ${RACE.totalLaps}`,
   )
+}
+
+/**
+ * Y las dos corridas describen la misma carrera con el mismo modelo.
+ *
+ * `PRERACE` lee la metadata de una sola de las dos, lo cual sólo es correcto
+ * mientras eso sea cierto. Si alguna vez se regenera una de las dos con otro
+ * circuito, otro desgaste u otra cantidad de sorteos, el interruptor estaría
+ * cambiando dos cosas a la vez y la comparación no diría nada. Mejor que
+ * reviente acá que descubrirlo leyendo un número raro en pantalla.
+ */
+for (const field of ['race', 'model'] as const) {
+  const a = JSON.stringify(EXPORTS.fixed[field])
+  const b = JSON.stringify(EXPORTS.reactive[field])
+  if (a !== b) {
+    throw new Error(`Las dos corridas pre-carrera no comparten \`${field}\`: el interruptor compararía dos cosas a la vez`)
+  }
 }

@@ -41,7 +41,7 @@ import { fmt } from './format'
 import { inPitNow } from './pitlane'
 import { openCount } from './pitwindow'
 import { PLANS } from './plans'
-import { preraceCar, recommendedPlan } from './prerace'
+import { type RivalsMode, preraceCar, recommendedPlan } from './prerace'
 import { TRACKS } from './tracks'
 import type { PitStop } from './tyres'
 import type { DriverState, TrackStatus } from './types'
@@ -64,6 +64,7 @@ export function RaceView({
   focal,
   plans,
   drawnPlans,
+  rivals,
 }: {
   scenarioLap: number
   status: TrackStatus
@@ -93,6 +94,8 @@ export function RaceView({
    * justamente lo que la vista se cuidó de separar.
    */
   drawnPlans: PitStop[][]
+  /** Qué corrida se está mirando: rivales con plan fijo, o reaccionando. */
+  rivals: RivalsMode
 }) {
   const track = TRACKS[RACE.trackKey]
   const duels = useMemo(
@@ -136,7 +139,7 @@ export function RaceView({
   const insightDriver = hasPlan
     ? focal
     : (duel?.chaser ?? cars[timing.order[0]]?.code ?? 'ANT')
-  const insightPlan = plans !== null ? recommendedPlan(preraceCar(insightDriver)) : undefined
+  const insightPlan = plans !== null ? recommendedPlan(preraceCar(insightDriver, rivals)) : undefined
 
   const [battleOpen, setBattleOpen] = useState(true)
   const [forecastOpen, setForecastOpen] = useState(true)

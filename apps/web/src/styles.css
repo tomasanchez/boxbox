@@ -3642,3 +3642,38 @@ body {
   line-height: 1.5;
   color: var(--txt-3);
 }
+
+/* Interruptor de comportamiento de los rivales.
+   Dos botones y no un desplegable: son dos opciones, se comparan entre sí, y
+   cuál está activa tiene que leerse sin abrir nada. Arranca en «plan fijo»
+   porque de esa corrida salen todas las cifras publicadas, y el interruptor
+   está para poder ver la otra al lado, no para reemplazarla (ADR-016). */
+.rivals {
+  display: flex;
+  gap: 2px;
+  margin: 2px 0 3px;
+}
+.rivals__pick {
+  flex: 1;
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--txt-2);
+  font-family: var(--sans);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.rivals__pick:hover {
+  color: var(--txt-0);
+  border-color: var(--line-strong);
+}
+.rivals__pick--on {
+  background: var(--txt-0);
+  border-color: var(--txt-0);
+  color: var(--bg-0);
+  font-weight: 600;
+}

@@ -23,7 +23,7 @@ import { EvolutionCard } from './EvolutionCard'
 import { OutcomeCard } from './OutcomeCard'
 import { PlanCard } from './PlanCard'
 import { StartRaceCard } from './StartRaceCard'
-import { PRERACE, preraceCar } from './prerace'
+import { PRERACE, type RivalsMode, preraceCar } from './prerace'
 
 export function PreRaceView({
   focal,
@@ -37,6 +37,7 @@ export function PreRaceView({
   onSnapshot,
   onRedraw,
   onWatch,
+  rivals,
 }: {
   focal: string
   onFocal: (code: string) => void
@@ -49,8 +50,10 @@ export function PreRaceView({
   onSnapshot: () => void
   onRedraw: () => void
   onWatch: () => void
+  /** Qué corrida se está mirando: la de rivales con plan fijo o la reactiva. */
+  rivals: RivalsMode
 }) {
-  const car = preraceCar(focal)
+  const car = preraceCar(focal, rivals)
 
   return (
     <div className="view view--prerace">

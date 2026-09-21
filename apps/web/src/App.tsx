@@ -38,7 +38,7 @@ import { SPEEDS } from './playback-clock'
 import { PreRaceView } from './PreRaceView'
 import { RaceView } from './RaceView'
 import { GRID, RACE } from './data'
-import { PRERACE_GRID, PRERACE_MODEL, PRERACE_PLANS } from './prerace'
+import { PRERACE_MODEL, type RivalsMode, gridOf, plansOf } from './prerace'
 import { STATUS, STATUS_ORDER, fieldNote } from './status'
 import { DEFAULT_SEED, evolve } from './tyres'
 import { useField } from './useField'
@@ -93,6 +93,13 @@ export default function App() {
   const [speed, setSpeed] = useState(SPEEDS[1])
   const [focal, setFocal] = useState('NOR')
   const [seed, setSeed] = useState(DEFAULT_SEED)
+  /*
+   * Cómo se portan los veintiún autos que no son el elegido. Arranca en `fixed`
+   * porque ésa es la corrida de la que salen todas las cifras publicadas, y el
+   * interruptor está para poder ver la otra al lado, no para reemplazarla
+   * (ADR-016).
+   */
+  const [rivals, setRivals] = useState<RivalsMode>('fixed')
 
   const spec = STATUS[status]
   const fromLap = origin === 'start' ? 1 : RACE.currentLap
@@ -134,9 +141,9 @@ export default function App() {
   const { cars, paceNoise, progressLost, plans } = useMemo(
     () =>
       origin === 'start'
-        ? evolve(PRERACE_GRID, lap, 1, seed, { model: PRERACE_MODEL, plans: PRERACE_PLANS })
+        ? evolve(gridOf(rivals), lap, 1, seed, { model: PRERACE_MODEL, plans: plansOf(rivals) })
         : evolve(FIELD_CARS, lap, RACE.currentLap, seed),
-    [lap, origin, seed],
+    [lap, origin, seed, rivals],
   )
 
   // El pelotón vive en useField: separación, ritmo y posición se interpolan
@@ -257,6 +264,33 @@ export default function App() {
           value={RACE.mandatoryCompounds.length === 2 ? 'M + H' : '—'}
           note={`mínimo ${RACE.minSets} juegos · B6.3.8`}
         />
+        <div className="kpi">
+          <span className="kpi__label">Rivales</span>
+          <div className="rivals" role="group" aria-label="Comportamiento de los rivales">
+            {(['fixed', 'reactive'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                className={`rivals__pick${rivals === mode ? ' rivals__pick--on' : ''}`}
+                aria-pressed={rivals === mode}
+                onClick={() => setRivals(mode)}
+                title={
+                  mode === 'fixed'
+                    ? 'Cada rival corre su plan pase lo que pase. Es de donde salen las cifras publicadas.'
+                    : 'Los rivales ven las banderas y tu parada, y deciden. Bajo safety car para el 43% del campo, no todos.'
+                }
+              >
+                {mode === 'fixed' ? 'plan fijo' : 'reaccionan'}
+              </button>
+            ))}
+          </div>
+          <span className="kpi__note">
+            {rivals === 'fixed'
+              ? 'corren su plan pase lo que pase'
+              : 'toman las ventanas baratas y cubren tu parada'}
+          </span>
+        </div>
+
         <div className="kpi kpi--wide">
           <span className="kpi__label">Reproducción</span>
           <PlaybackControls
@@ -305,6 +339,7 @@ export default function App() {
            * siendo sólo lo que la torre puede llamar «plan».
            */
           drawnPlans={plans}
+          rivals={rivals}
         />
       ) : view === 'forecast' ? (
         <ForecastView />
@@ -324,6 +359,7 @@ export default function App() {
           onSnapshot={() => startFrom('snapshot', false)}
           onRedraw={redraw}
           onWatch={() => openView('race')}
+          rivals={rivals}
         />
       )}
     </div>
