@@ -1014,6 +1014,177 @@ def race_trace(
     return trace
 
 
+class _Runner:
+    """One car's per-draw state, advanced a lap at a time.
+
+    It exists so :func:`reactive_trace` and :func:`field_trace` share one copy of
+    the stop logic rather than two that drift apart. The split into three calls is
+    what the field loop needs and the single-car loop tolerates:
+
+    ``roll``      the lap happens — wear grows, the clock runs, the set ages.
+    ``propose``   the car says whether it wants to stop, without committing.
+    ``settle``    the stop is taken, at whatever cost the caller has settled on.
+
+    The gap between ``propose`` and ``settle`` is the whole point. A team cannot
+    work on two cars at once, so whether a car actually stops on the lap it wants
+    to depends on what its team-mate wants, and that is not knowable from inside
+    one car.
+    """
+
+    def __init__(self, plan: Plan, car: Car, model: RaceModel, rng, draws: int) -> None:
+        self.car = car
+        self.draws = draws
+        current = float(np.clip(car.degradation_s, -MAX_DEFICIT_S, MAX_DEFICIT_S))
+        if car.pace_s is not None:
+            self.baseline = car.pace_s
+        elif car.from_lap <= 1:
+            self.baseline = 0.0
+        else:
+            self.baseline = car.gap_leader_s / (car.from_lap - 1) - current
+
+        beyond = model.total_laps + 1
+        targets = [stop.lap for stop in plan.stops]
+        if targets and car.window is not None:
+            # The window is where this car is projected to stop, and it is a
+            # better first target than a plan lap when the caller has one
+            # (ADR-013). Later stops keep their plan laps: a window only ever
+            # describes the next one.
+            opens, closes = car.window
+            targets[0] = int(
+                np.clip(round((opens + closes) / 2), car.from_lap + 1, model.total_laps)
+            )
+            targets = sorted(targets)
+        self.targets = targets
+        self.target_lap = np.array([*targets, beyond, beyond], dtype=int)
+        self.compounds = [stop.compound for stop in plan.stops]
+        # Life of the set the car is on after ``n`` stops, so the limit is a
+        # lookup per draw and the compound name never has to be tracked with it.
+        self.limit = np.array(
+            [
+                MAX_STINT.get(car.compound, MAX_STINT["HARD"]),
+                *(MAX_STINT.get(c, MAX_STINT["HARD"]) for c in self.compounds),
+                beyond,
+            ],
+            dtype=int,
+        )
+
+        self.rate = _from_cuts(model.wear_cuts[car.compound], rng.random(draws)) + RATE_SHRINK * (
+            car.degradation_rate - ROLLING_MEDIAN_S
+        )
+        self.deficit = np.full(draws, current)
+        self.own_offset = COMPOUND_OFFSET_S.get(car.compound, 0.0)
+        self.step = np.zeros(draws)
+        self.age = np.full(draws, car.tyre_age, dtype=int)
+        self.pending = np.zeros(draws, dtype=int)
+        self.previous_id = np.zeros(draws, dtype=np.int32)
+        #: Set when a stop this car wanted was held back by its team-mate.
+        self.owed = np.zeros(draws, dtype=bool)
+        self.planned = np.zeros(draws, dtype=bool)
+        self.at_lap = np.zeros(draws, dtype=np.int8)
+        self.at_id = np.zeros(draws, dtype=np.int32)
+
+    def roll(self, model: RaceModel, rng) -> np.ndarray:
+        """Run one lap. Returns the seconds it added, before any stop."""
+        added = self.baseline + self.deficit + self.step
+        self.deficit = np.clip(self.deficit + self.rate, 0.0, MAX_DEFICIT_S)
+        added = added + rng.normal(0.0, model.lap_noise_s, self.draws)
+        self.age = self.age + 1
+        return added
+
+    def propose(
+        self,
+        lap: int,
+        flags: np.ndarray,
+        ids: np.ndarray,
+        shift: np.ndarray,
+        model: RaceModel,
+        rng,
+        cover: np.ndarray | None = None,
+        reactive: bool = True,
+    ) -> np.ndarray:
+        """Whether the car wants to stop, without committing to it.
+
+        reactive=False leaves only the stops the plan asks for, the one a set
+        at its limit forces, and the free red-flag change. That is the focal car:
+        the plan being evaluated is a **pre-race** plan, and one that rewrote
+        itself as the race went would not be that any more.
+        """
+        draws = self.draws
+        index = min(lap + 1, flags.shape[0] - 1)
+        at_lap, at_id = flags[index], ids[index]
+        self.at_lap, self.at_id = at_lap, at_id
+
+        left = self.pending < len(self.targets)
+        room = (self.age >= MIN_STINT) & (lap + 1 <= model.total_laps - MIN_STINT)
+        opened = room & (at_id != self.previous_id) & (at_lap != GREEN)
+
+        chance = np.zeros(draws)
+        for code, name in FLAG_NAME.items():
+            here = opened & (at_lap == code)
+            if here.any():
+                chance[here] = reaction.pit_probability(
+                    name, self.age[here], shift[at_id[here], np.arange(draws)[here]]
+                )
+
+        # A stop that was due anyway happens whatever the flag says. An earlier
+        # version let the policy decide every stop taken under a neutralisation,
+        # so a car that planned to stop on lap 24 and found a safety car there
+        # declined it 83% of the time — the measured 17% for fresh rubber
+        # describes cars that were nowhere near their window. The policy only
+        # ever **pulls a stop forward**.
+        #
+        # A target already behind us counts as due, which is how a stop skipped
+        # for being too close gets taken at the next chance. So does a set at its
+        # measured limit, and so does a stop a team-mate held back last lap.
+        forced = room & (self.age >= self.limit[self.pending])
+        due = forced | (left & room & (lap + 1 >= self.target_lap[self.pending]))
+        reacting = opened & ~due & (rng.random(draws) < chance) & reactive
+        if cover is not None:
+            reacting = reacting | (room & ~due & (rng.random(draws) < cover))
+        self.planned = reacting | due | (self.owed & room)
+
+        # The free change. It costs no track position and does not spend a
+        # planned stop, so a car that takes one on lap 3 still has its race left.
+        free = (
+            (at_lap == RED_FLAG)
+            & ~self.planned
+            & (rng.random(draws) < reaction.base_probability("red", self.age))
+        )
+        return self.planned | free
+
+    def settle(
+        self, stopping: np.ndarray, model: RaceModel, rng, extra_s: np.ndarray | None = None
+    ) -> np.ndarray:
+        """Take the stops the caller allowed. Returns the seconds they cost."""
+        draws = self.draws
+        # Anything wanted but not taken is owed, and goes at the next chance.
+        self.owed = self.planned & ~stopping
+        self.previous_id = self.at_id
+        if not stopping.any():
+            return np.zeros(draws)
+
+        cost = np.where(stopping, _cost_under(self.at_lap, model, rng, draws), 0.0)
+        if extra_s is not None:
+            cost = cost + np.where(stopping, extra_s, 0.0)
+        fresh = np.zeros(draws)
+        offsets = np.zeros(draws)
+        for which, compound in enumerate(self.compounds):
+            # A free change fits whatever the car was going to fit next.
+            taking = stopping & (np.minimum(self.pending, max(len(self.compounds) - 1, 0)) == which)
+            if taking.any():
+                fresh[taking] = _from_cuts(model.wear_cuts[compound], rng.random(int(taking.sum())))
+                offsets[taking] = COMPOUND_OFFSET_S.get(compound, 0.0) - self.own_offset
+        self.rate = np.where(stopping, fresh, self.rate)
+        self.step = np.where(stopping, offsets, self.step)
+        self.deficit = np.where(stopping, 0.0, self.deficit)
+        self.age = np.where(stopping, 0, self.age)
+        # Capped, because a stop the plan never asked for still has to leave the
+        # compound and limit lookups pointing somewhere real. Past the end of the
+        # plan the car keeps fitting what it fitted last.
+        self.pending = np.minimum(self.pending + (self.planned & stopping), len(self.targets))
+        return cost
+
+
 def reactive_trace(
     plan: Plan,
     car: Car,
@@ -1112,124 +1283,16 @@ def reactive_trace(
     trace = np.empty((laps_left + 1, draws), dtype=float)
     total = np.full(draws, car.gap_leader_s, dtype=float)
     trace[0] = total
-
-    current = float(np.clip(car.degradation_s, -MAX_DEFICIT_S, MAX_DEFICIT_S))
-    if car.pace_s is not None:
-        baseline = car.pace_s
-    elif car.from_lap <= 1:
-        baseline = 0.0
-    else:
-        baseline = car.gap_leader_s / (car.from_lap - 1) - current
-
-    # Targets, with a sentinel past the flag so "no stop left" needs no branch.
-    beyond = model.total_laps + 1
-    targets = [stop.lap for stop in plan.stops]
-    if targets and car.window is not None:
-        # The window is where this car is projected to stop, and it is a better
-        # first target than a plan lap when the caller has one (ADR-013). Later
-        # stops keep their plan laps: the window only ever describes the next one.
-        opens, closes = car.window
-        targets[0] = int(np.clip(round((opens + closes) / 2), car.from_lap + 1, model.total_laps))
-        targets = sorted(targets)
-    target_lap = np.array([*targets, beyond, beyond], dtype=int)
-    compounds = [stop.compound for stop in plan.stops]
-    # Life of the set the car is on after ``n`` stops, so the limit is a lookup
-    # per draw and the compound name never has to be tracked alongside it.
-    limit = np.array(
-        [
-            MAX_STINT.get(car.compound, MAX_STINT["HARD"]),
-            *(MAX_STINT.get(c, MAX_STINT["HARD"]) for c in compounds),
-            beyond,
-        ],
-        dtype=int,
-    )
-
-    rate = _from_cuts(model.wear_cuts[car.compound], rng.random(draws)) + RATE_SHRINK * (
-        car.degradation_rate - ROLLING_MEDIAN_S
-    )
-    deficit = np.full(draws, current)
-    own_offset = COMPOUND_OFFSET_S.get(car.compound, 0.0)
-    step = np.zeros(draws)
-    age = np.full(draws, car.tyre_age, dtype=int)
-    pending = np.zeros(draws, dtype=int)
-    column = np.arange(draws)
-    previous_id = np.zeros(draws, dtype=np.int32)
+    runner = _Runner(plan, car, model, rng, draws)
 
     for offset in range(laps_left):
         lap = car.from_lap + offset
-        total = total + baseline + deficit + step
-        deficit = np.clip(deficit + rate, 0.0, MAX_DEFICIT_S)
-        total = total + rng.normal(0.0, model.lap_noise_s, draws)
+        total = total + runner.roll(model, rng)
         total = total + _traffic_penalty(total, rival_trace, offset + 1, model)
-        age = age + 1
-
-        index = min(lap + 1, flags.shape[0] - 1)
-        at_lap, at_id = flags[index], ids[index]
-
-        # Whatever is left to do, and whether there is room to do it. Having no
-        # planned stop left does **not** close the door: a car on thirty-lap-old
-        # rubber takes a safety car whether its plan said so or not.
-        left = pending < len(targets)
-        room = (age >= MIN_STINT) & (lap + 1 <= model.total_laps - MIN_STINT)
-        opened = room & (at_id != previous_id) & (at_lap != GREEN)
-
-        chance = np.zeros(draws)
-        for code, name in FLAG_NAME.items():
-            here = opened & (at_lap == code)
-            if here.any():
-                chance[here] = reaction.pit_probability(
-                    name, age[here], shift[at_id[here], column[here]]
-                )
-        # A stop that was due anyway happens whatever the flag says. This is the
-        # line that a first version got wrong, by letting the policy decide every
-        # stop taken under a neutralisation: a car that planned to stop on lap 24
-        # and found a safety car there would decline it 83% of the time, because
-        # the measured 17% for fresh rubber describes cars that were nowhere near
-        # their window. The policy only ever **pulls a stop forward**.
-        #
-        # A target already behind us still counts as due, which is how a stop
-        # skipped for being too close gets taken at the next chance. So does a set
-        # at its measured limit: pulling one stop forward must not strand the car
-        # on a stint longer than anything the evidence contains.
-        forced = room & (age >= limit[pending])
-        due = forced | (left & room & (lap + 1 >= target_lap[pending]))
-        reacting = opened & ~due & (rng.random(draws) < chance)
-        planned = reacting | due
-
-        # The free change. It costs no track position and does not spend a planned
-        # stop, so a car that takes one on lap 3 still has its race to run.
-        free = (
-            (at_lap == RED_FLAG)
-            & ~planned
-            & (rng.random(draws) < reaction.base_probability("red", age))
-        )
-        stopping = planned | free
-
-        if stopping.any():
-            total = total + np.where(stopping, _cost_under(at_lap, model, rng, draws), 0.0)
-            fresh = np.zeros(draws)
-            offsets = np.zeros(draws)
-            for which, compound in enumerate(compounds):
-                # A free change fits whatever the car was going to fit next.
-                taking = stopping & (np.minimum(pending, max(len(compounds) - 1, 0)) == which)
-                if taking.any():
-                    fresh[taking] = _from_cuts(
-                        model.wear_cuts[compound], rng.random(int(taking.sum()))
-                    )
-                    offsets[taking] = COMPOUND_OFFSET_S.get(compound, 0.0) - own_offset
-            rate = np.where(stopping, fresh, rate)
-            step = np.where(stopping, offsets, step)
-            deficit = np.where(stopping, 0.0, deficit)
-            age = np.where(stopping, 0, age)
-            # Capped, because a stop the plan never asked for still has to leave
-            # the compound and limit lookups pointing somewhere real. Past the end
-            # of the plan the car keeps fitting what it fitted last.
-            pending = np.minimum(pending + planned, len(targets))
-
-            if stops_out is not None:
-                stops_out[offset + 1] = stopping
-
-        previous_id = at_id
+        stopping = runner.propose(lap, flags, ids, shift, model, rng)
+        total = total + runner.settle(stopping, model, rng)
+        if stops_out is not None:
+            stops_out[offset + 1] = stopping
         trace[offset + 1] = total
 
     return trace
@@ -1383,6 +1446,174 @@ def team_queue_cost(
             penalty[j] += np.where(together & ~i_waits, cost, 0.0)
 
     return np.cumsum(penalty, axis=1)
+
+
+def field_trace(
+    plan: Plan,
+    car: Car,
+    rivals: Sequence[Car],
+    rival_plans: Sequence[Plan],
+    model: RaceModel,
+    rng: np.random.Generator,
+    draws: int,
+    flags: np.ndarray,
+    ids: np.ndarray,
+    shift: np.ndarray,
+    stops_out: list[np.ndarray] | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Run the whole field together, one lap at a time.
+
+    Everything else in this module traces one car at a time, which is cheap and
+    correct as long as no car's behaviour depends on another's. Two things break
+    that, and both are what this function exists for.
+
+    **A rival covers the focal car's stop.** When a car pits, the car *ahead* of
+    it is the one that answers — a stop from behind is an undercut aimed at you,
+    a stop from ahead leaves you nothing to answer. Measured against the mirrored
+    control, being within two seconds in front of a stopping car adds 7.8 points
+    to the chance of pitting on the next lap, and 7.1 within five seconds. That
+    depends on where the focal car is *now*, so it cannot be known before the
+    focal car has run the lap.
+
+    **A team cannot work on two cars at once.** Whether a car stops on the lap it
+    wants to depends on what its team-mate wants, which is why :class:`_Runner`
+    separates proposing a stop from taking one.
+
+    The focal car does **not** react. It runs the plan it was given, because that
+    plan is the thing being evaluated and a plan that rewrote itself mid-race
+    would not be a pre-race plan any more. It does take a free red-flag change,
+    for the reason in ADR-015: declining one would punish it in 94.9% of red
+    flags for a reason that is not strategy.
+
+    This is the expensive path, so it runs **once per driver at scoring time and
+    never inside the search** (ADR-012). Rival behaviour that depends on the focal
+    car cannot be computed once and reused across candidate plans, and doing it in
+    the fitness loop would cost about twenty times the search.
+
+    Args:
+        plan: The focal car's plan. Fixed.
+        car: The focal car. Never queues behind its own team-mate (ADR-014).
+        rivals: Everyone else still running.
+        rival_plans: One plan per rival, in the same order.
+        flags, ids, shift: The drawn race, from :func:`draw_neutralisations`,
+            :func:`period_ids` and :func:`draw_period_shift`.
+        stops_out: Optional list of ``(laps + 1, draws)`` boolean arrays, focal
+            first, filled in with where each car stopped.
+
+    Returns:
+        ``(focal trace, rival traces)`` shaped ``(laps + 1, draws)`` and
+        ``(rivals, laps + 1, draws)``.
+
+    .. note::
+
+       **Both things it was built for come out close, and both land slightly
+       short for the same reason.** Over the 22 real Zandvoort plans on 3,000
+       drawn races:
+
+       * team-mates who both come in during one period do it on the same lap
+         0.62 of the time, against 0.70 observed — and against **0.92** before
+         this loop existed, when every car that took a period took it on the
+         period's first lap and two team-mates had no way to avoid each other;
+       * a rival within five seconds *in front* of the focal car pits on the next
+         lap 0.171 of the time against 0.113 for one the same distance behind, an
+         effect of **+0.058** against the +0.071 to +0.078 measured.
+
+       Both fall short because the extra probability only reaches cars that could
+       stop anyway. A car inside ``MIN_STINT`` of its last stop, or already due,
+       is not moved by either mechanism, and a car held back by its team-mate
+       sometimes cannot take the stop on the next lap either. The dilution is the
+       eligibility rules doing their job, so it is reported rather than tuned
+       away: raising the constants to hit the target would be fitting around a
+       constraint that is there on purpose.
+
+       It costs about half a second for 22 cars over 1,200 draws, which is why it
+       is affordable once per driver and not once per candidate plan.
+    """
+    laps_left = model.total_laps - car.from_lap
+    everyone = [car, *rivals]
+    runners = [
+        _Runner(p, c, model, rng, draws)
+        for c, p in zip(everyone, [plan, *rival_plans], strict=True)
+    ]
+    traces = np.empty((len(everyone), laps_left + 1, draws), dtype=float)
+    totals = np.array([np.full(draws, c.gap_leader_s, dtype=float) for c in everyone])
+    traces[:, 0, :] = totals
+    if stops_out is not None:
+        for mask in stops_out:
+            mask[0] = False
+
+    # Team-mates, as index pairs. The focal car is index 0 and never queues.
+    pairs = [
+        (i, j)
+        for i in range(len(everyone))
+        for j in range(i + 1, len(everyone))
+        if everyone[i].team is not None and everyone[i].team == everyone[j].team
+    ]
+    surcharge = np.zeros((len(everyone), draws))
+    covering = np.zeros(draws, dtype=bool)
+    gap_ahead = np.zeros((len(everyone), draws))
+
+    for offset in range(laps_left):
+        lap = car.from_lap + offset
+        for index, runner in enumerate(runners):
+            totals[index] = totals[index] + runner.roll(model, rng)
+        # Traffic is priced against where the rivals are *now*, not where they
+        # were: in this loop that is knowable, and it is the one thing the
+        # per-car path has to approximate.
+        totals[0] = totals[0] + _traffic_penalty(totals[0], totals[1:, None, :], 0, model)
+
+        # What each car wants. Only rivals answer the focal car's last stop, and
+        # only the ones that were in front of it when it happened.
+        wants = []
+        for index, runner in enumerate(runners):
+            cover = None
+            if index > 0 and covering.any():
+                cover = np.where(covering, reaction.cover_extra(gap_ahead[index]), 0.0)
+            wants.append(
+                runner.propose(lap, flags, ids, shift, model, rng, cover=cover, reactive=index > 0)
+            )
+
+        # One crew, one box. Where both cars of a team want this lap, either they
+        # stack and the second pays the measured queue, or the team holds the
+        # second back — drawn at the measured rate rather than decided, because
+        # priced in seconds splitting always wins and real teams stack 70% of the
+        # time for reasons that live in track position, not on the clock.
+        surcharge[:] = 0.0
+        for i, j in pairs:
+            together = wants[i] & wants[j]
+            if not together.any():
+                continue
+            older = reaction.older_first_probability(runners[i].age - runners[j].age)
+            i_first = np.where(runners[i].age > runners[j].age, older, 1 - older)
+            i_second = together & (rng.random(draws) >= i_first)
+            if i == 0:
+                i_second = np.zeros(draws, dtype=bool)
+            elif j == 0:
+                i_second = together.copy()
+            stacking = together & (rng.random(draws) < reaction.SAME_LAP)
+            for who, is_second in ((i, i_second), (j, together & ~i_second)):
+                second = is_second & together
+                cost = np.zeros(draws)
+                for code, seconds in STACK_COST_S.items():
+                    cost = np.where(runners[who].at_lap == code, seconds, cost)
+                surcharge[who] = np.where(second & stacking, cost, surcharge[who])
+                # Held back: the car does not stop this lap, and `settle` records
+                # it as owed so it goes at the next chance it gets.
+                wants[who] = wants[who] & ~(second & ~stacking)
+
+        for index, runner in enumerate(runners):
+            totals[index] = totals[index] + runner.settle(
+                wants[index], model, rng, extra_s=surcharge[index]
+            )
+            traces[index, offset + 1, :] = totals[index]
+            if stops_out is not None:
+                stops_out[index][offset + 1] = wants[index]
+
+        # Remember the focal car's stop for the cars that were ahead of it.
+        covering = wants[0]
+        gap_ahead = totals[0] - totals
+
+    return traces[0], traces[1:]
 
 
 def race_time(
