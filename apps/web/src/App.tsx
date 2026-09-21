@@ -264,8 +264,22 @@ export default function App() {
           value={RACE.mandatoryCompounds.length === 2 ? 'M + H' : '—'}
           note={`mínimo ${RACE.minSets} juegos · B6.3.8`}
         />
+        {/*
+          * OJO CON QUE DICE ESTE ROTULO. El interruptor elige de cual de las dos
+          * BUSQUEDAS salieron los planes que el campo corre, y nada mas. La
+          * animacion no reacciona a las banderas: `evolve` en tyres.ts no
+          * conoce el estado de pista, y el selector de bandera de arriba pinta
+          * la barra de estado sin tocar la simulacion.
+          *
+          * Una version anterior rotulaba los botones "plan fijo / reaccionan" y
+          * la nota decia que tomaban las ventanas baratas y cubrian tu parada.
+          * Eso es cierto de la busqueda en Python y falso de lo que se ve en
+          * pantalla, que es justo el tipo de cosa que este proyecto cuenta como
+          * defecto. Hasta que la politica de reaccion este portada a tyres.ts,
+          * el rotulo tiene que decir lo que realmente hace.
+          */}
         <div className="kpi">
-          <span className="kpi__label">Rivales</span>
+          <span className="kpi__label">Planes de</span>
           <div className="rivals" role="group" aria-label="Comportamiento de los rivales">
             {(['fixed', 'reactive'] as const).map((mode) => (
               <button
@@ -276,18 +290,18 @@ export default function App() {
                 onClick={() => setRivals(mode)}
                 title={
                   mode === 'fixed'
-                    ? 'Cada rival corre su plan pase lo que pase. Es de donde salen las cifras publicadas.'
-                    : 'Los rivales ven las banderas y tu parada, y deciden. Bajo safety car para el 43% del campo, no todos.'
+                    ? 'Planes de la búsqueda con rivales de plan fijo. Es de donde salen las cifras publicadas.'
+                    : 'Planes de la búsqueda con rivales que reaccionan a las banderas y a tu parada. Cambia el plan de 9 de los 22 autos; la animación en sí no reacciona todavía.'
                 }
               >
-                {mode === 'fixed' ? 'plan fijo' : 'reaccionan'}
+                {mode === 'fixed' ? 'búsq. fija' : 'búsq. reactiva'}
               </button>
             ))}
           </div>
           <span className="kpi__note">
             {rivals === 'fixed'
-              ? 'corren su plan pase lo que pase'
-              : 'toman las ventanas baratas y cubren tu parada'}
+              ? 'búsqueda con rivales de plan fijo'
+              : 'búsqueda con rivales reactivos · cambia 9 de 22 planes'}
           </span>
         </div>
 
