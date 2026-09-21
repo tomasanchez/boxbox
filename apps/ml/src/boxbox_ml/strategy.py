@@ -2087,6 +2087,7 @@ def optimise(
     objective: Objective = Objective.POINTS,
     risk: Risk = Risk.NEUTRAL,
     engine: Engine = Engine.BUILTIN,
+    rivals_mode: RivalMode = RivalMode.FIXED,
     population: int = 48,
     generations: int = 30,
     draws: int = 1200,
@@ -2100,6 +2101,28 @@ def optimise(
     trace reused for every candidate. That is what makes this cheap, and it rests
     on rivals not reacting to the focal car — wrong precisely when two cars are
     racing each other wheel to wheel.
+
+    ``rivals_mode`` decides how much of that stays true. ``FIXED`` is the model as
+    it was before any of this, and it has to keep being exactly that: it is the
+    baseline the interface compares against (ADR-016), so every published figure
+    has to come back out of it unchanged. ``REACTIVE`` lets rivals answer the
+    flags inside the search — still one trace each, still free — and lets them
+    answer the focal car once, on the winning plan, in :func:`field_trace`.
+
+    .. warning::
+
+       **A better score under ``REACTIVE`` is not a better plan.** Reactive rivals
+       stop more often than their plans said — 2.11 times against the 1.86 real
+       cars average — and every extra stop costs them time: over the same drawn
+       races the field finishes **1.31 s slower** than under ``FIXED``. So the
+       focal car's score improves without its plan changing at all. The field got
+       worse, it did not get better.
+
+       Most of that is the search's own known bias, not this path's: with
+       :data:`COMPOUND_OFFSET_S` at zero nothing is paid for fitting fresh rubber
+       again, so the plans handed to the rivals already ask for too many stops.
+       Until that is identified, scores are comparable *within* a mode and not
+       across them.
 
     One asymmetry follows from that and is worth naming: the focal car pays a
     traffic penalty and the rivals do not, because pricing traffic for a rival
@@ -2157,15 +2180,35 @@ def optimise(
 
     # Every neutralisation the race throws, shared by everyone in it.
     flags = draw_neutralisations(model, rng, draws)
+    ids = period_ids(flags)
+    # Only drawn when something will read it. `draw_period_shift` consumes from
+    # the generator, and doing that unconditionally shifted the stream for
+    # ``FIXED`` too — which would quietly change every published figure and cost
+    # the switch the one property that makes it honest, that ``FIXED`` is what
+    # the model did before reactive rivals existed. A test caught it.
+    shift = (
+        draw_period_shift(ids, rng) if rivals_mode is RivalMode.REACTIVE else np.zeros((1, draws))
+    )
 
     # Rivals get the full lap-by-lap trace, not only a finishing time, because
     # pricing traffic needs to know where they are on the lap the focal car stops.
     # They are still simulated once and reused, which is what keeps this cheap:
     # rivals do not react to the focal car's plan.
+    #
+    # Under ``REACTIVE`` the rivals see the flags and their own rubber, which
+    # still does not depend on the focal plan — so the trace is *still* computed
+    # once and the reactivity is free inside the search. What is not free is
+    # rivals reacting to the focal car, and that waits for the held-out scoring
+    # below (ADR-012).
+    def trace_rival(plan: Plan, rival: Car, gen: np.random.Generator, **at) -> np.ndarray:
+        if rivals_mode is RivalMode.REACTIVE:
+            return reactive_trace(plan, rival, model, gen, draws, **at)
+        return race_trace(plan, rival, model, gen, draws, at["flags"])
+
     rival_trace = (
         np.stack(
             [
-                race_trace(plan, rival, model, rng, draws, flags)
+                trace_rival(plan, rival, rng, flags=flags, ids=ids, shift=shift)
                 for rival, plan in zip(rivals, rival_plans, strict=True)
             ]
         )
@@ -2246,17 +2289,48 @@ def optimise(
     # flatters whatever won — exactly like scoring a model on its training set.
     holdout = np.random.default_rng(seed + 9973)
     holdout_flags = draw_neutralisations(model, holdout, draws)
-    holdout_rivals = (
-        np.stack(
-            [
-                race_trace(plan, rival, model, holdout, draws, holdout_flags)
-                for rival, plan in zip(rivals, rival_plans, strict=True)
-            ]
-        )
-        if rivals
-        else np.empty((0, model.total_laps - car.from_lap + 1, draws))
+    holdout_ids = period_ids(holdout_flags)
+    holdout_shift = (
+        draw_period_shift(holdout_ids, holdout)
+        if rivals_mode is RivalMode.REACTIVE
+        else np.zeros((1, draws))
     )
-    holdout_times = race_time(best, car, model, holdout, draws, holdout_flags, holdout_rivals)
+    if rivals_mode is RivalMode.REACTIVE and rivals:
+        # The one place the field runs together. Rivals answering the focal car's
+        # stop cannot be precomputed, so it is paid once here on the winner
+        # rather than a thousand times inside the search (ADR-012).
+        focal_trace, holdout_rivals = field_trace(
+            best,
+            car,
+            rivals,
+            rival_plans,
+            model,
+            holdout,
+            draws,
+            holdout_flags,
+            holdout_ids,
+            holdout_shift,
+        )
+        holdout_times = focal_trace[-1]
+    else:
+        holdout_rivals = (
+            np.stack(
+                [
+                    trace_rival(
+                        plan,
+                        rival,
+                        holdout,
+                        flags=holdout_flags,
+                        ids=holdout_ids,
+                        shift=holdout_shift,
+                    )
+                    for rival, plan in zip(rivals, rival_plans, strict=True)
+                ]
+            )
+            if rivals
+            else np.empty((0, model.total_laps - car.from_lap + 1, draws))
+        )
+        holdout_times = race_time(best, car, model, holdout, draws, holdout_flags, holdout_rivals)
     holdout_rival_times = holdout_rivals[:, -1, :] if rivals else np.empty((0, draws))
     score = _score(holdout_times, holdout_rival_times, objective, tail)
 
