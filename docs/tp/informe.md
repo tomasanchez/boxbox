@@ -318,7 +318,14 @@ para entregar una es peor que proponer dos y cumplirlas.
 - El agente de Aprendizaje por Refuerzo, que era la comparación propuesta.
 - El tráfico de **rezagados**. El 23,1% de los pilotos terminan al menos una vuelta abajo, y la
   medición actual los excluye por construcción.
-- La **ventana de parada** sale hoy de una heurística y debería salir del propio genético.
+- ~~La **ventana de parada** sale hoy de una heurística y debería salir del propio genético.~~
+  **Hecho**, y la heurística estaba peor de lo que este renglón sugería: calculaba un rango de
+  *factibilidad* con nombre de rango de *optimalidad* —35 vueltas de ancho, con el cierre en una
+  constante idéntica para los veintidós autos— y para los once que largan en blando describía un
+  plan que el modelo no puede correr. Ahora  mueve la parada por todas las vueltas
+  representables y se queda con la banda que cae dentro de un cuarto de puesto del óptimo, sobre
+  las mismas carreras sorteadas. Se puntúa en **puestos y no en segundos**, que es lo que la hace
+  parecerse a la de la transmisión: nueve vueltas de ancho en blando, catorce a dieciséis en duro.
 
 ### Lo que encontramos al probar
 

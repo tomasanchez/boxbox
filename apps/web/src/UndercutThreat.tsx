@@ -144,15 +144,20 @@ export function UndercutThreatCard({
             <div className="ut__foot">
               {threat.reason === 'no-projection' ? (
                 /*
-                 * El export pre-carrera trae el PLAN del algoritmo, no la
-                 * ventana de `pit_window()`. Sin ventana no se puede decir si
-                 * el de atrás está por parar, y decir que «no va a parar»
-                 * sería falso: tiene plan y para. Se declara el hueco.
+                 * Este estado no se alcanza con el export actual y el texto que
+                 * había era además FALSO: decía que el export pre-carrera no
+                 * trae ventana proyectada, y la trae para los veintidós.
+                 *
+                 * `windowsProjected` se calcula del dato —`cars.some(car =>
+                 * car.pitWindow !== null)`— así que esto sólo aparece si algún
+                 * día ningún auto tiene ventana. Se deja porque ese caso es
+                 * representable: `stop_window()` devuelve `None` cuando ninguna
+                 * vuelta alternativa conserva la forma del plan.
                  */
                 <>
-                  Desde la largada el export trae el <strong>plan</strong> de cada auto, no la
-                  ventana proyectada. Sin ventana no hay con qué decidir si el de atrás está por
-                  parar. Las paradas del plan están en la torre.
+                  Ningún auto de este origen tiene <strong>ventana proyectada</strong>, así que no
+                  hay con qué decidir si el de atrás está por parar. Las paradas del plan están en
+                  la torre.
                 </>
               ) : (
                 <>

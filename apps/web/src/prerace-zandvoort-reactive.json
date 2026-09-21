@@ -221,8 +221,8 @@
       "pace_s": 0.0,
       "start_compound": "HARD",
       "pit_window": {
-        "opens_lap": 17,
-        "closes_lap": 50
+        "opens_lap": 20,
+        "closes_lap": 31
       },
       "start_yardstick": "points",
       "rival_start_compound": "SOFT",
@@ -897,8 +897,8 @@
       "pace_s": 0.0852,
       "start_compound": "SOFT",
       "pit_window": {
-        "opens_lap": 16,
-        "closes_lap": 50
+        "opens_lap": 18,
+        "closes_lap": 26
       },
       "start_yardstick": "points",
       "rival_start_compound": "SOFT",
@@ -1565,8 +1565,8 @@
       "pace_s": 0.1111,
       "start_compound": "HARD",
       "pit_window": {
-        "opens_lap": 17,
-        "closes_lap": 50
+        "opens_lap": 20,
+        "closes_lap": 29
       },
       "start_yardstick": "points",
       "rival_start_compound": "SOFT",
@@ -2256,8 +2256,8 @@
       "pace_s": 0.1186,
       "start_compound": "SOFT",
       "pit_window": {
-        "opens_lap": 16,
-        "closes_lap": 50
+        "opens_lap": 18,
+        "closes_lap": 26
       },
       "start_yardstick": "points",
       "rival_start_compound": "MEDIUM",
@@ -2922,8 +2922,8 @@
       "pace_s": 0.2764,
       "start_compound": "HARD",
       "pit_window": {
-        "opens_lap": 17,
-        "closes_lap": 50
+        "opens_lap": 21,
+        "closes_lap": 31
       },
       "start_yardstick": "points",
       "rival_start_compound": "MEDIUM",
@@ -3587,8 +3587,8 @@
       "pace_s": 0.3298,
       "start_compound": "HARD",
       "pit_window": {
-        "opens_lap": 17,
-        "closes_lap": 50
+        "opens_lap": 22,
+        "closes_lap": 32
       },
       "start_yardstick": "points",
       "rival_start_compound": "SOFT",
@@ -4267,8 +4267,8 @@
       "pace_s": 0.3799,
       "start_compound": "HARD",
       "pit_window": {
-        "opens_lap": 17,
-        "closes_lap": 50
+        "opens_lap": 22,
+        "closes_lap": 32
       },
       "start_yardstick": "points",
       "rival_start_compound": "MEDIUM",
@@ -4938,8 +4938,8 @@
       "pace_s": 0.4759,
       "start_compound": "SOFT",
       "pit_window": {
-        "opens_lap": 16,
-        "closes_lap": 50
+        "opens_lap": 15,
+        "closes_lap": 26
       },
       "start_yardstick": "points",
       "rival_start_compound": "HARD",
@@ -5608,8 +5608,8 @@
       "pace_s": 0.7649,
       "start_compound": "SOFT",
       "pit_window": {
-        "opens_lap": 16,
-        "closes_lap": 50
+        "opens_lap": 18,
+        "closes_lap": 26
       },
       "start_yardstick": "points",
       "rival_start_compound": "SOFT",
@@ -6275,8 +6275,8 @@
       "pace_s": 0.8534,
       "start_compound": "HARD",
       "pit_window": {
-        "opens_lap": 17,
-        "closes_lap": 50
+        "opens_lap": 19,
+        "closes_lap": 32
       },
       "start_yardstick": "points",
       "rival_start_compound": "SOFT",
@@ -6952,8 +6952,8 @@
       "pace_s": 1.2133,
       "start_compound": "SOFT",
       "pit_window": {
-        "opens_lap": 16,
-        "closes_lap": 50
+        "opens_lap": 18,
+        "closes_lap": 26
       },
       "start_yardstick": "points",
       "rival_start_compound": "MEDIUM",
@@ -7622,8 +7622,8 @@
       "pace_s": 1.2224,
       "start_compound": "SOFT",
       "pit_window": {
-        "opens_lap": 16,
-        "closes_lap": 50
+        "opens_lap": 20,
+        "closes_lap": 26
       },
       "start_yardstick": "points",
       "rival_start_compound": "MEDIUM",
@@ -8291,8 +8291,8 @@
       "pace_s": 1.3644,
       "start_compound": "HARD",
       "pit_window": {
-        "opens_lap": 17,
-        "closes_lap": 50
+        "opens_lap": 41,
+        "closes_lap": 42
       },
       "start_yardstick": "points",
       "rival_start_compound": "HARD",
@@ -8868,8 +8868,8 @@
       "pace_s": 1.3669,
       "start_compound": "HARD",
       "pit_window": {
-        "opens_lap": 17,
-        "closes_lap": 50
+        "opens_lap": 41,
+        "closes_lap": 42
       },
       "start_yardstick": "points",
       "rival_start_compound": "MEDIUM",
@@ -9436,8 +9436,8 @@
       "pace_s": 1.6483,
       "start_compound": "HARD",
       "pit_window": {
-        "opens_lap": 17,
-        "closes_lap": 50
+        "opens_lap": 41,
+        "closes_lap": 42
       },
       "start_yardstick": "points",
       "rival_start_compound": "MEDIUM",
@@ -10003,7 +10003,7 @@
       "start_compound": "SOFT",
       "pit_window": {
         "opens_lap": 16,
-        "closes_lap": 50
+        "closes_lap": 26
       },
       "start_yardstick": "position",
       "rival_start_compound": "MEDIUM",
@@ -10659,8 +10659,8 @@
       "pace_s": 2.0132,
       "start_compound": "SOFT",
       "pit_window": {
-        "opens_lap": 16,
-        "closes_lap": 50
+        "opens_lap": 17,
+        "closes_lap": 26
       },
       "start_yardstick": "position",
       "rival_start_compound": "MEDIUM",
@@ -11318,8 +11318,8 @@
       "pace_s": 2.0766,
       "start_compound": "SOFT",
       "pit_window": {
-        "opens_lap": 16,
-        "closes_lap": 50
+        "opens_lap": 7,
+        "closes_lap": 22
       },
       "start_yardstick": "position",
       "rival_start_compound": "HARD",
@@ -11983,8 +11983,8 @@
       "pace_s": 2.2169,
       "start_compound": "MEDIUM",
       "pit_window": {
-        "opens_lap": 12,
-        "closes_lap": 50
+        "opens_lap": 7,
+        "closes_lap": 20
       },
       "start_yardstick": "position",
       "rival_start_compound": "SOFT",
@@ -12638,8 +12638,8 @@
       "pace_s": 2.2236,
       "start_compound": "SOFT",
       "pit_window": {
-        "opens_lap": 16,
-        "closes_lap": 50
+        "opens_lap": 14,
+        "closes_lap": 26
       },
       "start_yardstick": "position",
       "rival_start_compound": "MEDIUM",
@@ -13297,8 +13297,8 @@
       "pace_s": 2.6787,
       "start_compound": "HARD",
       "pit_window": {
-        "opens_lap": 17,
-        "closes_lap": 50
+        "opens_lap": 16,
+        "closes_lap": 32
       },
       "start_yardstick": "position",
       "rival_start_compound": "MEDIUM",
@@ -13968,8 +13968,8 @@
       "pace_s": 2.8699,
       "start_compound": "HARD",
       "pit_window": {
-        "opens_lap": 17,
-        "closes_lap": 50
+        "opens_lap": 15,
+        "closes_lap": 39
       },
       "start_yardstick": "position",
       "rival_start_compound": "SOFT",
