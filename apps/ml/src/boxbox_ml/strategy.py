@@ -1079,27 +1079,34 @@ def reactive_trace(
     Returns:
         ``(laps + 1, draws)``, same as :func:`race_trace`.
 
-    .. warning::
+    .. note::
 
-       **This does not yet reproduce the shares it was fitted to, and the reason
-       is the rule above, not the tables.** Measured over a 22-car field on 3,000
-       drawn races, the model brings in 20.1% of running cars under a safety car
-       against 43.0% observed, 13.6% under a VSC against 24.2%, and 82.9% under a
-       red flag against 94.9%.
+       **Calibration, measured on the 22 real search plans for Zandvoort over
+       3,000 drawn races.** The share of running cars that pit during a period
+       comes out at 0.972 under a red flag against 0.949 observed, 0.381 under a
+       safety car against 0.430, and 0.260 under a VSC against 0.242. Periods
+       that begin on lap 1 are excluded: no car has completed a lap yet, so none
+       can react, and counting them makes the red row look far worse than it is.
 
-       Roughly two thirds of the chances never reach the policy at all: a third
-       of the cars have already made every stop their plan allows and can never
-       react again, and another third are inside ``MIN_STINT`` of their last one.
-       Turning the probabilities up cannot fix that — those cars are refused
-       before the draw happens.
+       A first version of this loop let reactivity only *move* a stop, never add
+       one, and produced 0.201 under a safety car — less than half. Two thirds of
+       the chances never reached the policy: the car had spent every stop its plan
+       allowed. A car sitting on thirty-lap-old rubber when a safety car appears
+       does pit whatever its plan said, so the rule was wrong, not the tables.
 
-       What it means is that *reactivity only moves stops* is too strong a rule.
-       A car that has finished its planned stops and is sitting on thirty-lap-old
-       rubber when a safety car appears does pit, and that case is a real part of
-       the 43%. Letting the policy **add** a stop rather than only move one is the
-       fix, and it changes the distribution of how many times a car stops, which
-       is measured elsewhere — so it is a decision, not a patch. Until it is
-       taken, this path under-stops and the number above is the size of it.
+       **What does not match is how many times a car stops in the whole race, and
+       the gap is inherited rather than introduced.** The model averages 2.11
+       stops against 1.86 measured over 1,586 dry car-races, and does a one-stop
+       race 8.2% of the time against 41.0%. But the plans it is handed already
+       average **1.86 intended** stops, and reactivity can only add — so plans
+       whose intent already equals reality's *outcome* are over-stopped before
+       this function sees them. Real intent has to sit near 1.6 for the observed
+       1.86 to come out the other side.
+
+       That bias is the known one: with :data:`COMPOUND_OFFSET_S` at zero there is
+       nothing to pay for fitting fresh rubber again, so the search reaches for
+       one more stop. Reactivity adds 0.25 stops on top of the plan, which is the
+       part this function owns, and it is the smaller half of the discrepancy.
     """
     laps_left = model.total_laps - car.from_lap
     trace = np.empty((laps_left + 1, draws), dtype=float)
@@ -1159,10 +1166,12 @@ def reactive_trace(
         index = min(lap + 1, flags.shape[0] - 1)
         at_lap, at_id = flags[index], ids[index]
 
-        # Whatever is left to do, and whether there is room to do it.
+        # Whatever is left to do, and whether there is room to do it. Having no
+        # planned stop left does **not** close the door: a car on thirty-lap-old
+        # rubber takes a safety car whether its plan said so or not.
         left = pending < len(targets)
         room = (age >= MIN_STINT) & (lap + 1 <= model.total_laps - MIN_STINT)
-        opened = left & room & (at_id != previous_id) & (at_lap != GREEN)
+        opened = room & (at_id != previous_id) & (at_lap != GREEN)
 
         chance = np.zeros(draws)
         for code, name in FLAG_NAME.items():
@@ -1182,7 +1191,8 @@ def reactive_trace(
         # skipped for being too close gets taken at the next chance. So does a set
         # at its measured limit: pulling one stop forward must not strand the car
         # on a stint longer than anything the evidence contains.
-        due = left & room & ((lap + 1 >= target_lap[pending]) | (age >= limit[pending]))
+        forced = room & (age >= limit[pending])
+        due = forced | (left & room & (lap + 1 >= target_lap[pending]))
         reacting = opened & ~due & (rng.random(draws) < chance)
         planned = reacting | due
 
@@ -1211,7 +1221,10 @@ def reactive_trace(
             step = np.where(stopping, offsets, step)
             deficit = np.where(stopping, 0.0, deficit)
             age = np.where(stopping, 0, age)
-            pending = pending + planned
+            # Capped, because a stop the plan never asked for still has to leave
+            # the compound and limit lookups pointing somewhere real. Past the end
+            # of the plan the car keeps fitting what it fitted last.
+            pending = np.minimum(pending + planned, len(targets))
 
             if stops_out is not None:
                 stops_out[offset + 1] = stopping
