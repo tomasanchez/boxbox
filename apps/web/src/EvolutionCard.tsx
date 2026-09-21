@@ -205,6 +205,30 @@ export function EvolutionCard({ car }: { car: PreRaceCar }) {
   const improved = shown > 0 && entry.best > car.history[shown - 1].best
 
   /*
+   * Qué hizo la POBLACIÓN cuando el mejor no se movió.
+   *
+   * La línea plana se leía como «el algoritmo no hizo nada», y no es cierto: el
+   * mejor individuo puede venir sembrado desde la generación 0 mientras el resto
+   * converge hacia él. Está dibujado en las barras de abajo, pero un gráfico que
+   * hay que interpretar no contesta la pregunta que el usuario se hace mirando la
+   * línea. Esto lo dice con palabras.
+   */
+  const spread = (bars: Record<string, number>) =>
+    Object.values(bars).filter((share) => share >= 0.05).length
+  const settled = car.history[car.history.length - 1].stop_distribution
+  const opening = spread(car.history[0].stop_distribution)
+  const closing = spread(settled)
+  // Por PESO y no por cantidad: `stopKeys` ordena por número de paradas, así que
+  // tomarle el primero daría el reparto más chico y no el que la población eligió.
+  const winner = stopKeys(settled).reduce((best, key) =>
+    (settled[String(key)] ?? 0) > (settled[String(best)] ?? 0) ? key : best,
+  )
+  const settling =
+    opening > closing
+      ? `· la población se concentró de ${opening} repartos a ${closing}, en ${winner} paradas`
+      : '· y la población tampoco se movió'
+
+  /*
    * Las tandas del plan del momento, en la misma escala que la tarjeta «Plan
    * recomendado»: sobre las 72 vueltas de la carrera y no sobre las 71 que el
    * plan cubre. Así la barra que la búsqueda va encontrando termina midiendo
@@ -231,7 +255,7 @@ export function EvolutionCard({ car }: { car: PreRaceCar }) {
           <span className="evo__bestl">
             mejor valor{' '}
             {flat
-              ? '· nunca mejoró: el mejor plan ya estaba en la generación 0'
+              ? `· nunca mejoró: el mejor plan ya estaba en la generación 0 ${settling}`
               : improved
                 ? '· mejoró'
                 : shown === 0
