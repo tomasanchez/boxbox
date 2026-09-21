@@ -1235,6 +1235,156 @@ def reactive_trace(
     return trace
 
 
+def tyre_age_from(stops: np.ndarray, car: Car) -> np.ndarray:
+    """How old the set is on every lap, read back out of where the car stopped.
+
+    A reactive car stops at a different lap in every draw, so its tyre age is not
+    a function of the lap any more — it is a function of the lap *and the draw*.
+    Rather than have :func:`reactive_trace` hand out another array, it is
+    recovered here from the stop mask, which is the same information.
+
+    The age reported **on** a stop lap is the age of the set coming off, not the
+    zero it resets to. That is the one the pit wall is looking at when it decides
+    which of its two cars goes first.
+
+    Args:
+        stops: ``(laps + 1, draws)`` boolean, from ``reactive_trace(stops_out=…)``.
+        car: The car it belongs to, for the age it started the stint on.
+
+    Returns:
+        ``(laps + 1, draws)`` of integer laps.
+    """
+    rows, draws = stops.shape
+    age = np.empty((rows, draws), dtype=int)
+    running = np.full(draws, car.tyre_age, dtype=int)
+    for row in range(rows):
+        age[row] = running
+        running = np.where(stops[row], 0, running) + 1
+    return age
+
+
+#: What the second car of a stacked pair pays, by flag code. Red is free: the
+#: race is stopped, both cars are worked on in the pit lane, and there is no queue
+#: to be second in.
+STACK_COST_S: dict[int, float] = {
+    GREEN: reaction.STACK_SURCHARGE_S["GREEN"],
+    SC_FLAG: reaction.STACK_SURCHARGE_S["SC"],
+    VSC_FLAG: reaction.STACK_SURCHARGE_S["VSC"],
+    RED_FLAG: 0.0,
+}
+
+
+def team_queue_cost(
+    cars: Sequence[Car],
+    stops: Sequence[np.ndarray],
+    flags: np.ndarray,
+    rng: np.random.Generator,
+    priority: int | None = None,
+) -> np.ndarray:
+    """What each car loses to its own team-mate when both come in together.
+
+    A team has one crew and one box, so two of its cars cannot be worked on at
+    the same moment. They can and do arrive on the same lap — 70% of the time a
+    team brings both cars in during one neutralisation, it is the same lap — and
+    the second one waits. Measured inside the pair, which is the only way to tell
+    the queue apart from the fact that teams stack when stopping is cheap anyway,
+    that wait costs 1.0 s under green, 3.5 under a safety car and 3.2 under a VSC.
+
+    Running this as a pass over finished traces rather than inside them is exact,
+    not an approximation: the surcharge changes what a stop *costs*, never whether
+    or when it happens, and nothing downstream of the decision reads the clock.
+
+    Who waits:
+
+    * The focal car never does. It is the car the pit wall is planning for, so it
+      goes first and its team-mate absorbs the queue (ADR-014). Without this the
+      plan being evaluated would carry a risk owned by a car the user did not pick.
+    * Between two rivals, the older set goes first, with the measured probability
+      for how far apart the two sets are: a coin when they are within a lap of
+      each other, 91% when more than five apart.
+
+    Args:
+        cars: Every car in the field, in the same order as ``stops``.
+        stops: One ``(laps + 1, draws)`` boolean mask per car.
+        flags: ``(total_laps + 1, draws)`` from :func:`draw_neutralisations`.
+        priority: Index of the car that never queues, or ``None`` for a field of
+            rivals with nobody privileged.
+
+    Returns:
+        ``(cars, laps + 1, draws)`` of seconds to add to each trace, already
+        accumulated along the lap axis so it can be added straight on.
+
+    .. note::
+
+       **The split of how many cars a team brings in comes out right without
+       being told.** Nothing here or in :mod:`boxbox_ml.reaction` fits it — each
+       car decides on its own — and yet over the 22 real Zandvoort plans the
+       field produces 0.498 / 0.240 / 0.262 for neither, one, both under a safety
+       car against 0.433 / 0.280 / 0.287 observed, and 0.595 / 0.294 / 0.111
+       against 0.635 / 0.240 / 0.124 under a VSC. Within about five points, on a
+       quantity the model was never shown. The shared period draw is what earns
+       it: independent cars would almost never bring both in together.
+
+    .. warning::
+
+       **What does not come out right is how often those two land on the same
+       lap: 0.92 against 0.70 observed under a safety car, 0.87 under a VSC.** The
+       cause is structural — a car that decides to take a period takes it on the
+       period's first lap, so two team-mates who both decide are nearly always
+       together. Real teams hold the second car a lap about three times in ten.
+
+       The trap is that this cannot be fixed by letting the model *choose*.
+       Priced in seconds, splitting wins easily: holding a car one lap costs about
+       a tenth of a second of extra wear and saves the whole 3.5-second queue, and
+       the safety car is usually still out on the next lap. Anything optimising
+       this clock would split every time and end up further from reality than
+       stacking always. Teams stack because the second car rejoins behind traffic,
+       which is track position, and the seconds and the positions disagree — the
+       same disagreement ``docs/research/pit-loss-under-neutralisation.md`` found
+       for neutralised stops generally.
+
+       So the coordination has to be **drawn at the measured rate, not decided**,
+       and it has to happen inside the lap loop, because holding a car moves its
+       stop rather than repricing it. That is the one thing a pass over finished
+       traces cannot do, and it belongs with the field-level loop.
+    """
+    rows, draws = stops[0].shape
+    penalty = np.zeros((len(cars), rows, draws))
+    ages = [tyre_age_from(mask, car) for mask, car in zip(stops, cars, strict=True)]
+
+    # The flag each trace row was run under. Every car in a race shares a start
+    # lap, so one lookup serves the field.
+    first = cars[0].from_lap
+    lap_of = np.clip(first + np.arange(rows), 0, flags.shape[0] - 1)
+    at = flags[lap_of]
+    cost = np.zeros((rows, draws))
+    for code, seconds in STACK_COST_S.items():
+        cost = np.where(at == code, seconds, cost)
+
+    for i, one in enumerate(cars):
+        for j in range(i + 1, len(cars)):
+            if one.team is None or one.team != cars[j].team:
+                continue
+            together = stops[i] & stops[j]
+            if not together.any():
+                continue
+            gap = ages[i] - ages[j]
+            older_first = reaction.older_first_probability(gap)
+            # ``older_first`` is the chance the older set is the one served first,
+            # so the younger one is the one that waits.
+            i_is_older = gap > 0
+            i_first = np.where(i_is_older, older_first, 1 - older_first)
+            i_waits = together & (rng.random((rows, draws)) >= i_first)
+            if priority == i:
+                i_waits = np.zeros_like(together)
+            elif priority == j:
+                i_waits = together
+            penalty[i] += np.where(i_waits, cost, 0.0)
+            penalty[j] += np.where(together & ~i_waits, cost, 0.0)
+
+    return np.cumsum(penalty, axis=1)
+
+
 def race_time(
     plan: Plan,
     car: Car,
