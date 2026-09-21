@@ -119,6 +119,48 @@ STACK_SURCHARGE_S: dict[str, float] = {
 }
 
 
+#: How much more likely a car is to pit because the car *behind* it just did,
+#: as ``(gap in seconds, extra probability)`` bands. Beyond the last band, zero.
+#:
+#: The direction is the surprise, and it is the right way round. The car that
+#: reacts is the one **ahead** of the stopper, not the one behind: a stop from
+#: behind is an undercut attempt aimed at you, while a stop from ahead leaves you
+#: nothing to answer. It is the same point of view the interface's undercut card
+#: already takes — the threat belongs to the car in front.
+#:
+#: Measured over 48,860 (stopper, other car) pairs on green-flag stops across 106
+#: races, controlled by **mirroring**: the same gap on the other side. A car two
+#: seconds ahead and a car two seconds behind are equally close to the action and
+#: only one of them is threatened, so the difference between them is the effect
+#: with proximity already netted out.
+#:
+#: The mirror only controls while the two halves are comparable cars, and they
+#: stop being comparable fast. At 0-2 s they average 10.7 and 10.4 in the order;
+#: by 20-60 s they average 5.0 and 13.6, which is the front of the field against
+#: the back. That is why the effect appears to come *back* at long range after
+#: fading — +0.07 at 20-60 s, an artefact of who is being compared, not coverage.
+#: Past five seconds this design cannot separate the effect from track position,
+#: so it is declared zero rather than filled with a number known to be wrong.
+COVER_EXTRA: tuple[tuple[float, float], ...] = (
+    (2.0, 0.078),  # n=1242 ahead / 1725 behind, ±0.029
+    (5.0, 0.071),  # n=2268 / 2321, ±0.024 — a mild position confound remains
+)
+
+
+def cover_extra(gap_ahead_s: np.ndarray) -> np.ndarray:
+    """Extra chance of pitting for a car ``gap_ahead_s`` in front of the stopper.
+
+    Negative gaps — cars behind — get nothing: they are not the ones threatened.
+    """
+    out = np.zeros(np.shape(gap_ahead_s), dtype=float)
+    assigned = np.zeros(np.shape(gap_ahead_s), dtype=bool)
+    for bound, extra in COVER_EXTRA:
+        here = ~assigned & (gap_ahead_s > 0) & (gap_ahead_s <= bound)
+        out[here] = extra
+        assigned |= here
+    return out
+
+
 def band(tyre_age: np.ndarray) -> np.ndarray:
     """Which tyre-age band each value falls in. Vectorised over draws."""
     return np.digitize(tyre_age, AGE_EDGES, right=True)

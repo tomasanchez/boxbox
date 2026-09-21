@@ -505,3 +505,105 @@ print("STACK_SURCHARGE_S: dict[str, float] = {")
 for state, value in surcharge.items():
     print(f'    "{state}": {value:.1f},')
 print("}")
+
+
+def cover_pairs(frame: pd.DataFrame) -> pd.DataFrame:
+    """Para cada parada en verde, cómo reaccionó cada otro auto de la carrera.
+
+    El hueco se mide con el reloj de la vuelta anterior a la parada, y es con
+    signo: **negativo quiere decir que el rival va adelante**, que es el que un
+    undercut amenaza.
+    """
+    rows = []
+    for _keys, race in frame.groupby(["year", "round"]):
+        state = race.groupby("LapNumber")[["is_neutralised", "red"]].max()
+        clock = race.pivot_table(index="LapNumber", columns="Driver", values="Time")
+        # El `fillna(False)` no es cosmético: un auto sin registro en esa vuelta
+        # deja un NaN, y `bool(nan)` es True, así que sin esto todo auto ausente
+        # contaba como que paró. Inflaba los pares de 48.860 a 52.131.
+        boxed = (
+            race.pivot_table(index="LapNumber", columns="Driver", values="pit_in", aggfunc="max")
+            .fillna(False)
+            .astype(bool)
+        )
+        place = race.pivot_table(index="LapNumber", columns="Driver", values="Position")
+        drivers = list(clock.columns)
+        for lap in sorted(clock.index):
+            if lap < 3 or lap + 1 not in clock.index or lap - 1 not in clock.index:
+                continue
+            if bool(state.loc[lap, "is_neutralised"]) or bool(state.loc[lap, "red"]):
+                continue
+            for stopper in drivers:
+                if not bool(boxed.loc[lap, stopper]):
+                    continue
+                theirs = clock.loc[lap - 1, stopper]
+                if not np.isfinite(theirs):
+                    continue
+                for other in drivers:
+                    mine = clock.loc[lap - 1, other]
+                    if other == stopper or not np.isfinite(mine):
+                        continue
+                    rows.append(
+                        {
+                            "gap": float(mine - theirs),
+                            "covers": bool(boxed.loc[lap, other] or boxed.loc[lap + 1, other]),
+                            "place": float(place.loc[lap, other])
+                            if pd.notna(place.loc[lap, other])
+                            else np.nan,
+                        }
+                    )
+    return pd.DataFrame(rows)
+
+
+print("")
+print(SEP)
+print("### 10. CUANDO UN AUTO PARA EN VERDE, ¿QUIEN LO CUBRE?")
+print()
+pairs = cover_pairs(frame)
+races = frame.groupby(["year", "round"]).ngroups
+print(f"  {len(pairs)} pares (auto que para, otro auto) sobre {races} carreras")
+print()
+print("  El control es el ESPEJO: mismo hueco, un lado y el otro. El de adelante")
+print("  está amenazado por el undercut y el de atrás no, así que la diferencia")
+print("  entre las dos mitades a igual distancia es el efecto, con la cercanía a")
+print("  la acción ya descontada.")
+print()
+print(
+    f"  {'hueco':>10s} {'adelante':>9s} {'atrás':>8s} {'efecto':>8s} {'±95%':>7s}"
+    f" {'puesto adel':>12s} {'puesto atrás':>13s}"
+)
+COVER_BANDS = [(0, 2), (2, 5), (5, 10), (10, 20), (20, 60)]
+effects = []
+for low, high in COVER_BANDS:
+    ahead = pairs[(pairs["gap"] <= -low) & (pairs["gap"] > -high)]
+    behind = pairs[(pairs["gap"] >= low) & (pairs["gap"] < high)]
+    effect = ahead["covers"].mean() - behind["covers"].mean()
+    error = 1.96 * np.sqrt(
+        ahead["covers"].var() / len(ahead) + behind["covers"].var() / len(behind)
+    )
+    effects.append((high, effect, error, ahead["place"].mean(), behind["place"].mean()))
+    print(
+        f"  {low:4d}-{high:<5d} {ahead['covers'].mean():9.3f} {behind['covers'].mean():8.3f}"
+        f" {effect:+8.3f} {error:7.3f} {ahead['place'].mean():12.1f} {behind['place'].mean():13.1f}"
+    )
+print()
+_, _, _, near_a, near_b = effects[0]
+_, last_effect, _, far_a, far_b = effects[-1]
+print("  LEER CON CUIDADO LAS DOS ULTIMAS COLUMNAS. El espejo sólo controla algo")
+print("  mientras las dos mitades sean autos comparables, y dejan de serlo rápido:")
+print(
+    f"  a 0-2 s van {near_a:.1f} y {near_b:.1f} de puesto medio, pero en la última"
+    f" fila van {far_a:.1f} y {far_b:.1f}."
+)
+print("  A esa distancia la comparación ya no mide cobertura, mide frente de")
+print("  parrilla contra fondo — y por eso el efecto REAPARECE en la última fila")
+print(f"  después de haberse apagado. Ese {last_effect:+.2f} es un artefacto y no se usa.")
+print()
+print("  Queda un solo número limpio, el de 0-2 s, y uno aceptable con reparo, el")
+print("  de 2-5 s. Más allá el diseño no puede separar el efecto de la posición,")
+print("  y se declara cero en vez de pegar un número que se sabe contaminado.")
+print()
+print("  COVER_EXTRA: tuple[tuple[float, float], ...] = (")
+for high, effect, _error, _a, _b in effects[:2]:
+    print(f"      ({float(high)}, {max(effect, 0.0):.3f}),")
+print("  )")
