@@ -162,6 +162,7 @@
     "max_stops": 4,
     "seed": 11,
     "rival_seed": 7,
+    "rivals": "fixed",
     "rival_max_stops": 3,
     "start_compounds": [
       "HARD",
