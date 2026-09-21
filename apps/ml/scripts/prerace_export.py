@@ -110,6 +110,7 @@ from boxbox_ml.strategy import (
     Plan,
     RaceModel,
     Risk,
+    RivalMode,
     Search,
     optimise,
     pace_from_qualifying,
@@ -346,6 +347,10 @@ def field_from(quali: Qualifying, compounds: Sequence[str]) -> list[Car]:
             gap_leader_s=entry.gap_to_pole_s,
             from_lap=1,
             pace_s=pace_from_qualifying(entry.gap_to_pole_s),
+            # Sin esto la restricción de equipo nunca se dispara: `field_trace`
+            # empareja compañeros por este campo, y si está en None cada auto es
+            # hijo único y nadie hace cola (ADR-014).
+            team=entry.team,
         )
         for entry, compound in zip(quali.entries, compounds, strict=True)
     ]
@@ -505,6 +510,7 @@ def search_meta(args: argparse.Namespace) -> dict:
         "max_stops": MAX_STOPS,
         "seed": args.seed,
         "rival_seed": args.rival_seed,
+        "rivals": args.rivals,
         "rival_max_stops": RIVAL_MAX_STOPS,
         # Las tres salidas que corrió cada auto focal, y de dónde salió la de cada
         # rival. Con estas tres cosas el archivo se vuelve a armar igual.
@@ -755,6 +761,15 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--seed", type=int, default=11, help="semilla de la búsqueda")
     parser.add_argument(
+        "--rivals",
+        choices=[str(m) for m in RivalMode],
+        default=str(RivalMode.FIXED),
+        # El default es `fixed` a propósito: con él este script reproduce el JSON
+        # publicado tal cual. `reactive` escribe el otro archivo, y la interfaz
+        # conmuta entre los dos (ADR-016).
+        help="cómo se comportan los rivales: plan fijo, o reaccionando a la carrera",
+    )
+    parser.add_argument(
         "--rival-seed", type=int, default=7, help="semilla del sorteo de planes rivales"
     )
     parser.add_argument(
@@ -856,6 +871,7 @@ def main() -> None:
                 draws=args.draws,
                 max_stops=MAX_STOPS,
                 seed=args.seed,
+                rivals_mode=RivalMode(args.rivals),
                 instrument=True,
             )
             took = time.perf_counter() - at
