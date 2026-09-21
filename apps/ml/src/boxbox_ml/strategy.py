@@ -2093,6 +2093,7 @@ def optimise(
     draws: int = 1200,
     max_stops: int = 4,
     seed: int = 0,
+    seed_heuristics: bool = True,
     instrument: bool = False,
 ) -> Search:
     """Search for the plan that best serves ``objective``.
@@ -2254,20 +2255,44 @@ def optimise(
 
     # Seed the population with the obvious plans as well as random ones.
     #
-    # Purely random seeding does not work here and the reason is instructive. A
-    # plan has to get the laps *and* the compounds right at the same time, and
-    # with three compounds per stop only one combination in nine is the good one.
-    # Measured on this grid: 118 random two-stop plans, and the best scored 93.3 s
-    # against 91.0 for a hand-built even split on hards — the search space
-    # contained the answer and the seeds never landed near it, while one-stop
-    # plans scored 93.6 and looked just as good.
+    # Purely random seeding does not work here and the reason is instructive, but
+    # it is not the reason this comment used to give. It cited 118 random two-stop
+    # plans whose best scored 93.3 s against 91.0 for a hand-built even split —
+    # which is about the *initial* population, and the obvious retort is that
+    # evolving it is what the search is for.
+    #
+    # Measured properly, by running the whole grid both ways (`scripts/
+    # seeding_value.py`): dropping the seeds leaves 13 of 22 cars identical and
+    # ruins 7, four of them by more than fifteen points. A median difference of
+    # zero with a mean of -2.9 is the signature of something that hardly ever
+    # matters and is catastrophic when it does.
+    #
+    # What the seeds supply is the **plan**, not the score: the few-stops,
+    # long-stint corner of the space. A one-stop plan needs a forty-lap stint, and
+    # drawing one at random means getting the lap and the compound right together
+    # while `_repair` holds stops MIN_STINT apart — so two and three-stop plans
+    # come up far more often. The one-stop heuristic builds it on purpose. HUL and
+    # COL show it plainly: H41-M30 seeded, H23-H28-S20 free, sixteen points apart.
+    #
+    # It matters to the cars on the points bubble, who score near zero and for
+    # whom one stop instead of two is the difference between scoring and not. And
+    # more generations do not rescue it: 100 and 300 give results identical to 25,
+    # because every run settles around generation 21. The problem is not that the
+    # search runs out of time, it is that this corner is not reachable by drawing.
     #
     # Seeding with the heuristics also settles the comparison honestly. The search
     # now starts from the napkin rule, so it can only match or beat it, and the
     # question becomes whether it finds anything better rather than whether it
     # rediscovers the obvious.
-    seeds = [_heuristic_plan(car, model, stops) for stops in range(max_stops + 1)]
-    seeds += [_tyre_life_plan(car, model)]
+    #
+    # ``seed_heuristics=False`` las saca, y existe para poder *medir* lo de
+    # arriba en vez de afirmarlo: cuánto vale la siembra, y si la evolución
+    # alcanza a cerrar la brecha por su cuenta con más generaciones. El default
+    # no cambia nada.
+    seeds = []
+    if seed_heuristics:
+        seeds += [_heuristic_plan(car, model, stops) for stops in range(max_stops + 1)]
+        seeds += [_tyre_life_plan(car, model)]
     seeds += [_random_plan(car, model, rng, max_stops) for _ in range(population - len(seeds))]
     scored = [(plan, fitness(plan)) for plan in seeds]
 
