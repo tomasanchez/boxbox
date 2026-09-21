@@ -139,7 +139,7 @@ export function nearPitWindow(driver: DriverState, lap: number): boolean {
 }
 
 /** Por qué no hay ningún duelo para mostrar. `null` cuando sí lo hay. */
-export type NoBattleReason = 'formation' | 'no-window' | 'no-one-close'
+export type NoBattleReason = 'formation' | 'no-window' | 'no-one-close' | 'focal-clear'
 
 /**
  * Duelos vivos, tomados del orden en pista de la simulación.
@@ -158,7 +158,12 @@ export type NoBattleReason = 'formation' | 'no-window' | 'no-one-close'
  * Con el pelotón formado no se devuelve nada: parados en la parrilla los
  * intervalos son el largo de los cajones, no una diferencia de ritmo.
  */
-export function liveBattles(cars: DriverState[], timing: Timing, lap: number): StrategyBattle[] {
+export function liveBattles(
+  cars: DriverState[],
+  timing: Timing,
+  lap: number,
+  focal?: string,
+): StrategyBattle[] {
   if (timing.formation) return []
 
   const found: StrategyBattle[] = []
@@ -168,7 +173,13 @@ export function liveBattles(cars: DriverState[], timing: Timing, lap: number): S
     if (!chaser || !leader) continue
     // Mismo criterio que el pronóstico de batalla: fuera de los puntos, la
     // posición que se gana o se pierde no cambia el resultado de nadie.
-    if (place > POINTS_POSITIONS) break
+    //
+    // Con una excepción: el auto ELEGIDO. Ese criterio decide qué duelos vale
+    // la pena listar, y si el usuario señaló un auto, el suyo vale la pena aunque
+    // vaya decimosexto. Sin la excepción la tarjeta quedaría vacía para doce de
+    // los veintidós y parecería rota en vez de vacía a propósito.
+    const involves = chaser.code === focal || leader.code === focal
+    if (place > POINTS_POSITIONS && !involves) continue
     if (!nearPitWindow(chaser, lap)) continue
 
     const gapNow = timing.gapAhead[timing.order[place]]
@@ -177,7 +188,13 @@ export function liveBattles(cars: DriverState[], timing: Timing, lap: number): S
     found.push({ ...solveBattle(chaser, leader, gapNow), chaserWindow: chaser.pitWindow })
   }
 
-  return found.sort((a, b) => a.gapNow - b.gapNow).slice(0, MAX_BATTLES)
+  // El duelo del auto elegido primero, y el resto por lo cerrado que esté: si
+  // el suyo es holgado, el recorte no se lo puede llevar puesto.
+  const mine = (battle: StrategyBattle) =>
+    battle.chaser === focal || battle.leader === focal ? 0 : 1
+  return found
+    .sort((a, b) => mine(a) - mine(b) || a.gapNow - b.gapNow)
+    .slice(0, MAX_BATTLES)
 }
 
 /**

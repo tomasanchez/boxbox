@@ -53,6 +53,7 @@ const IDLE_TEXT = {
   formation: 'pelotón formado',
   'no-window': 'nadie en ventana en los puntos',
   'no-one-close': `nadie a menos de ${fmt(IN_RANGE_S, 1)} s en los puntos`,
+  'focal-clear': 'sin pelea propia · hay otros duelos abajo',
 } as const
 
 export function RaceView({
@@ -99,17 +100,36 @@ export function RaceView({
 }) {
   const track = TRACKS[RACE.trackKey]
   const duels = useMemo(
-    () => liveBattles(cars, timing, scenarioLap),
-    [cars, timing, scenarioLap],
+    () => liveBattles(cars, timing, scenarioLap, focal),
+    [cars, timing, scenarioLap, focal],
   )
 
   // La selección se guarda por par de pilotos, no por objeto: el duelo se
   // recalcula varias veces por segundo y el usuario no debería perder el que
-  // estaba mirando. Si ese par deja de estar en rango, manda el más cerrado.
+  // estaba mirando.
   const [pick, setPick] = useState<string | null>(null)
-  const duel = duels.find((b) => battleKey(b) === pick) ?? duels[0] ?? null
 
-  const reason = duel ? null : noBattleReason(cars, timing, scenarioLap)
+  /*
+   * Por defecto, el duelo del PILOTO ELEGIDO. Antes caía en `duels[0]`, que es
+   * el más cerrado del campo, así que la tarjeta saltaba de auto en auto y podía
+   * estar hablando de dos McLaren mientras el usuario miraba a otro. Es el mismo
+   * principio que ADR-007 ya había fijado para la tarjeta de undercut —acompaña
+   * al piloto elegido aunque no esté pasando nada— y tenerlo en una tarjeta y no
+   * en la de al lado era contradecirse en la misma pantalla.
+   *
+   * Una elección explícita sigue mandando: si el usuario tocó otro duelo, ése es
+   * el que quiere ver.
+   */
+  const ofFocal = duels.find((b) => b.chaser === focal || b.leader === focal) ?? null
+  const duel = duels.find((b) => battleKey(b) === pick) ?? ofFocal
+
+  // Y si no está en pelea se dice, en vez de mostrar la de otro: una tarjeta que
+  // salta no se puede seguir, y el usuario no tendría cómo saber de quién habla.
+  const reason = duel
+    ? null
+    : duels.length > 0
+      ? ('focal-clear' as const)
+      : noBattleReason(cars, timing, scenarioLap)
 
   // El pronóstico de batalla no depende de la ventana de parada: pregunta si
   // lo alcanza, no si conviene parar, y eso se puede preguntar siempre.
