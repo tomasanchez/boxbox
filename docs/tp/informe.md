@@ -331,7 +331,13 @@ para entregar una es peor que proponer dos y cumplirlas.
   medio**, y aun así la ventana se corre **cero vueltas en la mediana** —doce de los veintidós dan
   idénticos—. Es una comparación entre vueltas del mismo modelo, no un valor absoluto, y se puntúa
   en puestos, que son discretos. La excepción es el único auto que larga en medio, que se corre
-  2,5 vueltas: es el compuesto con la celda más fina del circuito, once tandas.
+  2,5 vueltas: es el compuesto con la celda más fina del circuito, once tandas. Esa celda se
+  revisó aparte y **no es frágil**: sacando cualquiera de las once la mediana se mueve 0,0086,
+  el intervalo del 95% va de 0,0839 a 0,1193 y deja **afuera** al 0,0625 de la otra medición —o
+  sea que la diferencia entre eras es real y no ruido—, y entre los catorce circuitos de 2026
+  Zandvoort sale duodécimo, alto pero no extremo. Lo que sostiene el número pese a la muestra
+  chica es haber elegido la mediana: dos de las once tandas dan 0,22 y 0,59 s/vuelta, que no es
+  desgaste sino autos rotos, y una media daría 0,133 gobernada por ellas.
 
 ### Lo que encontramos al probar
 
