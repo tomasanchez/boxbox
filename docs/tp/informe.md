@@ -326,6 +326,12 @@ para entregar una es peor que proponer dos y cumplirlas.
   representables y se queda con la banda que cae dentro de un cuarto de puesto del óptimo, sobre
   las mismas carreras sorteadas. Se puntúa en **puestos y no en segundos**, que es lo que la hace
   parecerse a la de la transmisión: nueve vueltas de ancho en blando, catorce a dieciséis en duro.
+  Y resiste la elección de datos, que era la duda razonable: el desgaste de Zandvoort medido con
+  todas las temporadas difiere del de 2026 un 11% en blando, un 14% en duro y un **49,5% en
+  medio**, y aun así la ventana se corre **cero vueltas en la mediana** —doce de los veintidós dan
+  idénticos—. Es una comparación entre vueltas del mismo modelo, no un valor absoluto, y se puntúa
+  en puestos, que son discretos. La excepción es el único auto que larga en medio, que se corre
+  2,5 vueltas: es el compuesto con la celda más fina del circuito, once tandas.
 
 ### Lo que encontramos al probar
 
