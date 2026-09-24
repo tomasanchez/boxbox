@@ -345,6 +345,13 @@ class RaceModel:
     total_laps: int = 72
     #: Residual sd of a lap around its stint's wear line. 4,407 stints.
     lap_noise_s: float = 0.457
+    #: Median green representative lap, in seconds. Zandvoort 2026 by default;
+    #: :meth:`for_circuit` replaces it with the circuit's own.
+    #:
+    #: It exists so the model can say **how many laps down** a car finishes, which
+    #: is what decides when the chequered flag reaches it. Measured on the same
+    #: laps as the wear, by ``scripts/wear_shrinkage.py``.
+    green_lap_s: float = 77.822
     #: Wear rate per compound, as measured distribution cuts.
     wear_cuts: dict[str, tuple[float, ...]] = field(default_factory=lambda: dict(WEAR_CUTS))
     #: Effective pit loss under green — seconds conceded to the field, as measured
@@ -516,6 +523,9 @@ class RaceModel:
             # median instead of being pinned to Zandvoort's.
             factor = target / base[4] if base[4] else 1.0
             cuts[compound] = tuple(value * factor for value in base)
+        lap = table.get("vuelta_verde_s", {}).get(circuit)
+        if lap is not None and "green_lap_s" not in overrides:
+            overrides["green_lap_s"] = float(lap)
         return cls(wear_cuts=cuts, **overrides)
 
 
@@ -1780,6 +1790,68 @@ def _mutate(plan: Plan, car: Car, model: RaceModel, rng: np.random.Generator) ->
             stops[index] = replace(stops[index], compound=str(rng.choice(DRY)))
 
     return Plan(_repair(stops, car, model))
+
+
+def chequered(field: np.ndarray, model: RaceModel) -> tuple[np.ndarray, np.ndarray]:
+    """Cuántas vueltas completa cada auto, y en qué tiempo, cuando cae la bandera.
+
+    **Una carrera no termina cuando el primero cruza la meta, termina cuando cada
+    auto cruza después de que el primero lo hizo.** El que va doblado nunca corre
+    la última vuelta: la bandera lo alcanza una vuelta antes, y así queda
+    clasificado. El simulador corría la distancia completa para los veintidós, lo
+    cual le cobra a un auto doblado vueltas de desgaste y de reloj que nunca
+    habría hecho.
+
+    Qué **no** cambia, y conviene decirlo para que nadie espere lo que no va a
+    pasar: el orden de llegada. Ordenar por tiempo en completar la distancia
+    entera da el mismo resultado que la clasificación real, porque un auto
+    doblado tarda más. Por eso esto nunca salió como un puesto mal asignado, y
+    por eso :func:`_positions` no necesita cambiar.
+
+    Lo que sí cambia es el **tiempo informado** de un auto doblado, que hasta
+    ahora incluía vueltas fantasma.
+
+    Vueltas abajo es ``floor(hueco / vuelta verde)``: un auto a un segundo del
+    ganador **no** está una vuelta abajo, toma la bandera en su próximo cruce y
+    completa la misma distancia. Confundir esas dos cosas —contar vueltas cuando
+    lo que hay son segundos— es exactamente el error que apareció al medir esto
+    la primera vez, y da que el 100% del campo termina doblado.
+
+    Args:
+        field: ``(autos, vueltas + 1, sorteos)``, las trazas de todo el campo.
+        model: De donde sale la vuelta verde con la que se cuentan las vueltas.
+
+    Returns:
+        ``(vueltas, tiempo)``, los dos de forma ``(autos, sorteos)``: cuántas
+        vueltas completó cada auto y su tiempo al cruzar por última vez.
+
+    .. warning::
+
+       **Las vueltas son las del tramo simulado, que no es la distancia de la
+       carrera.** ``race_trace`` corre ``total_laps - from_lap`` vueltas, o sea
+       **71** para una carrera de 72 saliendo desde la parrilla — se puede ver en
+       cualquier plan descrito: ``S20-H27-H24`` suma 71. El líder de esta función
+       devuelve 71, no 72.
+
+       Es un desfasaje de uno que ya estaba y que esto sólo hizo visible. No se
+       corrigió acá a propósito: sumar la vuelta que falta cambia la distancia de
+       todas las carreras simuladas y mueve **cada cifra publicada** del informe,
+       y eso es una decisión aparte de la que esta función vino a resolver.
+    """
+    if field.size == 0:
+        return np.empty((0, 0), dtype=int), np.empty((0, 0))
+
+    rows = field.shape[1] - 1
+    finish = field[:, -1, :]
+    leader = finish.min(axis=0)
+    down = np.floor((finish - leader) / model.green_lap_s).astype(int)
+    down = np.clip(down, 0, rows - 1)
+
+    laps = rows - down
+    # El tiempo al cruzar por última vez, que es la fila `laps` de su traza.
+    cars = np.arange(field.shape[0])[:, None]
+    draws = np.arange(field.shape[2])[None, :]
+    return laps, field[cars, laps, draws]
 
 
 def _positions(times: np.ndarray, rival_times: np.ndarray) -> np.ndarray:

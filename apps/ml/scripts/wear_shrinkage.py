@@ -63,6 +63,10 @@ MIN_FOR_LEVEL = 12
 BOOTSTRAP = 400
 
 
+#: Mediana de vuelta verde por circuito, en segundos. La llena `load_stints`.
+GREEN_LAPS: dict[str, float] = {}
+
+
 def load_stints() -> pd.DataFrame:
     """Una fila por tanda: circuito, año, compuesto y ritmo de caída ajustado."""
     parts = [pd.read_parquet(cache.cache_dir().parent / "laps_overtaking.parquet")]
@@ -85,6 +89,19 @@ def load_stints() -> pd.DataFrame:
         & ~frame["yellow"]
         & ~pd.MultiIndex.from_frame(frame[["year", "round"]]).isin(wet)
     ]
+
+    # La mediana de vuelta verde de cada circuito, de paso y del MISMO conjunto
+    # de vueltas que el desgaste. Se guarda acá en vez de en su propia función
+    # porque lo que la hace comparable es justamente el filtro de arriba —
+    # representativa, sin neutralizar, en seco— y tener dos copias de ese filtro
+    # es cómo se empiezan a separar dos números que deberían ser el mismo.
+    #
+    # El simulador la necesita para saber cuántas vueltas abajo termina un auto,
+    # que es lo que decide cuándo le cae la bandera a cuadros.
+    recent = green[green["year"] >= 2026]
+    GREEN_LAPS.update(
+        {c: round(float(v), 3) for c, v in recent.groupby("circuit")["LapTime"].median().items()}
+    )
 
     rows = []
     for _keys, stint in green.groupby(features.STINT_KEYS, dropna=False):
@@ -250,6 +267,7 @@ payload = {
     "dispersion_entre_circuitos": round(between, 6),
     "ruido_de_una_tanda": round(within, 6),
     "nivel_temporada_s_vuelta": {c: round(float(level[c]), 5) for c in DRY if c in level},
+    "vuelta_verde_s": dict(sorted(GREEN_LAPS.items())),
     "celdas": {
         circuit: {
             row["compound"]: {

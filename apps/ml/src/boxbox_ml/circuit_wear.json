@@ -1,223 +1,256 @@
 {
   "metodo": "encogimiento jerarquico: w = entre / (entre + dentro/n), por celda",
-  "tandas_para_medio_peso": 2.3,
-  "dispersion_entre_circuitos": 0.002106,
-  "ruido_de_una_tanda": 0.006995,
+  "tandas_para_medio_peso": 2.2,
+  "dispersion_entre_circuitos": 0.002124,
+  "ruido_de_una_tanda": 0.007585,
   "nivel_temporada_s_vuelta": {
-    "SOFT": 0.06767,
-    "MEDIUM": 0.05954,
-    "HARD": 0.06849
+    "SOFT": 0.06746,
+    "MEDIUM": 0.05688,
+    "HARD": 0.06183
+  },
+  "vuelta_verde_s": {
+    "Barcelona": 83.69,
+    "Budapest": 86.213,
+    "Madrid": 99.62,
+    "Melbourne": 84.875,
+    "Miami": 94.298,
+    "Monaco": 78.744,
+    "Montréal": 77.071,
+    "Monza": 86.557,
+    "Shanghai": 98.09,
+    "Silverstone": 95.445,
+    "Spa-Francorchamps": 111.808,
+    "Spielberg": 72.857,
+    "Suzuka": 95.306,
+    "Zandvoort": 77.822
   },
   "celdas": {
     "Barcelona": {
       "HARD": {
         "n": 34,
         "peso": 0.938,
-        "encogido": 0.06169
+        "encogido": 0.06795
       },
       "MEDIUM": {
         "n": 18,
         "peso": 0.889,
-        "encogido": 0.11857
+        "encogido": 0.12099
       },
       "SOFT": {
         "n": 9,
-        "peso": 0.8,
-        "encogido": 0.14426
+        "peso": 0.801,
+        "encogido": 0.14455
       }
     },
     "Budapest": {
       "HARD": {
         "n": 28,
         "peso": 0.926,
-        "encogido": 0.02736
+        "encogido": 0.03353
       },
       "MEDIUM": {
         "n": 19,
         "peso": 0.894,
-        "encogido": 0.02205
+        "encogido": 0.02444
       },
       "SOFT": {
         "n": 16,
         "peso": 0.877,
-        "encogido": -0.00203
+        "encogido": -0.00184
+      }
+    },
+    "Madrid": {
+      "HARD": {
+        "n": 26,
+        "peso": 0.921,
+        "encogido": -0.0523
+      },
+      "MEDIUM": {
+        "n": 12,
+        "peso": 0.843,
+        "encogido": -0.02809
+      },
+      "SOFT": {
+        "n": 6,
+        "peso": 0.728,
+        "encogido": 0.0182
       }
     },
     "Melbourne": {
       "HARD": {
         "n": 20,
         "peso": 0.899,
-        "encogido": -0.0025
+        "encogido": 0.00348
       },
       "MEDIUM": {
         "n": 18,
         "peso": 0.889,
-        "encogido": -0.10183
+        "encogido": -0.09951
       },
       "SOFT": {
         "n": 7,
         "peso": 0.757,
-        "encogido": 0.00338
+        "encogido": 0.00354
       }
     },
     "Miami": {
       "HARD": {
         "n": 15,
         "peso": 0.87,
-        "encogido": 0.0014
+        "encogido": 0.00719
       },
       "MEDIUM": {
         "n": 17,
-        "peso": 0.883,
-        "encogido": -0.00471
+        "peso": 0.884,
+        "encogido": -0.00236
       },
       "SOFT": {
         "n": 4,
-        "peso": 0.64,
-        "encogido": 0.00755
+        "peso": 0.641,
+        "encogido": 0.00769
       }
     },
     "Monaco": {
       "HARD": {
         "n": 12,
-        "peso": 0.842,
-        "encogido": -0.04861
+        "peso": 0.843,
+        "encogido": -0.04304
       },
       "MEDIUM": {
         "n": 17,
-        "peso": 0.883,
-        "encogido": 0.00851
+        "peso": 0.884,
+        "encogido": 0.01087
       },
       "SOFT": {
         "n": 4,
-        "peso": 0.64,
-        "encogido": -0.01918
+        "peso": 0.641,
+        "encogido": -0.01907
       }
     },
     "Montréal": {
       "HARD": {
         "n": 2,
-        "peso": 0.471,
-        "encogido": -0.02376
+        "peso": 0.472,
+        "encogido": -0.02067
       },
       "MEDIUM": {
         "n": 22,
-        "peso": 0.907,
-        "encogido": -0.05161
+        "peso": 0.908,
+        "encogido": -0.04921
       },
       "SOFT": {
         "n": 19,
         "peso": 0.894,
-        "encogido": -0.08041
+        "encogido": -0.08026
       }
     },
     "Monza": {
       "HARD": {
-        "n": 13,
-        "peso": 0.852,
-        "encogido": -0.03226
+        "n": 14,
+        "peso": 0.862,
+        "encogido": -0.03932
       },
       "MEDIUM": {
         "n": 12,
-        "peso": 0.842,
-        "encogido": -0.01965
+        "peso": 0.843,
+        "encogido": -0.03269
       },
       "SOFT": {
-        "n": 3,
-        "peso": 0.571,
-        "encogido": 0.01158
+        "n": 4,
+        "peso": 0.641,
+        "encogido": -0.01742
       }
     },
     "Shanghai": {
       "HARD": {
         "n": 18,
         "peso": 0.889,
-        "encogido": -0.04683
+        "encogido": -0.04093
       },
       "MEDIUM": {
         "n": 12,
-        "peso": 0.842,
-        "encogido": -0.05753
+        "peso": 0.843,
+        "encogido": -0.05532
       }
     },
     "Silverstone": {
       "HARD": {
         "n": 21,
-        "peso": 0.903,
-        "encogido": -0.01
+        "peso": 0.904,
+        "encogido": -0.00399
       },
       "MEDIUM": {
         "n": 21,
-        "peso": 0.903,
-        "encogido": -0.01172
+        "peso": 0.904,
+        "encogido": -0.00932
       },
       "SOFT": {
         "n": 1,
-        "peso": 0.308,
-        "encogido": 0.0351
+        "peso": 0.309,
+        "encogido": 0.03526
       }
     },
     "Spa-Francorchamps": {
       "HARD": {
         "n": 23,
         "peso": 0.911,
-        "encogido": -0.01508
+        "encogido": -0.00902
       },
       "MEDIUM": {
         "n": 13,
-        "peso": 0.852,
-        "encogido": 0.00938
+        "peso": 0.853,
+        "encogido": 0.01166
       },
       "SOFT": {
         "n": 3,
-        "peso": 0.571,
-        "encogido": -0.01118
+        "peso": 0.572,
+        "encogido": -0.01108
       }
     },
     "Spielberg": {
       "HARD": {
         "n": 24,
-        "peso": 0.914,
-        "encogido": 0.02886
+        "peso": 0.915,
+        "encogido": 0.03496
       },
       "MEDIUM": {
         "n": 29,
         "peso": 0.928,
-        "encogido": 0.0448
+        "encogido": 0.04728
       },
       "SOFT": {
         "n": 8,
-        "peso": 0.78,
-        "encogido": 0.00442
+        "peso": 0.781,
+        "encogido": 0.0046
       }
     },
     "Suzuka": {
       "HARD": {
         "n": 19,
         "peso": 0.894,
-        "encogido": -0.03677
+        "encogido": -0.03083
       },
       "MEDIUM": {
         "n": 23,
         "peso": 0.911,
-        "encogido": -0.00986
+        "encogido": -0.00744
       }
     },
     "Zandvoort": {
       "HARD": {
         "n": 28,
         "peso": 0.926,
-        "encogido": -0.00533
+        "encogido": 0.00083
       },
       "MEDIUM": {
         "n": 11,
-        "peso": 0.83,
-        "encogido": 0.0339
+        "peso": 0.831,
+        "encogido": 0.03614
       },
       "SOFT": {
         "n": 20,
         "peso": 0.899,
-        "encogido": 0.00013
+        "encogido": 0.00032
       }
     }
   }

@@ -316,8 +316,15 @@ para entregar una es peor que proponer dos y cumplirlas.
 ### Lo que falta
 
 - El agente de Aprendizaje por Refuerzo, que era la comparación propuesta.
-- El tráfico de **rezagados**. El 23,1% de los pilotos terminan al menos una vuelta abajo, y la
-  medición actual los excluye por construcción.
+- El tráfico de **rezagados**. El 28,4% de los pilotos terminan al menos una vuelta abajo, y la
+  medición actual los excluye por construcción. Y midiéndolo apareció algo peor: **el modelo dobla
+  al doble de autos que la realidad** —54,8% contra 28,4%, con el cajón de dos vueltas abajo siete
+  veces más grande— porque `pace_from_qualifying` extrapola el hueco de clasificación como un
+  déficit constante por vuelta durante toda la carrera, y el último de la grilla termina 223
+  segundos atrás, casi tres vueltas. El factor 0,835 se validó con r=0,880 comparando hueco de
+  quali contra ritmo de carrera, que es autoconsistente; lo que nunca se chequeó fue la
+  consecuencia. Medido en `scripts/laps_down.py`, sin corregir: tocar el ritmo mueve cada cifra de
+  este informe.
 - ~~La **ventana de parada** sale hoy de una heurística y debería salir del propio genético.~~
   **Hecho**, y la heurística estaba peor de lo que este renglón sugería: calculaba un rango de
   *factibilidad* con nombre de rango de *optimalidad* —35 vueltas de ancho, con el cierre en una
