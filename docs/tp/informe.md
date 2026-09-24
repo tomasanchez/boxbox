@@ -253,14 +253,30 @@ determinístico y dos corridas idénticas daban planes distintos. Está sembrado
 generador que ya comparte la búsqueda.
 
 Verificado sobre 75 problemas —tres compuestos de salida, cuatro posiciones de grilla, tres
-apetitos de riesgo, cinco semillas— comparando el puntaje fuera de muestra: **DEAP gana 7, el
-motor propio 6, empatan 62**, con una diferencia absoluta media de 0,02 y el mismo plan exacto en
-el 74,7% de los casos. Ninguno le gana al otro; DEAP cuesta 6,9 s por búsqueda contra 5,2 s.
+apetitos de riesgo, cinco semillas— comparando el puntaje fuera de muestra: **DEAP gana 9, el
+motor propio 2, empatan 64**, con el mismo plan exacto en el **81,3%** de los casos. Ninguno le
+gana al otro de forma sistemática; DEAP cuesta 6,74 s por búsqueda contra 5,36 s.
 
-Una lección de método salió del propio experimento: **«mismo plan» sólo es una métrica válida
-donde la aptitud discrimina.** El auto vigésimo con apetito conservador tiene 0% de acuerdo entre
-motores y puntaje idéntico −20,000 en los dos — termina vigésimo haga lo que haga, así que todos
-los planes empatan y cada motor se queda con uno distinto.
+> **Esta comparación se rehízo, porque la primera estaba viciada.** Decía «DEAP gana 7, el propio
+> 6, empatan 62» con 74,7% de acuerdo, y se corrió cuando el motor DEAP todavía **descartaba su
+> salón de la fama**: podía devolver un plan peor que el mejor que él mismo había encontrado. Parte
+> de lo que el motor propio le ganaba era eso. Corregido, DEAP sube y el acuerdo también, que es lo
+> que uno espera si el defecto era ruido de selección y no exploración distinta.
+
+Dos lecciones de método salieron del propio experimento, y las dos son sobre **cuándo una
+comparación significa algo**.
+
+**«Mismo plan» sólo vale donde la aptitud discrimina.** El auto vigésimo con apetito conservador
+tiene 0% de acuerdo entre motores y puntaje idéntico −20,000 en los dos — termina vigésimo haga lo
+que haga, así que todos los planes empatan y cada motor se queda con uno distinto.
+
+**Y «mismo puntaje» sólo vale donde los dos miden en la misma unidad.** Doce de los quince grupos
+de problemas coinciden dentro de 0,06; los tres restantes son todos el auto que larga
+decimotercero, justo en la burbuja de los puntos, y ahí los puntajes son −5,092 contra 0,193. No
+es que un motor encuentre algo mucho mejor: es que el objetivo **adaptativo** resolvió distinto en
+cada uno —uno terminó puntuando en puestos y el otro en puntos— y esos dos números no se pueden
+restar. La diferencia absoluta media de 0,86 que reporta el script es esa resta, y no mide
+calidad. Sin P13 es de seis milésimas.
 
 **3. Agente de Aprendizaje por Refuerzo (comparación — Unidad 5).**
 
