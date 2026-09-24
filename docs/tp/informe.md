@@ -724,8 +724,8 @@ puntúa el plan. Medido, sobre un auto que larga décimo:
 
 | plan | posición media | cuarto peor | cuarto mejor |
 |---|---|---|---|
-| una parada `M15-H41` | 10,58 | **13,62** | **7,18** |
-| dos paradas `M17-H19-H20` | 10,93 | **12,58** | **9,28** |
+| una parada `M16-H41` | 10,64 | **13,72** | **7,16** |
+| dos paradas `M18-H19-H20` | 10,90 | **12,56** | **9,26** |
 
 El paradón es mejor en media, mejor en el buen caso, y **peor en el malo**. Eso es
 una apuesta, y el promedio la escondía. Un apetito conservador elige el de dos
@@ -800,16 +800,17 @@ Contra reglas que sí se pueden enunciar de antemano:
 
 | Regla | Ventaja del algoritmo |
 |---|---|
-| «siempre 1 parada, duro» | **+6,93 s** |
-| «siempre 2 paradas, duro» | +0,00 |
-| «siempre 3 paradas, duro» | **+10,65 s** |
-| el oráculo | +0,00 |
+| «siempre 1 parada, duro» | **+8,56 s** |
+| «siempre 2 paradas, duro» | +0,07 |
+| «siempre 3 paradas, duro» | **+10,91 s** |
+| el oráculo | +0,07 |
 
 **El algoritmo le gana a cualquier regla enunciable, y lo que gana es exactamente
 el valor de acertar la cantidad de paradas.** Contra el oráculo empata, y ésa era
 la comparación que se venía reportando como si fuera la relevante.
 
-Matiz honesto: «siempre dos paradas al duro» queda a nada del algoritmo, porque
+Matiz honesto: «siempre dos paradas al duro» queda a siete centésimas del
+algoritmo, porque
 dos paradas es correcto para dos de los tres compuestos de salida. Lo que el
 algoritmo agrega es acertar el caso del duro, donde la respuesta cambia.
 
@@ -848,6 +849,9 @@ trabajo es que una cifra que se mueve se declara:
 | Monza, lo que valieron las neutralizaciones | 21,6 s | **22,2 s** |
 | Tiempo del plan del AG desde la vuelta 1 | 91,7 s | **93,3 s** |
 | Ventaja del AG sobre la mejor regla enunciable | −0,1 s | **−0,2 s** |
+
+(Las dos últimas volvieron a moverse después, al corregir el desfasaje de una
+vuelta: 94,5 s y **+0,3 s**. Ver más abajo.)
 | Cuarto peor del plan de una parada | 13,64 | **13,62** |
 | Cuarto peor del plan de dos paradas | 12,37 | **12,58** |
 
@@ -917,8 +921,8 @@ neutralización, contra el 23% medido sobre 103 carreras.
 
 | Escenario | Plan recomendado | Lo que hizo ANT | Diferencia |
 |---|---|---|---|
-| Paradas a precio normal | 61,32 s | 80,35 s | **+19,03** |
-| Paradas gratis | 38,39 s | 35,19 s | **−3,19** |
+| Paradas a precio normal | 62,77 s | 81,98 s | **+19,20** |
+| Paradas gratis | 39,84 s | 36,82 s | **−3,02** |
 
 El vuelco vale **22,2 segundos** de carrera, y la cantidad óptima se invierte: a
 precio de lista una parada le gana a dos y a tres; con las paradas gratis el
@@ -930,7 +934,8 @@ orden se da vuelta por completo.
 > volvieron a medir después de aplicar B6.3.8**. Trazado commit por commit: al
 > crear el script daba 21,01; al meter las tres banderas al sorteo, 20,74; al
 > obligar los dos compuestos secos, 18,40; al cambiar la pérdida de boxes por su
-> distribución medida, **19,03**.
+> distribución medida, 19,03; al corregir el desfasaje de una vuelta —la carrera
+> duraba 71 de 72— **19,20**.
 >
 > Tiene sentido que baje: la obligación reglamentaria **empeora el plan
 > recomendado** (57,95 → 60,51) porque le saca libertad, y eso achica la
@@ -1265,6 +1270,65 @@ Es un entregable distinto del que este trabajo define, y es exactamente la
 comparación que la Entrega 2 ya tenía anotada: **planificar contra reaccionar**.
 Lo que se agrega hoy es que deja de ser una intuición y pasa a tener el tamaño
 medido de lo que está en juego.
+
+### La carrera duraba setenta y una vueltas de setenta y dos
+
+Apareció preguntando otra cosa: cuándo termina una carrera. No termina cuando el
+primero cruza la meta —el que va doblado nunca corre la última vuelta, la bandera
+lo alcanza antes— y el simulador corría la distancia completa para los veintidós.
+Eso se corrigió con `chequered()`, que dice cuántas vueltas completó cada auto.
+
+Pero midiéndolo el líder daba **71**. Y no era el error nuevo, era uno viejo:
+`race_trace` corría `total_laps - from_lap` vueltas, o sea 71 para una carrera de
+72 saliendo desde la parrilla. Se veía en cualquier plan descrito sin que nadie
+lo mirara: `S20-H27-H24` suma 71.
+
+El arreglo son cinco líneas —tres cuentas de distancia y dos de descripción— y la
+corrección es que `from_lap` es la primera vuelta que **falta** correr, así que
+entra en la cuenta. Ahora un plan suma 72.
+
+#### Qué se movió
+
+| Cifra | Antes | Ahora |
+|---|---|---|
+| Monza, diferencia a precio normal | +19,03 s | **+19,20 s** |
+| Tiempo del plan del AG desde la vuelta 1 | 93,3 s | **94,5 s** |
+| Ventaja del AG contra «siempre 1 parada, duro» | +6,93 s | **+8,56 s** |
+| Ventaja del AG contra «siempre 3 paradas, duro» | +10,65 s | **+10,91 s** |
+| Ventaja del AG sobre la mejor regla enunciable | **−0,2 s** | **+0,3 s** |
+
+**La última cambia de signo, y hay que decir qué significa y qué no.** El
+algoritmo pasa de perderle a la mejor regla enunciable a ganarle. Pero medio
+segundo sobre setenta y dos vueltas sigue siendo un empate: la conclusión que
+este trabajo sostiene —que antes de largar el algoritmo no le saca ventaja clara
+a una regla razonable, y que donde sí se la saca es a mitad de carrera, donde la
+ventaja es de casi siete segundos— no cambia. Lo que cambia es de qué lado del
+cero cae el empate.
+
+Los planes se corren una vuelta en todas partes, porque ahora hay una vuelta más
+que repartir: `S20-H27-H24` pasa a `S21-H27-H24` y el resto en proporción.
+
+#### Y destapó que el motor DEAP no era elitista
+
+Al correr los tests después del arreglo falló uno: **«el mejor nunca empeora»**.
+No era consecuencia del cambio. El motor DEAP registra `selTournament` como
+selección, y en `eaMuPlusLambda` eso elige la población nueva de entre padres e
+hijos **sin garantizar que el campeón sobreviva**. El motor propio sí es
+elitista, explícitamente.
+
+Peor: el salón de la fama se calculaba y se **descartaba**. El plan devuelto
+salía de la última población, así que una corrida podía entregar un plan peor que
+el mejor que ella misma había encontrado.
+
+Estuvo ahí desde que se portó a DEAP, y el test venía pasando de casualidad —
+nunca había caído una corrida donde el torneo perdiera al campeón. Lo que la hizo
+caer fue el desfasaje de una vuelta, que corrió el flujo del generador.
+
+Corregido: el salón de la fama entra en el resultado, y la historia por
+generación acumula el máximo en vez de anotar el de esa población. Esto último
+además vuelve cierto algo que el código ya afirmaba: que las dos historias «se
+leen igual y son comparables». No lo eran — la del motor propio era monótona por
+ser elitista y la de DEAP podía bajar.
 
 ### Límites estructurales: lo que el modelo no puede representar
 

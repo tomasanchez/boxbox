@@ -714,7 +714,9 @@ class Plan:
     def describe(self, car: Car, total_laps: int) -> str:
         """Stint list the way a pit wall would say it: ``M8-H34``."""
         parts = []
-        compound, previous = car.compound, car.from_lap
+        # La vuelta ANTERIOR a la primera que falta correr: una parada en la 21
+        # desde la parrilla cierra una tanda de 21 vueltas, no de 20.
+        compound, previous = car.compound, car.from_lap - 1
         for stop in self.stops:
             parts.append(f"{compound[0]}{stop.lap - previous}")
             compound, previous = stop.compound, stop.lap
@@ -734,7 +736,7 @@ def _from_cuts(cuts: Sequence[float], u: np.ndarray) -> np.ndarray:
 def _stints(plan: Plan, car: Car, total_laps: int) -> list[tuple[str, int, int]]:
     """Break a plan into ``(compound, start_lap, end_lap)`` stints."""
     out = []
-    compound, start = car.compound, car.from_lap
+    compound, start = car.compound, car.from_lap - 1
     for stop in plan.stops:
         out.append((compound, start, stop.lap))
         compound, start = stop.compound, stop.lap
@@ -964,7 +966,9 @@ def race_trace(
     Returns:
         ``(laps + 1, draws)``. Row 0 is the current gap; the last row is the flag.
     """
-    laps_left = model.total_laps - car.from_lap
+    # `from_lap` es la primera vuelta que FALTA correr, así que entra en la
+    # cuenta. Sin el +1 la carrera duraba 71 vueltas de 72 desde la parrilla.
+    laps_left = model.total_laps - car.from_lap + 1
     trace = np.empty((laps_left + 1, draws), dtype=float)
     total = np.full(draws, car.gap_leader_s, dtype=float)
     trace[0] = total
@@ -1289,7 +1293,9 @@ def reactive_trace(
        one more stop. Reactivity adds 0.25 stops on top of the plan, which is the
        part this function owns, and it is the smaller half of the discrepancy.
     """
-    laps_left = model.total_laps - car.from_lap
+    # `from_lap` es la primera vuelta que FALTA correr, así que entra en la
+    # cuenta. Sin el +1 la carrera duraba 71 vueltas de 72 desde la parrilla.
+    laps_left = model.total_laps - car.from_lap + 1
     trace = np.empty((laps_left + 1, draws), dtype=float)
     total = np.full(draws, car.gap_leader_s, dtype=float)
     trace[0] = total
@@ -1539,7 +1545,9 @@ def field_trace(
        It costs about half a second for 22 cars over 1,200 draws, which is why it
        is affordable once per driver and not once per candidate plan.
     """
-    laps_left = model.total_laps - car.from_lap
+    # `from_lap` es la primera vuelta que FALTA correr, así que entra en la
+    # cuenta. Sin el +1 la carrera duraba 71 vueltas de 72 desde la parrilla.
+    laps_left = model.total_laps - car.from_lap + 1
     everyone = [car, *rivals]
     runners = [
         _Runner(p, c, model, rng, draws)

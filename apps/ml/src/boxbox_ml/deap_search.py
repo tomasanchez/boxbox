@@ -163,6 +163,23 @@ def _history(logbook: tools.Logbook) -> tuple[Generation, ...]:
     sembrada, antes de la primera selección— que es exactamente el convenio del
     motor propio, así que los dos registros se leen igual y son comparables.
     """
+    # El MEJOR HASTA ACA, no el mejor de esta generación. Con `selTournament` la
+    # población puede empeorar de una generación a la otra, y entonces las dos
+    # historias dejaban de ser comparables: la del motor propio es monótona
+    # porque es elitista, y la de DEAP bajaba. Acumular el máximo las vuelve a
+    # leer igual, que es lo que el párrafo de arriba promete.
+    running = float("-inf")
+    rows = []
+    for gen, best, shares, champion in zip(
+        logbook.select("gen"),
+        logbook.chapters["fitness"].select("max"),
+        logbook.chapters["stops"].select("shares"),
+        logbook.chapters["stops"].select("champion"),
+        strict=True,
+    ):
+        running = max(running, float(best))
+        rows.append((gen, running, shares, champion))
+
     return tuple(
         Generation(
             index=int(gen),
@@ -170,13 +187,7 @@ def _history(logbook: tools.Logbook) -> tuple[Generation, ...]:
             stop_distribution=dict(shares),
             best_plan=Plan(tuple(champion)),
         )
-        for gen, best, shares, champion in zip(
-            logbook.select("gen"),
-            logbook.chapters["fitness"].select("max"),
-            logbook.chapters["stops"].select("shares"),
-            logbook.chapters["stops"].select("champion"),
-            strict=True,
-        )
+        for gen, best, shares, champion in rows
     )
 
 
@@ -263,5 +274,15 @@ def evolve(
         halloffame=hall,
         verbose=False,
     )
+    # El salón de la fama entra en el resultado, y no es decorativo. `select` acá
+    # es `selTournament`, que en `eaMuPlusLambda` elige mu de entre padres e
+    # hijos SIN garantizar que el mejor sobreviva: el motor DEAP no es elitista y
+    # el propio sí. Hasta acá `hall` se calculaba y se tiraba, así que una corrida
+    # podía devolver un plan peor que el mejor que había encontrado.
+    #
+    # Lo destapó un test —«el mejor nunca empeora»— que venía pasando de
+    # casualidad, porque el flujo del generador no había dado todavía con una
+    # corrida donde el torneo perdiera al campeón.
     scored_final = [(Plan(tuple(individual)), individual.fitness.values[0]) for individual in final]
+    scored_final += [(Plan(tuple(individual)), individual.fitness.values[0]) for individual in hall]
     return scored_final, (_history(logbook) if history else ())
