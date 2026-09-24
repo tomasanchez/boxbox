@@ -38,7 +38,7 @@ import { SPEEDS } from './playback-clock'
 import { PreRaceView } from './PreRaceView'
 import { RaceView } from './RaceView'
 import { GRID, RACE } from './data'
-import { PRERACE_MODEL, type RivalsMode, gridOf, plansOf } from './prerace'
+import { PRERACE_MODEL, type RivalsMode, gridOf, plansOf, preraceCar } from './prerace'
 import { STATUS, STATUS_ORDER, fieldNote } from './status'
 import { DEFAULT_SEED, evolve } from './tyres'
 import { useField } from './useField'
@@ -110,6 +110,19 @@ export default function App() {
 
   const spec = STATUS[status]
   const fromLap = origin === 'start' ? 1 : RACE.currentLap
+
+  /*
+   * Qué le cambia al piloto elegido pasar de una búsqueda a la otra.
+   *
+   * Sin esto el interruptor cambiaba los datos en silencio: había que
+   * memorizar el plan, conmutar y comparar de memoria, y entonces no se
+   * entendía qué compraba. Mostrar el plan del OTRO modo al lado convierte un
+   * interruptor mudo en una comparación, que es lo único que este interruptor
+   * vino a ofrecer (ADR-016).
+   */
+  const otherMode: RivalsMode = rivals === 'fixed' ? 'reactive' : 'fixed'
+  const planHere = preraceCar(focal, rivals).plan
+  const planThere = preraceCar(focal, otherMode).plan
 
   const [track, setTrack] = useState<number[]>([])
 
@@ -319,9 +332,16 @@ export default function App() {
             ))}
           </div>
           <span className="kpi__note">
-            {rivals === 'fixed'
-              ? 'búsqueda con rivales de plan fijo'
-              : 'búsqueda con rivales reactivos · cambia 9 de 22 planes'}
+            {planHere === planThere ? (
+              <>
+                el plan de <strong>{focal}</strong> no cambia entre las dos
+              </>
+            ) : (
+              <>
+                con rivales {otherMode === 'fixed' ? 'de plan fijo' : 'reactivos'},{' '}
+                <strong>{focal}</strong> haría <span className="num">{planThere}</span>
+              </>
+            )}
           </span>
         </div>
 
