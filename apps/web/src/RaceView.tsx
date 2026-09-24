@@ -75,23 +75,16 @@ export function RaceView({
   cars: DriverState[]
   /** El piloto elegido en la vista pre-carrera: se destaca acá también (ADR-007). */
   focal: string
-  /**
-   * Plan de paradas de cada auto, cuando la carrera corre desde la largada.
-   * `null` en la foto de la vuelta 30, donde lo que hay es una **ventana
-   * proyectada** y no un plan: son cosas distintas y la torre no las mezcla.
-   */
-  plans: PitStop[][] | null
+  /** Plan de paradas de cada auto: el que emitió el algoritmo. */
+  plans: PitStop[][]
   /**
    * Las paradas sorteadas de **este** sorteo, siempre.
    *
-   * Va aparte de `plans` a propósito. `plans` es lo que la torre puede
-   * presentar como «lo que el auto va a hacer», y por eso es `null` en la foto
-   * de la vuelta 30, donde lo que hay es una ventana proyectada. Pero los autos
-   * paran igual en los dos orígenes, así que el recuadro de boxes y la tarjeta
-   * de ventana necesitan las paradas del sorteo en curso pasen lo que pasen.
-   *
-   * Mezclarlos en una sola prop volvería a juntar ventana y plan, que es
-   * justamente lo que la vista se cuidó de separar.
+   * Va aparte de `plans` a propósito. `plans` es la INTENCIÓN —lo que la torre
+   * puede presentar como «lo que el auto va a hacer»— y esto es lo que pasó en
+   * este sorteo, que no es lo mismo en cuanto sale una bandera y el auto se tira
+   * a boxes antes de lo previsto. El recuadro de boxes y la tarjeta de ventana
+   * necesitan lo segundo.
    */
   drawnPlans: PitStop[][]
   /** Qué corrida se está mirando: rivales con plan fijo, o reaccionando. */
@@ -146,13 +139,8 @@ export function RaceView({
 
   /*
    * El plan que se muestra es el del **auto focal** (ADR-007): el selector de
-   * la vista pre-carrera manda también acá. La foto de la vuelta 30 tiene dos
-   * autos sin plan cargado —los que abandonaron—, y ahí se cae a la lógica
-   * vieja: el perseguidor del duelo, o el líder si no hay duelo.
-   *
-   * Corriendo desde la largada el plan sale del export pre-carrera, que es el
-   * que la carrera está ejecutando. Mostrar el de la vuelta 30 mientras el auto
-   * corre otro sería la tarjeta contradiciendo al mapa.
+   * la vista pre-carrera manda también acá, y sale del export pre-carrera, que
+   * es el que la carrera está ejecutando.
    */
   const insightPlan = recommendedPlan(preraceCar(focal, rivals))
 
@@ -182,25 +170,19 @@ export function RaceView({
   )
 
   /*
-   * ¿Este origen trae ventanas proyectadas?
+   * ¿Hay ventanas proyectadas para mirar?
    *
-   * La foto de la vuelta 30 sí: cada auto llega con la salida de `pit_window()`.
-   * Desde la largada no: `PRERACE_GRID` pone `pitWindow: null` en los veintidós
-   * porque el export pre-carrera trae el **plan** del algoritmo y no la ventana.
+   * Se decide **por el dato** y no por de dónde vino: un `null` significa que no
+   * hay cruce proyectable, y eso puede pasar aunque el export las traiga. Hoy
+   * las trae para los veintidós.
    *
-   * Es justamente la distinción que la torre ya hacía —muestra «Vent.» o
-   * «Plan», nunca las dos— y por eso se deriva de la misma prop: donde hay plan
-   * cargado, no hay ventana proyectada.
+   * La bandera existe porque sin ella las dos tarjetas explicaban ese `null`
+   * como «la goma está plana» y «no va a parar», que son afirmaciones que nadie
+   * midió — y la segunda además es falsa, porque el auto tiene plan y para.
    *
-   * Sin esto las dos tarjetas explicaban ese `null` como «la goma está plana» y
-   * «no va a parar», que en ese origen son afirmaciones que nadie midió — y la
-   * segunda además es falsa, porque el auto tiene plan y para.
-   *
-   * **Ya no hace falta distinguir por origen**: el export pre-carrera ahora trae
-   * la ventana proyectada de cada auto, y un `null` significa lo mismo en los dos
-   * lados —no hay cruce proyectable— así que la bandera se decide por el dato y
-   * no por de dónde vino. Se deja porque sigue siendo verdad que un origen sin
-   * ventanas existiría, y explicarlo mal fue el error que esto vino a atajar.
+   * Este comentario decía lo contrario hasta hace poco, y se contradecía a sí
+   * mismo diez líneas más abajo: arriba afirmaba que la parrilla no trae ventana
+   * y abajo que sí. Es lo que pasa cuando la prosa sobrevive al código.
    */
   const windowsProjected = cars.some((car) => car.pitWindow !== null)
 

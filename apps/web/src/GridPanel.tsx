@@ -15,8 +15,8 @@
  *
  * Los que abandonan **no se borran**: bajan al pie marcados DNF con su vuelta.
  *
- * Posiciones e intervalos salen de la **simulación en curso**, no del dato de
- * la vuelta 30: si un auto adelanta, la tabla lo muestra. Lo que sí es estático
+ * Posiciones e intervalos salen de la **simulación en curso**: si un auto
+ * adelanta, la tabla lo muestra. Lo que sí es estático
  * es la estrategia —compuesto, edad de goma, ventana de boxes—, que es la
  * medición sobre la que trabaja el sistema.
  */
@@ -126,7 +126,8 @@ export function GridPanel({
    * tener ventana abierta y no parar, o parar sin tenerla, así que mezclarlas en
    * la misma columna las haría pasar por lo mismo.
    */
-  plans?: PitStop[][] | null
+  /** Plan de paradas de cada auto, en el orden de `cars`. */
+  plans: PitStop[][]
 }) {
   const { totalLaps } = RACE
   const [metric, setMetric] = useState<Metric>('interval')
@@ -134,7 +135,6 @@ export function GridPanel({
 
   const active = METRICS.find((m) => m.id === metric) ?? METRICS[0]
   const nowPct = (lap / totalLaps) * 100
-  const planned = plans != null
 
   // Orden de carrera en vivo: sale de la simulación. Los que abandonaron van al
   // pie, del abandono más reciente al más viejo.
@@ -186,12 +186,10 @@ export function GridPanel({
           value="window"
           selected={showWindow}
           onChange={() => setShowWindow((v) => !v)}
-          title={
-            planned ? 'Mostrar u ocultar el plan de paradas' : 'Mostrar u ocultar la ventana de boxes'
-          }
+          title="Mostrar u ocultar el plan de paradas"
           sx={{ ml: '6px' }}
         >
-          {planned ? 'Plan' : 'Vent.'}
+          Plan
         </ToggleButton>
       </Box>
 
@@ -205,7 +203,7 @@ export function GridPanel({
               <TableCell align="right">{active.label}</TableCell>
               {showWindow ? (
                 <>
-                  <TableCell align="right">{planned ? 'Plan' : 'Vent.'}</TableCell>
+                  <TableCell align="right">Plan</TableCell>
                   {/* La barra se lleva el ancho que sobra. */}
                   <TableCell sx={{ width: '38%' }}>1–{totalLaps}</TableCell>
                 </>
@@ -215,8 +213,7 @@ export function GridPanel({
 
           <TableBody>
             {rows.map(({ driver: d, index, out, place, gapAhead, gapLeader, inPit }) => {
-              const w = d.pitWindow
-              const stops = plans?.[index] ?? []
+              const stops = plans[index] ?? []
               const chosen = d.code === focal
               const cell = metricValue(d, metric, {
                 gapAhead,
@@ -271,17 +268,9 @@ export function GridPanel({
                     <>
                       <TableCell
                         align="right"
-                        sx={{ color: (planned ? stops.length > 0 : w) ? PALETTE.txt1 : PALETTE.txt4 }}
+                        sx={{ color: stops.length > 0 ? PALETTE.txt1 : PALETTE.txt4 }}
                       >
-                        {planned
-                          ? stops.length > 0
-                            ? stops.map((stop) => stop.lap).join('·')
-                            : '—'
-                          : out
-                            ? ''
-                            : w
-                              ? `${w.opensLap}–${w.closesLap}`
-                              : '—'}
+                        {stops.length > 0 ? stops.map((stop) => stop.lap).join('·') : '—'}
                       </TableCell>
 
                       <TableCell>
@@ -294,12 +283,11 @@ export function GridPanel({
                             overflow: 'hidden',
                           }}
                         >
-                          {planned
-                            ? /* Las paradas del plan, marcadas en la línea de
-                                 tiempo con el color del juego que calza. La vuelta
-                                 va escrita en la columna de al lado, así que el
-                                 color no es el único canal. */
-                              stops.map((stop) => (
+                          {/* Las paradas del plan, marcadas en la línea de tiempo
+                              con el color del juego que calza. La vuelta va escrita
+                              en la columna de al lado, así que el color no es el
+                              único canal. */}
+                          {stops.map((stop) => (
                                 <Box
                                   key={stop.lap}
                                   title={`Parada en la vuelta ${stop.lap}: ${stop.compound}`}
@@ -311,21 +299,7 @@ export function GridPanel({
                                     background: COMPOUND_COLOR[stop.compound],
                                   }}
                                 />
-                              ))
-                            : w && !out
-                              ? (
-                                  <Box
-                                    sx={{
-                                      position: 'absolute',
-                                      insetBlock: 0,
-                                      left: `${(w.opensLap / totalLaps) * 100}%`,
-                                      width: `${((w.closesLap - w.opensLap) / totalLaps) * 100}%`,
-                                      background: PALETTE.green,
-                                      opacity: 0.55,
-                                    }}
-                                  />
-                                )
-                              : null}
+                          ))}
                           {out ? null : (
                             <Box
                               sx={{
@@ -350,19 +324,10 @@ export function GridPanel({
 
       <p className="footnote">
         La marca roja es la vuelta actual.{' '}
-        {planned ? (
-          <>
-            La columna <strong>Plan</strong> son las vueltas en las que cada auto para según el
-            algoritmo, y las marcas de color, el juego que calza. No es una ventana proyectada: es
-            lo que el auto va a hacer en este sorteo.
-          </>
-        ) : (
-          <>
-            <strong>—</strong> en la ventana significa que la goma está plana o mejorando, así que
-            no hay cruce que anticipar. Los <strong>DNF</strong> quedan listados con la vuelta en la
-            que abandonaron.
-          </>
-        )}
+        La columna <strong>Plan</strong> son las vueltas en las que cada auto para según el
+        algoritmo, y las marcas de color, el juego que calza. No es una ventana proyectada: es lo
+        que el auto va a hacer en este sorteo. Los <strong>DNF</strong> quedan listados con la
+        vuelta en la que abandonaron.
       </p>
     </Panel>
   )

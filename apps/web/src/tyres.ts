@@ -70,58 +70,6 @@ export const LAP_NOISE_S = 0.457
 const CUT_AT = [0.05, 0.15, 0.25, 0.35, 0.5, 0.65, 0.75, 0.85, 0.95]
 
 /**
- * Ritmo de caída por compuesto, en s/vuelta, como cortes de la distribución
- * medida en Zandvoort. El del medio de cada fila es la mediana.
- *
- * Vueltos a derivar después de ajustar la corrección por avance de carrera en
- * 0,056 s/vuelta, contra los 0,035 que estaban asumidos. El efecto es exacto y
- * uniforme: cada pendiente sube la diferencia, 0,021 s/vuelta, porque la
- * corrección es lineal en el número de vuelta. La **forma** de la distribución
- * no cambia, así que sigue en pie que no es normal — pero la mediana del
- * desgaste pasa de 0,034-0,040 a 0,055-0,062, y el percentil 5 del medio y del
- * duro se mueve de claramente negativo a casi cero. Casi todas las «tandas que
- * mejoraban» eran la corrección quedándose corta.
- */
-const WEAR_CUTS: Record<Compound, number[]> = {
-  // 98 tandas.
-  SOFT: [-0.163, -0.0003, 0.032, 0.0394, 0.0611, 0.0759, 0.0979, 0.1085, 0.1592],
-  // 79 tandas.
-  MEDIUM: [-0.0063, 0.0322, 0.0421, 0.0547, 0.0625, 0.0749, 0.0885, 0.101, 0.1277],
-  // 80 tandas.
-  HARD: [-0.0143, 0.0219, 0.0342, 0.0427, 0.0554, 0.0646, 0.0708, 0.0847, 0.1176],
-  // Mojados: 201 y 17 tandas en todo el conjunto, ninguna en Zandvoort seco. Se
-  // presta la del blando, que es la más dispersa de las secas, y queda dicho.
-  INTERMEDIATE: [-0.163, -0.0003, 0.032, 0.0394, 0.0611, 0.0759, 0.0979, 0.1085, 0.1592],
-  WET: [-0.163, -0.0003, 0.032, 0.0394, 0.0611, 0.0759, 0.0979, 0.1085, 0.1592],
-}
-
-/**
- * Pérdida de boxes en verde en Zandvoort, en segundos. 172 paradas medidas.
- *
- * Cortes en las mismas probabilidades que `CUT_AT`, igual que el desgaste de
- * arriba. Antes eran tres cuartiles sorteados con una **triangular**, y eso no
- * podía representar una parada mala: una triangular no puede pasarse de su
- * máximo, y su máximo era el p75. El recuadro «IN PIT» no podía mostrar la
- * rueda trabada ni los 7 s parado de Norris en Madrid por más veces que se
- * corriera la simulación — quedaba fuera de su alcance por construcción, no por
- * suerte. Con estos cortes, una de cada cuatro paradas sorteadas pasa el viejo
- * tope.
- *
- * **También cambió de dónde se miden, y conviene saber por qué.** Antes salían
- * de `zandvoort_distributions.py`, que compara la vuelta de entrada contra la
- * mediana verde *de la carrera* —un solo número— y por eso le carga al auto el
- * combustible, la evolución de la pista y el tráfico de esa vuelta. Ahora salen
- * de `effective_pit_loss.py`, que compara contra la mediana del campo *en esa
- * misma vuelta*, que es la referencia que ese script existe para usar.
- *
- * Con la triangular la diferencia entre los dos métodos era chica y pasaba
- * inadvertida —19,8 / 22,7 / 26,7 contra 20,6 / 23,5 / 31,3—. Con los nueve
- * cortes se ve donde importa: el p95 da 41,1 con la referencia buena y 64,7 con
- * la mala. Pasar a la distribución empírica no creó el problema, lo mostró.
- */
-const PIT_LOSS_CUTS = [15.8, 18.4, 19.8, 20.8, 22.7, 24.3, 26.7, 30.2, 41.1]
-
-/**
  * De dónde salen los sorteos de una carrera.
  *
  * Existe porque hay **dos mediciones de desgaste de Zandvoort** conviviendo en
@@ -142,58 +90,6 @@ export interface DrawModel {
   wearCuts: Partial<Record<Compound, number[]>> & Record<'MEDIUM', number[]>
   /** Cortes de la pérdida de boxes en verde, en las probabilidades de `CUT_AT`. */
   pitLoss: number[]
-}
-
-/** El modelo de la foto de la vuelta 30, que es el que se usaba hasta acá. */
-export const SNAPSHOT_MODEL: DrawModel = { wearCuts: WEAR_CUTS, pitLoss: PIT_LOSS_CUTS }
-
-/**
- * Cuántas paradas le quedan a un auto desde la vuelta 30 de 72.
- *
- * Índice = cantidad de paradas. Medido en Zandvoort seco sobre 73 autos que
- * vieron la bandera, descontando las paradas gratis bajo bandera roja.
- *
- * Zandvoort para más que el promedio —una parada 49% contra 59% global, tres
- * 16% contra 2,6%— y hay un mecanismo detrás, no sólo ruido: **el 36% de sus
- * paradas ocurren bajo neutralización**, contra 23% global. Donde la parada sale
- * barata, se para más. Aun así son 73 autos sobre cuatro carreras: poco.
- */
-const STOPS_LEFT = [0.151, 0.493, 0.192, 0.164]
-
-/**
- * Dónde caen las paradas tardías en Zandvoort, como fracción de la carrera.
- * Cortes en las mismas probabilidades que `CUT_AT`, sobre 109 paradas.
- */
-const LATE_STOP_CUTS = [0.458, 0.533, 0.597, 0.653, 0.722, 0.75, 0.778, 0.789, 0.817]
-
-/**
- * A qué compuesto se cambia, medido sobre 1.768 paradas tardías.
- *
- * Se sortea de acá en vez de aplicar la regla «el obligatorio que le falta».
- * Parece contradecir B6.3.8, porque el 41% de las paradas de duro vuelven a
- * calzar duro — pero son paradas reales de carreras que cumplieron el
- * reglamento: el auto ya había usado el otro compuesto antes. Forzar un cambio
- * en cada parada daría carreras **menos** realistas, no más.
- *
- * Lo que no se puede verificar acá es el cumplimiento sobre la carrera entera:
- * la foto congelada de la vuelta 30 no dice qué juegos usó cada auto antes.
- */
-const NEXT_COMPOUND: Record<string, [Compound, number][]> = {
-  HARD: [
-    ['HARD', 0.409],
-    ['MEDIUM', 0.379],
-    ['SOFT', 0.212],
-  ],
-  MEDIUM: [
-    ['HARD', 0.501],
-    ['MEDIUM', 0.172],
-    ['SOFT', 0.327],
-  ],
-  SOFT: [
-    ['HARD', 0.104],
-    ['MEDIUM', 0.264],
-    ['SOFT', 0.632],
-  ],
 }
 
 /** Vueltas mínimas entre dos paradas: menos que eso no es una tanda. */
@@ -290,73 +186,6 @@ export interface Stochastic {
   progressLost: number[]
 }
 
-/** Elige de una lista de opciones con peso. */
-function pick<T>(options: [T, number][], u: number): T {
-  let acc = 0
-  for (const [value, weight] of options) {
-    acc += weight
-    if (u < acc) return value
-  }
-  return options[options.length - 1][0]
-}
-
-/**
- * El plan de paradas de un auto para lo que queda de carrera.
- *
- * Nada de esto es una regla: la cantidad, las vueltas y los compuestos salen los
- * tres de distribuciones medidas. La única concesión al modelo propio es que la
- * primera parada, si el auto tiene ventana proyectada, cae adentro — porque esa
- * ventana **es** la salida del modelo y tiene más información sobre este auto en
- * particular que la distribución agregada del circuito.
- *
- * Las vueltas sorteadas se ordenan y se separan al menos `MIN_STINT` vueltas:
- * dos paradas pegadas no son un plan, son un sorteo mal leído.
- */
-function planStops(
-  model: DrawModel,
-  car: DriverState,
-  index: number,
-  seed: number,
-  fromLap: number,
-): PitStop[] {
-  if (car.retiredOnLap != null) return []
-
-  const count = pick(
-    STOPS_LEFT.map((p, n) => [n, p] as [number, number]),
-    hash(seed, index, 0x570b),
-  )
-  if (count === 0) return []
-
-  const laps: number[] = []
-  for (let n = 0; n < count; n += 1) {
-    const window = car.pitWindow
-    if (n === 0 && window) {
-      const span = Math.max(0, window.closesLap - window.opensLap)
-      laps.push(window.opensLap + Math.round(hash(seed, index, 0x9017) * span))
-      continue
-    }
-    const share = fromCuts(LATE_STOP_CUTS, hash(seed, index, 0x4a97 + n))
-    laps.push(Math.round(share * RACE.totalLaps))
-  }
-
-  laps.sort((a, b) => a - b)
-
-  const stops: PitStop[] = []
-  let compound = car.compound
-  let previous = fromLap
-  for (let n = 0; n < laps.length; n += 1) {
-    const lap = Math.max(laps[n], previous + MIN_STINT)
-    // Una parada en las últimas vueltas no le sirve a nadie: no queda carrera
-    // para amortizar los veintitrés segundos.
-    if (lap > RACE.totalLaps - MIN_STINT) break
-
-    compound = pick(NEXT_COMPOUND[compound] ?? NEXT_COMPOUND.MEDIUM, hash(seed, index, 0x8c02 + n))
-    stops.push({ lap, compound, lossS: drawPitLoss(model, seed, index, 0x1055 + n) })
-    previous = lap
-  }
-
-  return stops
-}
 
 /** Una parada dicha de antemano: cuándo y con qué. Lo que cuesta se sortea. */
 export interface PlannedStop {
@@ -366,18 +195,19 @@ export interface PlannedStop {
 
 export interface EvolveOptions {
   /** De dónde se sortea el desgaste y la pérdida de boxes. Ver `DrawModel`. */
-  model?: DrawModel
+  model: DrawModel
   /**
    * Plan fijo de cada auto, en el mismo orden que `base`.
    *
-   * Es lo que separa a la carrera desde la largada de la foto de la vuelta 30:
-   * ahí las paradas se sortean de las distribuciones medidas porque no se sabe
-   * qué va a hacer cada auto, y acá **cada auto corre el plan que le dio el
+   * Es obligatorio. Hubo un camino que sorteaba las paradas de las
+   * distribuciones medidas, para una vista que arrancaba a mitad de carrera y no
+   * sabía qué iba a hacer cada auto; esa vista se fue y el sorteo con ella. Acá
+   * **cada auto corre el plan que le dio el
    * algoritmo genético**. Lo que sigue sorteándose es cuánto cuesta esa parada y
    * cómo se cae la goma, que es lo que hace que dos sorteos del mismo plan
    * terminen distinto — la tesis del trabajo (ADR-006).
    */
-  plans?: PlannedStop[][]
+  plans: PlannedStop[][]
   /**
    * Bandera que ondea ahora, y desde qué vuelta.
    *
@@ -458,6 +288,7 @@ function reactToFlag(
   since: number,
   fromLap: number,
   seed: number,
+  model: DrawModel,
 ): PitStop[][] {
   const table = REACT[status]
   const sigma = PERIOD_SIGMA[status]
@@ -491,7 +322,7 @@ function reactToFlag(
     moved[next] = {
       lap: since,
       compound: fitting?.compound ?? base[index].compound,
-      lossS: fitting?.lossS ?? drawPitLoss(SNAPSHOT_MODEL, seed, index, 0x1055 + next),
+      lossS: fitting?.lossS ?? drawPitLoss(model, seed, index, 0x1055 + next),
     }
     return moved.filter((stop, n) => n <= next || stop.lap >= since + MIN_STINT)
   })
@@ -501,23 +332,21 @@ export function evolve(
   base: DriverState[],
   lap: number,
   fromLap: number,
-  seed: number = DEFAULT_SEED,
-  options: EvolveOptions = {},
+  seed: number,
+  options: EvolveOptions,
 ): Stochastic {
-  const model = options.model ?? SNAPSHOT_MODEL
-  const plans = base.map((car, index) => {
-    const planned = options.plans?.[index]
-    if (!planned) return planStops(model, car, index, seed, fromLap)
-    // El plan dice cuándo y con qué; cuánto cuesta cada parada se sigue
-    // sorteando de la distribución medida de pérdida de boxes.
-    return planned.map((stop, n) => ({
+  const { model } = options
+  // El plan dice cuándo y con qué; cuánto cuesta cada parada se sigue sorteando
+  // de la distribución medida de pérdida de boxes.
+  const plans = options.plans.map((plan, index) =>
+    plan.map((stop, n) => ({
       ...stop,
       lossS: drawPitLoss(model, seed, index, 0x1055 + n),
-    }))
-  })
+    })),
+  )
   const neutralised =
     options.status !== undefined && options.statusSince != null
-      ? reactToFlag(plans, base, options.status, options.statusSince, fromLap, seed)
+      ? reactToFlag(plans, base, options.status, options.statusSince, fromLap, seed, model)
       : plans
   // La última parada ya hecha es la que define con qué goma anda ahora.
   const done = neutralised.map((plan) => plan.filter((stop) => lap >= stop.lap))

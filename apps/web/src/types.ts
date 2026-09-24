@@ -31,10 +31,10 @@ export interface DriverState {
   /**
    * Ritmo propio respecto del más rápido, en segundos por vuelta.
    *
-   * Sólo lo trae la **largada**: sale de la clasificación vía el factor
-   * `quali_to_race_pace` (0,835, validado r = 0,880). En la foto de la vuelta 30
-   * no hace falta —el ritmo relativo ya está dentro de los intervalos medidos—,
-   * así que ahí queda sin definir y no suma nada.
+   * Sale de la clasificación vía el factor `quali_to_race_pace` (0,835,
+   * validado r = 0,880). En la parrilla los autos están detenidos y no hay
+   * intervalos de los que inferirlo, así que hay que declararlo: sin él un
+   * Cadillac terminaría pegado a un McLaren.
    */
   paceS?: number
   /** Intervalo al auto de adelante, en segundos. */

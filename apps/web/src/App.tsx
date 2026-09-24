@@ -57,16 +57,6 @@ import type { TrackStatus } from './types'
 
 type View = 'race' | 'forecast' | 'prerace'
 
-/**
- * Desde dónde arranca la carrera animada.
- *
- *   `snapshot`  la foto medida de la vuelta 30: cada auto con su goma, su edad
- *               y sus intervalos reales, y las paradas que faltan sorteadas de
- *               las distribuciones medidas.
- *   `start`     la parrilla de largada de la clasificación, con **cada auto
- *               corriendo el plan que le dio el algoritmo genético**.
- */
-
 const TABS: { id: View; label: string }[] = [
   { id: 'prerace', label: 'Pre-carrera' },
   { id: 'race', label: 'Panel de carrera' },

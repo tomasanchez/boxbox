@@ -15,7 +15,6 @@
 
 import { GRID, RACE } from './data'
 import { PALETTE } from './theme'
-import type { RecommendedPlan } from './plans'
 import type { Compound, DriverState } from './types'
 import type { DrawModel, PlannedStop } from './tyres'
 import fixedRaw from './prerace-zandvoort.json'
@@ -492,13 +491,31 @@ export function riskNote(car: PreRaceCar): string {
   }
 }
 
+export interface RecommendedPlan {
+  /** Puesto desde el que arranca el plan. */
+  fromPosition: number
+  /** Las tandas, como las diría el muro: «H16-H26». */
+  plan: string
+  stops: { lap: number; compound: string }[]
+  /** Cuánto de la población final quedó en cada cantidad de paradas. */
+  stopDistribution: Record<string, number>
+  meanPosition: number
+  /** Dispersión del puesto de llegada: cuánto riesgo toma el plan. */
+  sdPosition: number
+  meanPoints: number
+  /** Mejor plan menos el peor: cuánto vale elegir bien. */
+  decisionValue: number
+  /** Qué se maximizó: `points` o `position`. */
+  objective: string
+  alternatives: { plan: string; stops: number; score: number }[]
+}
+
 /**
  * El mismo plan, con la forma que espera la tarjeta del mapa.
  *
  * Es una traducción de nombres, no una copia de números: cada campo apunta al
- * del export. Existe para que la tarjeta superpuesta al trazado pueda mostrar el
- * plan pre-carrera cuando la carrera está corriendo desde la largada, en vez del
- * de la vuelta 30, que es otro plan para otro momento.
+ * del export. Existe para que la tarjeta superpuesta al trazado muestre el plan
+ * pre-carrera, que es el que el auto está ejecutando en el mapa.
  */
 export function recommendedPlan(car: PreRaceCar): RecommendedPlan {
   return {

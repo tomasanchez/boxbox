@@ -41,7 +41,7 @@ export function StartRaceCard({
 }: {
   car: PreRaceCar
   lap: number
-  /** La simulación arranca en la parrilla, no en la foto de la vuelta 30. */
+  /** Si la carrera ya largó. Antes de eso los autos están detenidos en la parrilla. */
   running: boolean
   playing: boolean
   seed: number

@@ -23,7 +23,7 @@
 import type { ReactNode } from 'react'
 import { COMPOUND_COLOR } from './data'
 import { pct } from './format'
-import type { RecommendedPlan } from './plans'
+import type { RecommendedPlan } from './prerace'
 import { objectiveLabel } from './prerace'
 import type { Compound } from './types'
 
@@ -59,11 +59,8 @@ export function InsightOverlay({
   /** De quién se muestra el plan. */
   driver: string
   /**
-   * Plan a mostrar. Sin esto manda el de la búsqueda de la vuelta 30.
-   *
-   * Corriendo desde la largada el plan es otro —el del export pre-carrera— y es
-   * el que el auto está ejecutando en el mapa. Mostrar el de la vuelta 30 ahí
-   * sería la tarjeta hablando de una carrera distinta de la que se ve.
+   * Plan a mostrar: el del export pre-carrera, que es el que el auto está
+   * ejecutando en el mapa. Opcional sólo para poder montar la tarjeta sin datos.
    */
   plan?: RecommendedPlan
   open: boolean

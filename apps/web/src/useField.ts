@@ -281,9 +281,9 @@ function payPitStop(
  * siempre, que es lo único que no puede pasar en una carrera.
  *
  * Desde la largada se suma un tercer término: el **ritmo propio** del auto
- * (`paceS`). En la foto de la vuelta 30 no hace falta, porque el ritmo relativo
- * ya está metido en los intervalos medidos; pero en la vuelta 1 están todos
- * juntos en la parrilla, y sin ese término un Cadillac terminaría pegado a un
+ * (`paceS`). En la vuelta 1 están todos juntos en la parrilla y no hay
+ * intervalos de los que inferirlo, así que sin ese término un Cadillac
+ * terminaría pegado a un
  * McLaren cuando la clasificación dice que anda casi tres segundos más lento
  * por vuelta.
  *
@@ -612,7 +612,7 @@ export function useField(
 
       // Los intervalos se reconstruyen desde la simulación deshaciendo la
       // escala con la que se repartió el pelotón, así vuelven a leerse en
-      // segundos. Son los de ahora, no los del dato de la vuelta 30.
+      // segundos, y son los de la vuelta que se está mirando.
       // Sólo los que están en pista tienen intervalo; el resto queda en nulo.
       const gapAhead: (number | null)[] = cars.map(() => null)
       const gapLeader: number[] = cars.map(() => 0)

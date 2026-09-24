@@ -313,7 +313,7 @@ export function undercutThreat(
   if (!chaser) return idle('nobody-behind')
 
   // El intervalo del de atrás al de adelante es, justamente, el hueco que el
-  // líder tiene por detrás. Sale de la simulación, no del dato de la vuelta 30.
+  // líder tiene por detrás, y sale de la simulación en curso.
   const gapBehind = timing.gapAhead[chaserIndex]
   if (gapBehind == null) return idle('nobody-behind', chaser.code)
 

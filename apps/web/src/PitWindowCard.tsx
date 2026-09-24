@@ -173,7 +173,7 @@ export function PitWindowCard({
           {/*
            * Sólo los extremos. La vuelta actual ya está marcada en rojo sobre
            * la línea: escribirla acá al medio la ponía en el centro visual
-           * cuando la vuelta 30 de 72 cae al 41%, y el rótulo contradecía a la
+           * cuando una vuelta del medio cae cerca del 50%, y el rótulo contradecía a la
            * marca que tenía al lado.
            */}
           <div className="pw__scale num">
