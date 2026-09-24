@@ -39,7 +39,16 @@ import { SPEEDS } from './playback-clock'
 import { PreRaceView } from './PreRaceView'
 import { RaceView } from './RaceView'
 import { RACE } from './data'
-import { PRERACE_MODEL, type RivalsMode, gridOf, plansOf, preraceCar } from './prerace'
+import { fmt, pct } from './format'
+import {
+  PRERACE_MODEL,
+  type RivalsMode,
+  compoundsUsed,
+  gridOf,
+  plansOf,
+  preraceCar,
+  safetyCarAhead,
+} from './prerace'
 import { STATUS, STATUS_ORDER, fieldNote } from './status'
 import { DEFAULT_SEED, evolve } from './tyres'
 import { useField } from './useField'
@@ -167,6 +176,28 @@ export default function App() {
   const { field, timing } = useField(cars, status, playing, speed.msPerLap, lap, paceNoise, progressLost)
 
   const focalIndex = cars.findIndex((c) => c.code === focal)
+  /*
+   * Lo que le costó al auto elegido su última parada, contra dos varas.
+   *
+   * La tarjeta decía antes lo que cuesta parar «en general» bajo la bandera que
+   * ondea —dos puestos en verde, cero bajo safety car— y eso no cambiaba nunca
+   * ni miraba al auto. Después de que el auto para, lo que interesa es qué le
+   * salió A ÉL: contra la mediana medida de la distribución de la que se sorteó,
+   * y contra lo que pagaron los demás en esta misma carrera.
+   */
+  const mine = focalIndex >= 0 ? (plans[focalIndex] ?? []) : []
+  const doneMine = mine.filter((stop) => stop.lap <= lap)
+  const lastStop = doneMine[doneMine.length - 1]
+  const cuts = PRERACE_MODEL.pitLoss
+  const measuredMedian = cuts[(cuts.length - 1) / 2]
+  const doneAll = plans.flatMap((plan) => plan.filter((stop) => stop.lap <= lap))
+  const raceAverage = doneAll.length
+    ? doneAll.reduce((total, stop) => total + stop.lossS, 0) / doneAll.length
+    : null
+
+  const scAhead = safetyCarAhead(lap, RACE.totalLaps)
+  const used = compoundsUsed(preraceCar(focal, rivals).start_compound, doneMine)
+
 
   /*
    * La vuelta se cierra cuando la cabeza del pelotón cruza la meta. Ahí también
@@ -272,21 +303,40 @@ export default function App() {
             started ? 'desde la largada' : 'todavía en la parrilla'
           }`}
         />
+        {lastStop ? (
+          <Kpi
+            label={`Última parada de ${focal}`}
+            value={`${fmt(lastStop.lossS, 1)} s`}
+            note={`V${lastStop.lap} · ${fmt(lastStop.lossS - measuredMedian, 1, true)} s contra la mediana medida${
+              raceAverage !== null
+                ? ` · ${fmt(lastStop.lossS - raceAverage, 1, true)} contra el promedio de la carrera`
+                : ''
+            }`}
+            tone={lastStop.lossS <= measuredMedian ? 'good' : 'alert'}
+          />
+        ) : (
+          <Kpi
+            label="Costo de parar"
+            value={`${spec.cost} pos`}
+            note={`${spec.costNote} · ${focal} todavía no paró`}
+            tone={spec.cost === '0,0' ? 'good' : 'alert'}
+          />
+        )}
         <Kpi
-          label="Costo de parar"
-          value={`${spec.cost} pos`}
-          note={spec.costNote}
-          tone={spec.cost === '0,0' ? 'good' : 'alert'}
+          label="Safety car por delante"
+          value={pct(scAhead)}
+          note={`al menos uno entre la V${lap} y el final · sobre 103 carreras`}
+          tone={scAhead >= 0.4 ? 'alert' : undefined}
         />
         <Kpi
-          label="Prob. Safety Car"
-          value="0,571"
-          note="tasa global medida"
-        />
-        <Kpi
-          label="Compuestos obligatorios"
-          value={RACE.mandatoryCompounds.length === 2 ? 'M + H' : '—'}
-          note={`mínimo ${RACE.minSets} juegos · B6.3.8`}
+          label="B6.3.8"
+          value={used.length >= 2 ? 'cumplido' : `falta 1`}
+          note={
+            used.length >= 2
+              ? `${focal} usó ${used.length} compuestos secos`
+              : `${focal} lleva sólo ${used[0]?.toLowerCase() ?? '—'}: le falta un segundo seco`
+          }
+          tone={used.length >= 2 ? 'good' : 'alert'}
         />
         {/*
           * OJO CON QUE DICE ESTE ROTULO. El interruptor elige de cual de las dos

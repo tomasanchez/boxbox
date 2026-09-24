@@ -489,6 +489,14 @@ def model_meta(model: RaceModel) -> dict:
             "red_laps": model.red_laps,
             "sc_laps": model.sc_laps,
             "vsc_laps": model.vsc_laps,
+            # Dónde empieza cada tipo, como cortes de la distribución de la
+            # fracción de carrera corrida. Sin esto la pantalla sólo puede decir
+            # la probabilidad de toda la carrera, que en la vuelta 55 no informa
+            # nada: lo que importa ahí es si TODAVÍA puede salir uno.
+            "red_start_cuts": list(model.red_start_cuts),
+            "sc_start_cuts": list(model.sc_start_cuts_full),
+            "vsc_start_cuts": list(model.vsc_start_cuts),
+            "cut_probabilities": [float(cut) for cut in strategy.CUT_AT],
         },
         "lap_noise_s": model.lap_noise_s,
         "max_stint_laps": dict(strategy.MAX_STINT),

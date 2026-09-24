@@ -183,8 +183,21 @@ export interface PreRaceExport {
     wear_median_s_lap: Record<DryCompound, number>
     wear_cuts_s_lap: Record<DryCompound, number[]>
     cut_probabilities: number[]
-    /** Cuartiles de pérdida de boxes por estado de pista: [p25, mediana, p75]. */
+    /** Nueve cortes de la pérdida de boxes por estado de pista. */
     pit_loss_s: Record<string, number[]>
+    neutralisations: {
+      n_red: number[]
+      n_sc: number[]
+      n_vsc: number[]
+      red_laps: number
+      sc_laps: number
+      vsc_laps: number
+      /** Dónde empieza cada tipo, como fracción de la carrera corrida. */
+      red_start_cuts: number[]
+      sc_start_cuts: number[]
+      vsc_start_cuts: number[]
+      cut_probabilities: number[]
+    }
     lap_noise_s: number
     max_stint_laps: Record<string, number>
     quali_to_race_pace: number
@@ -600,4 +613,64 @@ for (const field of ['race', 'model'] as const) {
   if (a !== b) {
     throw new Error(`Las dos corridas pre-carrera no comparten \`${field}\`: el interruptor compararía dos cosas a la vez`)
   }
+}
+
+/**
+ * Probabilidad de que salga al menos un safety car de acá al final.
+ *
+ * La tarjeta decía 0,571 y esa es la tasa de **toda la carrera**, que en la
+ * vuelta 55 no informa nada: lo que importa ahí es si todavía puede salir uno.
+ * Un número que no cambia en setenta y dos vueltas no es un indicador, es una
+ * constante con formato de indicador.
+ *
+ * Se arma con las dos mediciones que el export ya trae: cuántos períodos tiene
+ * una carrera (`n_sc`, sobre 0, 1, 2 y 3+) y dónde empieza cada uno, como cortes
+ * de la fracción de carrera corrida. Si un período cae antes de la vuelta actual
+ * con probabilidad `F`, entonces con `k` períodos la chance de que ninguno quede
+ * por delante es `F^k`, y se promedia sobre `k`.
+ *
+ * Los períodos se tratan como colocados de forma independiente, que es también
+ * lo que hace el simulador al sortearlos.
+ */
+export function safetyCarAhead(lap: number, totalLaps: number): number {
+  const n = PRERACE.model.neutralisations
+  const share = Math.min(Math.max(lap / totalLaps, 0), 1)
+  const cuts = n.sc_start_cuts
+  const at = n.cut_probabilities
+
+  // Fracción de los períodos que ya habrían empezado: la CDF en `share`, que es
+  // la inversa de los cortes. Fuera del rango medido se recorta, igual que hace
+  // `fromCuts` — extrapolar ahí inventaría justo en la cola.
+  let behind: number
+  if (share <= cuts[0]) behind = at[0]
+  else if (share >= cuts[cuts.length - 1]) behind = at[at.length - 1]
+  else {
+    let i = 0
+    while (i < cuts.length - 2 && cuts[i + 1] < share) i += 1
+    const span = cuts[i + 1] - cuts[i]
+    const t = span > 0 ? (share - cuts[i]) / span : 0
+    behind = at[i] + t * (at[i + 1] - at[i])
+  }
+
+  let none = 0
+  n.n_sc.forEach((weight, periods) => {
+    none += weight * behind ** periods
+  })
+  return 1 - none
+}
+
+/**
+ * Cuántos compuestos secos distintos lleva usados un auto, y si ya cumple.
+ *
+ * La tarjeta decía «M + H», que enuncia una regla que no existe: B6.3.8 pide
+ * **dos compuestos secos distintos**, cualesquiera, no el medio y el duro. Y
+ * enunciarla en abstracto tampoco sirve de mucho — lo que un muro quiere saber
+ * es si SU auto ya cumplió.
+ */
+export function compoundsUsed(start: string, done: { compound: string }[]): string[] {
+  const dry = new Set<string>()
+  for (const compound of [start, ...done.map((stop) => stop.compound)]) {
+    if (compound === 'SOFT' || compound === 'MEDIUM' || compound === 'HARD') dry.add(compound)
+  }
+  return [...dry]
 }
