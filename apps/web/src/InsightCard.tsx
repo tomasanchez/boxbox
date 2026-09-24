@@ -23,7 +23,6 @@
 import type { ReactNode } from 'react'
 import { COMPOUND_COLOR } from './data'
 import { pct } from './format'
-import { PLANS } from './plans'
 import type { RecommendedPlan } from './plans'
 import { objectiveLabel } from './prerace'
 import type { Compound } from './types'
@@ -83,7 +82,7 @@ export function InsightOverlay({
    */
   aside?: ReactNode
 }) {
-  const plan = given ?? PLANS[driver]
+  const plan = given
   const sequence = plan ? stints(plan.plan) : []
   const stops = plan ? plan.stops.length : 0
   const confidence = plan ? (plan.stopDistribution[String(stops)] ?? 0) : 0

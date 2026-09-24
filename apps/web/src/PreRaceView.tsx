@@ -34,7 +34,6 @@ export function PreRaceView({
   seed,
   track,
   onStart,
-  onSnapshot,
   onRedraw,
   onWatch,
   rivals,
@@ -47,7 +46,6 @@ export function PreRaceView({
   seed: number
   track: number[]
   onStart: () => void
-  onSnapshot: () => void
   onRedraw: () => void
   onWatch: () => void
   /** Qué corrida se está mirando: la de rivales con plan fijo o la reactiva. */
@@ -88,7 +86,6 @@ export function PreRaceView({
           track={track}
           onStart={onStart}
           onRedraw={onRedraw}
-          onSnapshot={onSnapshot}
           onWatch={onWatch}
         />
       </div>

@@ -37,7 +37,6 @@ export function StartRaceCard({
   track,
   onStart,
   onRedraw,
-  onSnapshot,
   onWatch,
 }: {
   car: PreRaceCar
@@ -50,7 +49,6 @@ export function StartRaceCard({
   track: number[]
   onStart: () => void
   onRedraw: () => void
-  onSnapshot: () => void
   onWatch: () => void
 }) {
   const band = arrivalBand(car)
@@ -98,9 +96,6 @@ export function StartRaceCard({
         </button>
         <button type="button" className="scenario" onClick={onWatch}>
           Ver el mapa
-        </button>
-        <button type="button" className="scenario" onClick={onSnapshot} aria-pressed={!running}>
-          Foto V30
         </button>
       </div>
 

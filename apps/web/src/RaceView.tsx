@@ -40,7 +40,6 @@ import { pickBattle } from './forecast'
 import { fmt } from './format'
 import { inPitNow } from './pitlane'
 import { openCount } from './pitwindow'
-import { PLANS } from './plans'
 import { type RivalsMode, preraceCar, recommendedPlan } from './prerace'
 import { TRACKS } from './tracks'
 import type { PitStop } from './tyres'
@@ -155,11 +154,7 @@ export function RaceView({
    * que la carrera está ejecutando. Mostrar el de la vuelta 30 mientras el auto
    * corre otro sería la tarjeta contradiciendo al mapa.
    */
-  const hasPlan = plans !== null || PLANS[focal] !== undefined
-  const insightDriver = hasPlan
-    ? focal
-    : (duel?.chaser ?? cars[timing.order[0]]?.code ?? 'ANT')
-  const insightPlan = plans !== null ? recommendedPlan(preraceCar(insightDriver, rivals)) : undefined
+  const insightPlan = recommendedPlan(preraceCar(focal, rivals))
 
   const [battleOpen, setBattleOpen] = useState(true)
   const [forecastOpen, setForecastOpen] = useState(true)
@@ -310,7 +305,7 @@ export function RaceView({
 
           <InsightOverlay
             lap={scenarioLap}
-            driver={insightDriver}
+            driver={focal}
             plan={insightPlan}
             open={insightOpen}
             onToggle={() => setInsightOpen((v) => !v)}
