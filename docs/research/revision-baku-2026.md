@@ -20,7 +20,7 @@ tres cayeron. Conviene decirlo así de seco antes de explicar nada.
 
 ## Pero las tres que fallaron fallaron por lo mismo
 
-**Bakú 2026 se decidió en un safety car de diez vueltas, no en el desgaste.**
+**Bakú 2026 se decidió con el safety car, no con el desgaste.**
 
 ```
 paradas por vuelta:   20: 2 | 26: 1 | 30: 10 | 31: 7 | 32: 1 | 36: 17
@@ -32,19 +32,66 @@ Contando sólo las tomadas en verde —las únicas que fueron una decisión— e
 reparto entre los dieciséis clasificados es: **catorce autos con cero paradas
 estratégicas y dos con una.**
 
-El safety car salió en la vuelta 29 y no se fue hasta la 38. El campo paró en la
-30-31 y **volvió a parar en la 36**, sin que la neutralización hubiera terminado:
-dos juegos gratis dentro del mismo período. Por eso la última tanda de los
-dieciséis clasificados mide exactamente 15 vueltas, todas iguales.
+### Por qué hubo una segunda oleada: el safety car salió dos veces
 
-Así que la cuenta cruda de «dos paradas» no refuta el pronóstico de una parada;
-refuta una carrera que no hubo. Lo que sí es un error mío es haber escrito un
-criterio de falsación sobre la cuenta cruda en vez de sobre las paradas en verde,
-y eso no se arregla a posteriori: el criterio decía lo que decía, y perdió.
+La pista de que algo falta está en la secuencia del ganador, `M31-S5-S15`: RUS
+calzó un blando en la vuelta 31 y lo tiró a las cinco vueltas. Nadie descarta un
+juego de cinco vueltas salvo que le salga gratis.
 
-Esto es también algo que **el simulador no representa**: `draw_neutralisations`
-sortea períodos y la política de rivales reactivos deja parar una vez por
-período. Un segundo juego gratis bajo el mismo safety car no está en el modelo.
+La dirección de carrera dice qué pasó:
+
+```
+v31  SAFETY CAR DEPLOYED
+v35  SAFETY CAR IN THIS LAP   →  TRACK CLEAR
+v36  SAFETY CAR DEPLOYED      ←  choque en la curva 1: NOR, GAS y COL
+v38  SAFETY CAR IN THIS LAP   →  TRACK CLEAR
+```
+
+**Fueron dos despliegues, no uno.** El relanzamiento de la vuelta 35 terminó en
+un choque en la curva 1 entre NOR, GAS y COL — los tres autos cuyas carreras
+terminan justamente en la vuelta 36. Eso trajo el segundo safety car, y con él la
+segunda oleada de boxes: RUS cambió su blando de cinco vueltas por uno nuevo para
+los últimos quince, casi sin costo. Por eso la última tanda de los dieciséis
+clasificados mide exactamente 15 vueltas, todas iguales.
+
+Y hay un detalle que importa para lo que sigue: **entre los dos safety cars no se
+completó ni una vuelta en verde.** El coche de seguridad entró al final de la 35
+y el choque fue en la curva 1 de la 36, antes de que nadie cruzara la meta
+lanzado. Los veintidós autos figuran bajo bandera amarilla de la 31 a la 38 sin
+interrupción.
+
+### Qué de esto no está en el modelo
+
+`_count_periods` cuenta **corridas contiguas de vueltas neutralizadas**, así que
+para Bakú informa `sc_periods = 1`. No miscuenta lo que dice contar: el tramo
+neutralizado efectivamente es uno solo de diez vueltas. Lo que subcuenta son los
+**despliegues**, que es lo que decide cuántas veces se puede parar gratis.
+
+Medido sobre las quince carreras de 2026:
+
+| | |
+|---|---|
+| despliegues de safety car (dirección de carrera) | **11** |
+| períodos contiguos contados por el proyecto | **8** |
+| carreras con más despliegues que períodos | **3 de 15** (Mónaco, Gran Bretaña, Bakú) |
+
+Reproducible con `uv run python apps/ml/scripts/sc_redeployments.py`.
+
+Un 27% de subconteo, y no repartido al azar: cae en las re-salidas rápidas, que
+son las que regalan una segunda parada.
+
+Qué mueve y qué no: las **vueltas** neutralizadas están bien contadas, así que la
+probabilidad de encontrarse una neutralización en una vuelta dada —de donde sale
+el costo de parar— no cambia. Lo que queda subestimado es el número de
+**oportunidades distintas**, que es justo lo que la política de rivales reactivos
+usa, porque deja parar una vez por período. Esa política está detrás de una
+bandera y no movió ninguna cifra publicada, así que esto es una limitación
+declarada y no una corrección de resultados.
+
+Con eso dicho: la cuenta cruda de «dos paradas» no refuta el pronóstico de una
+parada, refuta una carrera que no hubo. Pero el criterio de falsación lo escribí
+sobre la cuenta cruda en vez de sobre las decisiones, y eso no se arregla a
+posteriori: decía lo que decía, y perdió.
 
 ## El duro no existió
 
@@ -168,8 +215,10 @@ insumo sin mirarle el signo.
 3. **Un desgaste negativo no es un insumo válido**, y hoy nada en el código lo
    frena. Candidato a arreglo: pisar a cero, o rechazar el ajuste y caer al
    promedio, en vez de dejar que la búsqueda concluya que no hay que parar.
-4. **Falta representar más de una parada por período de neutralización.** Bakú
-   fue exactamente ese caso y el modelo no lo puede generar.
+4. **Falta representar la re-salida del safety car.** El modelo sortea períodos
+   contiguos; no tiene noción de que el coche de seguridad entre y vuelva a
+   salir sin que se corra una vuelta en verde. En 2026 eso pasó en 3 de 15
+   carreras y explica entera la segunda oleada de boxes de Bakú.
 
 Lo que **no** se evalúa, igual que se escribió antes: quién ganó la carrera. Esto
 es sobre estrategia.

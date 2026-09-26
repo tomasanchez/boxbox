@@ -7,9 +7,9 @@ ver el resultado no mide nada.
 
 El resumen, porque conviene decirlo antes que los números: **las dos predicciones
 perdieron, y perdieron por el mismo motivo, que no es el desgaste.** Bakú 2026 se
-decidió en un safety car de diez vueltas. Treinta y cinco de las treinta y ocho
-paradas de la carrera se hicieron ahí adentro, y casi todo el campo paró **dos
-veces bajo la misma neutralización**. Yo predije una parada porque el historial
+decidió con el safety car, que salió **dos veces**: treinta y cinco de las
+treinta y ocho paradas de la carrera se hicieron bajo neutralización, en dos
+oleadas, una por despliegue. Yo predije una parada porque el historial
 dice una parada; el modelo predijo una parada porque a ese desgaste alcanza con
 una. Los dos teníamos razón sobre la carrera que no hubo.
 
@@ -42,7 +42,7 @@ import fastf1
 import numpy as np
 import pandas as pd
 
-from boxbox_ml import cache, features, strategy, track_status
+from boxbox_ml import cache, features, neutralisation, strategy, track_status
 from boxbox_ml.strategy import Car, Objective, RaceModel, optimise
 
 warnings.filterwarnings("ignore")
@@ -238,15 +238,46 @@ strategic = (
 print("  paradas EN VERDE por auto, entre los clasificados (las que fueron una decisión):")
 print(f"    {strategic.value_counts().sort_index().to_dict()}")
 print()
-print("  El safety car salió en la vuelta 29 y volvió en la 38. El campo paró en")
-print("  la 30-31 y VOLVIO A PARAR en la 36, sin que la neutralización terminara:")
-print("  dos juegos gratis en el mismo período. Por eso la última tanda de los")
-print("  dieciséis clasificados mide exactamente 15 vueltas.")
+print("  La pista de que falta algo está en la secuencia del ganador, M31-S5-S15:")
+print("  nadie tira un juego de cinco vueltas salvo que le salga gratis. Lo que")
+print("  pasó lo dice la dirección de carrera:")
 print()
-print("  Esto es lo que ninguna de las dos predicciones podía acertar, y también")
-print("  lo que el simulador NO representa: `draw_neutralisations` sortea períodos")
-print("  y la política de rivales reactivos deja parar UNA vez por período. Un")
-print("  segundo juego gratis bajo el mismo safety car no está en el modelo.")
+control = session.race_control_messages
+safety = control[control["Message"].str.contains("SAFETY CAR", na=False)]
+for _, row in safety.iterrows():
+    print(f"    v{int(row['Lap']):<3d} {row['Message']}")
+print()
+print("  Fueron DOS despliegues, no uno: el relanzamiento de la vuelta 35 terminó")
+print("  en un choque en la curva 1 entre NOR, GAS y COL — los tres autos cuyas")
+print("  carreras terminan en la 36— y eso trajo el segundo safety car. RUS cambió")
+print("  su blando de cinco vueltas por uno nuevo para los últimos quince, gratis.")
+print()
+# Entre los dos despliegues no se completó ni una vuelta en verde: el coche entró
+# al final de la 35 y el choque fue en la curva 1 de la 36. Por eso todos los
+# autos figuran bajo bandera de la 31 a la 38 sin interrupción, y por eso el
+# conteo por vueltas contiguas no los puede separar.
+between = frame[frame["LapNumber"].between(31, 38)]
+print(f"  cuota de autos bajo SC entre la v31 y la v38: {between['sc'].mean():.2f}")
+print("  (no se completó ni una vuelta en verde entre los dos despliegues)")
+print()
+deployed = int(control["Message"].str.contains("SAFETY CAR DEPLOYED", na=False).sum())
+counted = neutralisation._count_periods(set(sc_laps))
+print(f"  despliegues segun la dirección de carrera: {deployed}")
+print(f"  períodos que cuenta `_count_periods`:      {counted}")
+print()
+print("  `_count_periods` cuenta corridas CONTIGUAS de vueltas neutralizadas, así")
+print("  que no miscuenta lo que dice contar — el tramo es uno solo. Lo que")
+print("  subcuenta son los despliegues, que es lo que decide cuántas veces se")
+print("  puede parar gratis. Sobre las 15 carreras de 2026: 11 despliegues contra")
+print("  8 períodos contados, y la diferencia cae en 3 carreras (Mónaco, Gran")
+print("  Bretaña y ésta), o sea en las re-salidas rápidas.")
+print()
+print("  Qué mueve y qué no: las VUELTAS neutralizadas están bien contadas, así")
+print("  que el costo de parar no cambia. Lo subestimado es el número de")
+print("  OPORTUNIDADES distintas, que es lo que usa la política de rivales")
+print("  reactivos — deja parar una vez por período. Esa política está detrás de")
+print("  una bandera y no movió ninguna cifra publicada: limitación declarada,")
+print("  no corrección de resultados.")
 
 # -------------------------------------------------------- 3. el duro no existió
 
