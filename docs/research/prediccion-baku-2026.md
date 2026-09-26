@@ -87,3 +87,9 @@ Sin lugar para acomodar la lectura después:
   razón y el historial no.
 
 Lo que **no** se evalúa: quién gana la carrera. Esto es sobre estrategia.
+
+---
+
+*Agregado después de la carrera, el 26/09/2026: el resultado y el marcador están
+en [`revision-baku-2026.md`](revision-baku-2026.md). El texto de arriba no se
+tocó; la versión pre-registrada es la del commit `418e90f`.*
