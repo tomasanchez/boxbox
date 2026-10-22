@@ -75,6 +75,16 @@ hr {
   margin: 7mm 0;
 }
 
+/* Sin esto las figuras se desbordan y Edge las RECORTA en silencio: salen a
+   8,6-9,2 pulgadas, y A4 con margenes de 18 mm deja 174 mm utiles. */
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 4mm auto 2mm auto;
+  page-break-inside: avoid;
+}
+
 table {
   border-collapse: collapse;
   width: 100%;

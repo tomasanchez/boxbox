@@ -16,20 +16,19 @@ consigna pide, para no tener que buscarla en las 1.700 líneas de
 
 ## Estructura del informe
 
-Sigue el esqueleto de los ejemplos de entrega de prototipo de la cátedra
-(`Ejemplo BIA - E4`, `Ejemplo Gpinturas - E4`):
+Sigue las secciones que fija la consigna:
 
 | | Sección | Qué contiene |
 |---|---|---|
-| | Resumen | el marcador de las cuatro pruebas, primero |
-| 1 | Introducción | el problema |
-| 2 | Herramientas, frameworks y librerías | el stack y la **topología** del sistema en tres diagramas |
-| 3 | Método empleado para seleccionar los datos | la partición por carrera y cronológica, 25% retenido |
-| 4 | Pruebas realizadas | la tabla de corridas, las métricas y las figuras de validación |
-| 5 | Evaluación del Sistema Inteligente | las cuatro pruebas contra carreras reales |
-| 6 | Problemas e inconvenientes encontrados | los errores propios y cómo se encontraron |
-| 7 | Conclusiones | qué queda hecho, qué falta |
-| | Referencias | |
+| | Resumen | el marcador de las pruebas, primero |
+| 1 | Introducción | el problema y el objetivo del prototipo |
+| 2 | Materiales Disponibles | las fuentes, la preparación de los datos y el método de selección con el 25% de prueba |
+| 3 | Solución Propuesta | tecnología, arquitectura y **topología**, más herramientas y librerías |
+| 4 | Desarrollo | la tabla de corridas, lo que dio aplicar la tecnología, y los problemas con sus resoluciones |
+| 5 | Resultados | casos resueltos —exitosos y no— y el cálculo de las métricas |
+| 6 | Análisis de los Resultados | la interpretación, los límites y las comparaciones |
+| 7 | Conclusiones | qué se concluye y los cursos de acción, con su viabilidad |
+| | Referencias | bibliografía, y la URL del repositorio con código y datos |
 
 ## El problema, en una línea
 
