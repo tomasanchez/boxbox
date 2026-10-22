@@ -253,22 +253,6 @@ def test_una_carrera_demasiado_corta_para_arreglar_se_queda_sin_paradas(
     assert strategy._repair([Stop(5, "HARD")], car, corta) == ()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "BUG conocido, sin arreglar: `_enforce_two_compounds` corre DESPUÉS del "
-        "control de presupuesto y le cambia el compuesto a la última parada sin "
-        "volver a mirarlo. Un plan de un solo compuesto puede salir con la tanda "
-        "final pasada del tope — H35-M37 en una carrera de 72, con el medio "
-        "topado en 31. Medido: la búsqueda NO lo alcanza, 0 de 36 corridas "
-        "(doce semillas por tres compuestos de salida) devuelven un plan que se "
-        "pase, porque una tanda así está demasiado degradada para ganar la "
-        "aptitud. O sea que arreglarlo no movería ninguna cifra publicada; "
-        "queda sin arreglar sólo porque toca código de producción el día de una "
-        "entrega. Si alguien lo arregla, este xfail estricto se pone en rojo "
-        "y avisa que hay que borrarlo."
-    ),
-)
 def test_el_cambio_de_compuesto_obligatorio_respeta_el_tope(coche: Callable[..., Car]) -> None:
     """DADO un plan de un solo compuesto, el cambio que lo hace legal debería caber."""
     car = coche(compound="HARD")

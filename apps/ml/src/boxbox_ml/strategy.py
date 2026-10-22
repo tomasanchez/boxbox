@@ -923,10 +923,20 @@ def _cost_under(
 
 
 def _pit_cost(
-    flags: np.ndarray, lap: int, model: RaceModel, rng: np.random.Generator, draws: int
+    flags: np.ndarray | None, lap: int, model: RaceModel, rng: np.random.Generator, draws: int
 ) -> np.ndarray:
-    """What a stop on ``lap`` costs in each drawn race, given the flag it meets."""
-    return _cost_under(flags[min(lap, flags.shape[0] - 1)], model, rng, draws)
+    """What a stop on ``lap`` costs in each drawn race, given the flag it meets.
+
+    ``flags=None`` means every race runs green, which is what :func:`race_trace`
+    promises its callers. It used to raise ``AttributeError`` here instead, on
+    ``flags.shape`` — harmless in practice because every caller passes flags, and
+    exactly the kind of thing that bites whoever writes the next caller.
+    """
+    if flags is None:
+        at_lap = np.full(draws, GREEN, dtype=np.int8)
+    else:
+        at_lap = flags[min(lap, flags.shape[0] - 1)]
+    return _cost_under(at_lap, model, rng, draws)
 
 
 def race_trace(
@@ -1655,9 +1665,21 @@ def _enforce_two_compounds(stops: tuple[Stop, ...], car: Car, model: RaceModel) 
     returned untouched.
 
     The repair is deliberately minimal: change the compound of the final stop to
-    something the car has not used. Adding a stop would be cheaper to write and
-    much more expensive to run, and a team facing this problem changes what it
-    fits rather than stopping again.
+    something the car has not used, because a team facing this problem changes
+    what it fits rather than stopping again.
+
+    **It cannot always keep that promise, and the caller is what makes it safe.**
+    The swapped-in compound may not reach the flag — `H35-M37` in a 72-lap race,
+    with the medium capped at 31 — because this runs *after* the budget check and
+    does not redo it. :func:`_repair` therefore re-runs :func:`_fit_budget` on the
+    result, which splits the overlong stint and does add a stop.
+
+    How much it mattered, measured rather than guessed: the plans the search
+    *returns* were unaffected — 0 of 36 runs came back with an overlong stint,
+    because one is too degraded to win the fitness. The **baselines** were not.
+    «Always one stop, hard» is single-compound, so it took this path and was
+    being priced with a 37-lap medium; fixing it moved its published figure from
+    +8.56 s to +10.80 s.
 
     A plan with no stops at all cannot be made legal, and is returned as it is —
     the fitness will price it, and it will lose.
@@ -1688,6 +1710,27 @@ def _repair(stops: Sequence[Stop], car: Car, model: RaceModel) -> tuple[Stop, ..
     than being thrown away. Throwing it away would bias the search toward whatever
     happened to be legal by accident; inserting the stop keeps the idea and makes
     it affordable.
+    """
+    fitted = _fit_budget(stops, car, model)
+    legal = _enforce_two_compounds(fitted, car, model)
+    if legal == fitted:
+        return legal
+    # El cambio de compuesto se hace DESPUES del control de presupuesto y no lo
+    # vuelve a mirar, así que el juego nuevo puede no llegar al final: un plan de
+    # un solo compuesto salía `H35-M37` en una carrera de 72, con el medio topado
+    # en 31. Se vuelve a pasar el presupuesto sobre el plan ya legal.
+    #
+    # No hace falta re-forzar la legalidad ni hay riesgo de ciclo: el paso de
+    # arriba ya metió un segundo compuesto y el ajuste sólo agrega paradas.
+    return _fit_budget(legal, car, model)
+
+
+def _fit_budget(stops: Sequence[Stop], car: Car, model: RaceModel) -> tuple[Stop, ...]:
+    """Las paradas en orden, separadas y sin tandas más largas de lo medido.
+
+    Es la mitad de :func:`_repair` que sólo mira distancias y vida de la goma; la
+    obligación de los dos compuestos la pone :func:`_enforce_two_compounds`, y
+    como ésa puede dejar una tanda pasada del tope, `_repair` vuelve a llamar acá.
     """
     fixed: list[Stop] = []
     previous = car.from_lap
@@ -1727,7 +1770,7 @@ def _repair(stops: Sequence[Stop], car: Car, model: RaceModel) -> tuple[Stop, ..
         fixed.append(Stop(lap, nxt))
         previous, compound, age = lap, nxt, 0
 
-    return _enforce_two_compounds(tuple(fixed), car, model)
+    return tuple(fixed)
 
 
 def _heuristic_plan(car: Car, model: RaceModel, stops: int) -> Plan:

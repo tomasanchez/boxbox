@@ -11,7 +11,9 @@ task: the system has to forecast rounds that have not happened yet.
 
 from __future__ import annotations
 
+import json
 import warnings
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -179,3 +181,43 @@ per_race = test_out.groupby(["round", "circuit"], observed=True).agg(
     ),
 )
 print(per_race.to_string())
+
+
+# ------------------------------------------------- 4. los numeros, para graficar
+#
+# `scripts/validation_plots.py` dibuja esto. Se vuelca en vez de copiarse a mano
+# para que la figura del informe y el numero impreso no se puedan desincronizar,
+# que es exactamente el error que ya se cometio con el export de la interfaz.
+summary = {
+    "split": {
+        "train_rounds": sorted(int(r) for r in train["round"].unique()),
+        "test_rounds": sorted(int(r) for r in test["round"].unique()),
+        "train_laps": int(len(reg_train)),
+        "test_laps": int(len(reg_test)),
+    },
+    "regressor": {
+        "cv_mae": [float(v) for v in cv_scores],
+        "validation_mae": float(np.mean(cv_scores)),
+        "test_mae": float(mae_model),
+        "test_mae_naive": float(mean_absolute_error(reg_test[TARGET], naive)),
+        "test_r2": float(r2_score(reg_test[TARGET], test_pred)),
+    },
+    "classifier": {
+        "pr_auc": float(ap),
+        "chance": float(y_test.mean()),
+        "threshold": float(threshold),
+        "f1": float(f1[best]),
+        "precision": float(precision[best]),
+        "recall": float(recall[best]),
+        "confusion": {"tn": int(tn), "fp": int(fp), "fn": int(fn), "tp": int(tp)},
+        "curve": {
+            "precision": [float(v) for v in precision],
+            "recall": [float(v) for v in recall],
+        },
+    },
+    "per_race": per_race.reset_index().to_dict(orient="records"),
+}
+destination = Path(__file__).resolve().parents[1] / "data" / "holdout_eval.json"
+destination.parent.mkdir(parents=True, exist_ok=True)
+destination.write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
+print(f"\nnumeros volcados en {destination}")

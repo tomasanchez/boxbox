@@ -31,7 +31,7 @@ el mejor plan. Como comparación se propone un **agente de Aprendizaje por Refue
 vuelta a vuelta.
 
 **Estado.** El pipeline de datos, el simulador y el algoritmo genético están construidos y
-medidos; el agente de refuerzo no. El algoritmo le gana entre 8 y 11 segundos de carrera a
+medidos; el agente de refuerzo no. El algoritmo le gana casi once segundos de carrera a
 cualquier regla que se pueda enunciar de antemano, y lo que gana es el valor de acertar la cantidad
 de paradas.
 
@@ -654,10 +654,14 @@ de Zandvoort 2026:
 
 | | Auto | Plan | Llega | Puntos | Objetivo |
 |---|---|---|---|---|---|
-| P1 | ANT | H19-H23 | 1,88 ± 0,86 | 19,9 | puntos |
-| P5 | LEC | M6-H36 | 2,77 ± 1,29 | 16,6 | puntos |
-| P11 | LIN | M6-H36 | 8,70 ± 1,13 | 2,9 | puntos |
-| P18 | COL | H6-H36 | 16,02 ± 1,34 | 0,0 | posición |
+| P1 | ANT | H23-H20 | 1,86 ± 0,91 | 20,1 | puntos |
+| P5 | LEC | M10-H33 | 2,80 ± 1,21 | 16,4 | puntos |
+| P11 | LIN | M7-H36 | 8,64 ± 1,10 | 3,0 | puntos |
+| P18 | COL | H10-H33 | 15,98 ± 1,30 | 0,0 | posición |
+
+Los planes suman las **43** vueltas que quedan desde la 30 de 72. En una versión
+anterior sumaban 42: esta tabla es otra de las que quedó sin regenerar cuando se
+corrigió el desfasaje de una vuelta.
 
 ### Qué es «ganar», y por qué no es lo mismo para todos
 
@@ -822,7 +826,7 @@ Contra reglas que sí se pueden enunciar de antemano:
 
 | Regla | Ventaja del algoritmo |
 |---|---|
-| «siempre 1 parada, duro» | **+8,56 s** |
+| «siempre 1 parada, duro» | **+10,80 s** |
 | «siempre 2 paradas, duro» | +0,07 |
 | «siempre 3 paradas, duro» | **+10,91 s** |
 | el oráculo | +0,07 |
@@ -830,6 +834,16 @@ Contra reglas que sí se pueden enunciar de antemano:
 **El algoritmo le gana a cualquier regla enunciable, y lo que gana es exactamente
 el valor de acertar la cantidad de paradas.** Contra el oráculo empata, y ésa era
 la comparación que se venía reportando como si fuera la relevante.
+
+> **La primera fila se movió una vez más, y el motivo es instructivo.** Decía
+> +8,56 s hasta que los tests destaparon que `_enforce_two_compounds` corría
+> *después* del control de presupuesto sin volver a mirarlo. «Siempre 1 parada,
+> duro» es un plan de un solo compuesto, así que la obligación reglamentaria le
+> cambiaba el juego final — y lo dejaba corriendo **37 vueltas de medio** en una
+> carrera de 72, con el medio topado en 31. O sea que la línea base se estaba
+> puntuando con una tanda más larga que cualquier cosa medida, y por eso salía
+> más fuerte de lo que es. Arreglado, la ventaja del algoritmo sobre ella es de
+> **+10,80 s**. Las otras tres filas no se movieron.
 
 Matiz honesto: «siempre dos paradas al duro» queda a siete centésimas del
 algoritmo, porque
@@ -916,10 +930,11 @@ disfrazada. Medir la distribución de la diferencia es trabajo pendiente.
 | Qué | Cómo | Estado |
 |---|---|---|
 | Simulador | Error del modelo de degradación | Mejor que la mediana ✅ |
-| Algoritmo genético | Segundos contra reglas enunciables | +8,6 a +10,9 s ✅ |
+| Algoritmo genético | Segundos contra reglas enunciables | +10,8 a +10,9 s ✅ |
 | Sistema completo | ¿La estrategia real cayó en el rango? | Probado en Monza, ver §6 |
 | Reglamento | Planes ilegales generados | Cero ✅ |
 | Pronóstico | Criterios de falsación escritos **antes** de la carrera | 1 de 4 en Bakú, ver §6 |
+| Parada temprana | ¿La última generación es la mejor fuera de muestra? | **No**: parar antes gana 16 de 24 |
 | Tests automatizados | Núcleo del simulador | 143 tests, 1,7 s; dos defectos encontrados |
 
 **La exactitud no se usa como métrica.** «No parar nunca» acierta el 96,6% de las
@@ -932,10 +947,113 @@ promete que sin banderas corre todo en verde, y `_pit_cost` revienta porque no
 mira si son `None` — hoy no lo sufre nadie porque todos los llamadores las pasan.
 El otro es más fino: `_enforce_two_compounds` corre *después* del control de
 presupuesto y cambia el compuesto de la última parada sin volver a mirarlo, así
-que puede devolver una tanda pasada del tope de vida. Se midió si importa: **la
-búsqueda no lo alcanza**, 0 de 36 corridas devuelven un plan que se pase, porque
-una tanda así está demasiado degradada para ganar la aptitud. Ninguna cifra de
-este informe se mueve.
+que puede devolver una tanda pasada del tope de vida. Se midió si importa, y la
+respuesta tiene dos mitades: **los planes que la búsqueda devuelve** no se
+mueven —0 de 36 corridas traen una tanda pasada, porque está demasiado degradada
+para ganar la aptitud— pero **las líneas base sí**. «Siempre 1 parada, duro» es
+un plan de un solo compuesto, pasaba por ahí, y se estaba puntuando con 37
+vueltas de medio. Su cifra publicada se movió de +8,56 a +10,80 s.
+
+### Validación y error, en figuras
+
+Las curvas que uno espera de un trabajo de IA —pérdida de entrenamiento contra
+validación por época— **no se pueden dibujar acá, y conviene decir por qué antes
+de mostrar lo que sí**. El entregable es un algoritmo genético sobre un simulador:
+no hay épocas, no hay clases y no hay una pérdida que descienda. Dibujarlas sería
+inventar un eje.
+
+Lo que sí hay es el mismo problema con otros nombres, y estaba medido desde
+antes: **la generación hace de época, la aptitud hace de pérdida, y la partición
+entrenamiento/validación ya existía en el código** — la búsqueda optimiza contra
+un juego de carreras sorteadas y su resultado se vuelve a puntuar sobre otro que
+nunca vio. Esa diferencia es `Search.optimism`.
+
+Las cuatro figuras salen de `scripts/validation_plots.py`, que lee los números de
+`scripts/holdout_eval.py` y `scripts/early_stopping.py` en vez de copiarlos, para
+que la figura y el número impreso no se puedan desincronizar.
+
+#### La búsqueda, en muestra y fuera de ella
+
+![Aptitud por generación, en muestra contra retenida, y convergencia de la población](figuras/fig-ag-validacion.png)
+
+A la izquierda, el mismo plan puntuado de dos maneras. El trazo azul es la aptitud
+contra la que la búsqueda optimiza y **baja monótonamente por construcción**: el
+motor propio es elitista, el campeón nunca empeora. El naranja es ese mismo plan
+sobre carreras que no intervinieron en elegirlo. Terminan en 93,32 y 93,69 s, y
+la brecha de 0,37 s es exactamente el `optimism` que el sistema ya informaba.
+
+A la derecha, la población concentrándose: arranca repartida (0,30 en la cantidad
+de paradas más votada, que es casi el azar entre cuatro opciones) y termina en
+0,85. **Eso es lo que hace visible que esto es un algoritmo genético y no una
+tabla de consulta.**
+
+Pero la figura muestra algo más incómodo, y es lo que justifica haberla dibujado:
+en la generación 6 las dos curvas **se cruzan**. La búsqueda cambia de
+`M24-H24-H24` a `M24-H28-H20`, gana 0,07 s en muestra y pierde fuera.
+
+#### El algoritmo entrena de más
+
+![Lo que cuesta quedarse con la última generación en vez de parar antes](figuras/fig-parada-temprana.png)
+
+Sobre 80.000 sorteos independientes, el plan que la búsqueda prefirió en la
+generación 6 es **0,608 s más lento** que el que tenía en la 2, con error estándar
+0,053: once veces el error, así que no es ruido.
+
+La pregunta siguiente es si pasa seguido, y hay que medirla con cuidado porque
+tiene una trampa: elegir «la mejor generación» sobre el mismo juego con el que
+después se la juzga es tomar el mínimo de veintiséis estimaciones ruidosas, que
+es el mismo sesgo que este trabajo ya corrige cuando informa `score` y no
+`score_in_sample`. Así que van **tres** particiones: la búsqueda corre contra la
+suya, la generación se elige en validación, y el juicio es sobre prueba.
+
+Con esa precaución, sobre ocho semillas por tres compuestos de salida:
+
+| | |
+|---|---|
+| corridas donde parar antes gana | **16 de 24** |
+| ganancia media cuando gana | **0,387 s** |
+| ganancia máxima | 1,235 s |
+| corridas donde parar antes **pierde** | **0** |
+| ganancia media sobre todas | **+0,258 s** |
+
+**Nunca pierde, y lo que gana es del mismo orden que toda la ventaja del
+algoritmo sobre la mejor regla enunciable.** El arreglo es el de cualquier modelo
+entrenado —parada temprana sobre un juego retenido— y no está implementado: queda
+declarado, medido y reproducible con `scripts/early_stopping.py`.
+
+#### El error del regresor de degradación
+
+![MAE de validación, de prueba y del baseline ingenuo](figuras/fig-error-degradacion.png)
+
+La partición es por carrera y cronológica: las últimas tres de las doce fechas de
+2026 quedan retenidas, que es el 25% que pide la cátedra, y se parte por carrera y
+no por vuelta porque partir por vuelta pondría vueltas de la misma tanda de los
+dos lados y filtraría.
+
+Validación y prueba dan casi lo mismo —0,952 contra 0,943— o sea que **no hay
+sobreajuste**: el modelo no memorizó. Lo que hay es peor y más simple: **con los
+datos de 2026 solos el modelo pierde contra predecir la mediana** (0,943 contra
+0,764) y el R² es negativo. La dispersión entre pliegues, de 0,72 a 1,09, dice que
+tampoco las cuatro particiones coinciden.
+
+Eso no contradice la tabla de §4: ahí la fila que gana es la de **todas las
+temporadas** (0,698 contra 0,726), y la de 2026 sola también perdía. La figura
+muestra la partición exigente, que es la que corresponde enseñar.
+
+#### El clasificador de parar o seguir
+
+![Matriz de confusión y curva precisión-exhaustividad](figuras/fig-matriz-confusion.png)
+
+Es la línea base declarada, no el entregable, y sirve para fijar el piso. Con el
+umbral de mejor F1 atrapa **60 de 118** paradas reales a costa de 333 falsas
+alarmas sobre 3.383 vueltas sin parada. PR-AUC 0,168 contra un azar de 0,034:
+**cinco veces mejor que adivinar, y aun así inservible para decidir solo.**
+
+Y acá está el motivo por el que este trabajo no usa exactitud como métrica, que la
+matriz vuelve evidente: la esquina superior izquierda tiene 3.050 casos. Un modelo
+que diga siempre «seguí» acierta el **96,6%** de las vueltas — y es ilegal, porque
+B6.3.8 obliga a parar.
+
 
 ---
 
@@ -1065,7 +1183,7 @@ eligieron — la elección real es abrumadora:
 | P11-P15 | 0,145 | **0,782** | 0,073 |
 | P16-P22 | 0,215 | **0,554** | 0,231 |
 
-El modelo pone medio **una vez de veintidós**; la realidad lo pone entre el 55% y
+El modelo no pone medio **ni una vez de veintidós**; la realidad lo pone entre el 55% y
 el 85% según dónde largue. Y se equivoca **en los dos extremos a la vez**: pone de
 más el blando y de más el duro.
 
@@ -1449,6 +1567,20 @@ cero cae el empate.
 Los planes se corren una vuelta en todas partes, porque ahora hay una vuelta más
 que repartir: `S20-H27-H24` pasa a `S21-H27-H24` y el resto en proporción.
 
+#### El arreglo quedó por la mitad durante un mes
+
+Se corrigió el código y se actualizaron las tablas, pero **no se regeneró el
+export** que alimenta la interfaz. El JSON publicado se había generado a las
+16:31 y el arreglo entró a las 18:15 del mismo día, así que durante un mes la web
+mostró planes con una vuelta de menos — se ve a simple vista en los planes de los
+rivales, que pasan de `M31-S25-S15` a `M32-S25-S15` al regenerarlo.
+
+No cambia ninguna conclusión del trabajo, pero es exactamente la clase de error
+que ADR-010 existía para evitar, y lo encontró otro arreglo distinto al
+regenerar el archivo por otro motivo. La lección no es «acordate de regenerar»:
+es que un artefacto derivado que se versiona a mano se desincroniza en silencio,
+y el repositorio no tiene hoy ninguna comprobación que lo note.
+
 #### Y destapó que el motor DEAP no era elitista
 
 Al correr los tests después del arreglo falló uno: **«el mejor nunca empeora»**.
@@ -1500,7 +1632,7 @@ el trabajo porque se leen sin interpretar nada.
 pilotos-carrera de 2026 que llegaron a bandera habiendo corrido su primera tanda
 de verdad, **el 1,8%** —tres casos— pone el mismo compuesto en la primera parada,
 y los tres son medio-medio. Duro-duro no lo hizo nadie. El modelo lo hace en el
-**45,5%** de sus planes, y arranca `H27-H24-S20` para el poleman.
+**31,8%** de sus planes, y arranca `H26-S22-H24` para el poleman.
 
 *Cuántos compuestos distintos se usan.* En las carreras sin neutralización
 temprana, el **28,8%** de los pilotos usa los **tres**. El modelo usa dos el
@@ -1623,7 +1755,7 @@ ventaja de reaccionar saldría optimista.
    es lo que dicen los datos.
 
 2. **El algoritmo genético vale lo que vale acertar la cantidad de paradas**, que
-   son 12,5 segundos de carrera. Le gana entre 8 y 11 segundos a cualquier regla
+   son 12,5 segundos de carrera. Le gana casi once segundos a cualquier regla
    que se pueda enunciar de antemano, y empata con un oráculo al que ya le
    dijeron la respuesta. La vuelta exacta de la parada, que es lo que una primera
    versión de este informe estaba midiendo, vale 0,30 segundos.
@@ -1685,7 +1817,7 @@ ventaja de reaccionar saldría optimista.
    arreglan que el modelo no vea el ritmo de los compuestos, que los rivales no
    reaccionen ni anticipen, y que se optimice de a un auto cuando los equipos
    tienen dos. La sección 6 los separa y los mide uno por uno. El primero ya está
-   contrastado contra una grilla real: el modelo pone medio **una vez de
+   contrastado contra una grilla real: el modelo **no pone medio ni una vez de
    veintidós** y la realidad lo pone entre el 55% y el 85%, porque un compuesto
    que es intermedio en todo no puede ganar en un modelo que sólo mira una
    dimensión. Y el tercero tiene una ironía anotada: el cálculo de anticipación

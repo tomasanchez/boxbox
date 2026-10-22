@@ -152,17 +152,6 @@ def test_una_vuelta_pasada_del_final_usa_la_ultima_fila() -> None:
     assert costo.max() <= MODELO.pit_loss_red[-1]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "BUG conocido, sin arreglar: `race_trace` documenta que `flags=None` "
-        "corre todo en verde, pero `_pit_cost` hace `flags.shape` sin mirar si "
-        "es None, así que cualquier plan CON paradas revienta con AttributeError. "
-        "Hoy no lo sufre nadie porque todos los llamadores pasan banderas; es una "
-        "trampa para el próximo. Arreglarlo es una línea pero toca código de "
-        "producción antes de una entrega, así que queda documentado."
-    ),
-)
 def test_sin_banderas_la_carrera_corre_toda_en_verde(coche: Callable[..., Car]) -> None:
     """DADO ``flags=None``, la traza corre en verde en vez de romperse."""
     traza = strategy.race_trace(

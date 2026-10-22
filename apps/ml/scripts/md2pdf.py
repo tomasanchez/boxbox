@@ -137,6 +137,10 @@ TEMPLATE = """<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
+<!-- El HTML se arma en un directorio temporal, asi que sin esto cualquier
+     imagen escrita como `figuras/x.png` no resolveria y el PDF saldria con el
+     hueco y sin avisar. La base apunta al directorio del documento. -->
+<base href="{base}">
 <title>{title}</title>
 <style>{css}</style>
 </head>
@@ -167,7 +171,8 @@ def render(source: Path, output: Path) -> None:
         extensions=["tables", "fenced_code", "sane_lists", "attr_list", "nl2br"],
         output_format="html5",
     )
-    html = TEMPLATE.format(title=source.stem, css=CSS, body=body)
+    base = source.resolve().parent.as_uri() + "/"
+    html = TEMPLATE.format(title=source.stem, css=CSS, body=body, base=base)
 
     # Edge needs a real file on disk and an absolute file:// URL.
     with tempfile.TemporaryDirectory() as tmp:

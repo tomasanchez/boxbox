@@ -84,9 +84,8 @@ Dos de ellos son **regresiones de errores reales y caros** que este trabajo ya s
 comió: que la carrera duraba 71 vueltas de 72, y que vueltas abajo es
 `floor(hueco / vuelta verde)` y no una resta de segundos.
 
-**La suite encontró dos defectos latentes, y quedaron sin arreglar a propósito**,
-marcados con `xfail` estricto para que se pongan en rojo el día que alguien los
-corrija:
+**La suite encontró dos defectos el mismo día que se escribió, y los dos están
+arreglados:**
 
 1. `race_trace` documenta que `flags=None` corre todo en verde, pero `_pit_cost`
    hace `flags.shape` sin mirar si es `None`: cualquier plan **con paradas**
@@ -94,12 +93,17 @@ corrija:
 2. `_enforce_two_compounds` corre **después** del control de presupuesto y le
    cambia el compuesto a la última parada sin volver a mirarlo, así que puede
    devolver una tanda final pasada del tope de vida — `H35-M37` en una carrera de
-   72, con el medio topado en 31. Medido: **la búsqueda no lo alcanza**, 0 de 36
-   corridas devuelven un plan que se pase, porque una tanda así está demasiado
-   degradada para ganar la aptitud. No mueve ninguna cifra publicada.
+   72, con el medio topado en 31. Los planes que la búsqueda **devuelve** no se
+   ven afectados (0 de 36 corridas), pero las **líneas base** sí: «siempre 1
+   parada, duro» es de un solo compuesto y se estaba puntuando con 37 vueltas de
+   medio, así que su cifra se movió de +8,56 a +10,80 s al arreglarlo.
 
 Que la suite haya encontrado dos bugs el mismo día que se escribió es el
-argumento a favor de tenerla.
+argumento a favor de tenerla. El segundo, además, tiró del hilo de un tercero:
+al regenerar el export para comprobar qué se movía apareció que **el JSON que
+alimenta la interfaz nunca se había regenerado** tras el arreglo del desfasaje
+de una vuelta, así que la web mostró planes con una vuelta de menos durante un
+mes. Está corregido y el informe lo documenta en §6.
 
 ### Prueba empírica contra carreras reales
 
@@ -135,6 +139,26 @@ destapó un límite estructural del modelo que no estaba declarado.
 
 **La exactitud no se usa como métrica, y el motivo está medido:** «no parar
 nunca» acierta el 96,6% de las vueltas, y además de inútil es ilegal.
+
+### Las figuras de validación y error
+
+Están en `docs/tp/figuras/`, las dibuja `scripts/validation_plots.py` y el
+informe las comenta en §5. No son curvas de pérdida por época porque el
+entregable no es una red: son el equivalente para un algoritmo genético, donde la
+generación hace de época y la partición entrenamiento/validación ya estaba en el
+código.
+
+| Figura | Qué muestra |
+|---|---|
+| `fig-ag-validacion.png` | Aptitud por generación, en muestra contra retenida, y la convergencia de la población |
+| `fig-parada-temprana.png` | Lo que cuesta quedarse con la última generación: **parar antes gana en 16 de 24 corridas y nunca pierde** |
+| `fig-error-degradacion.png` | MAE de validación, de prueba y del baseline ingenuo, con la dispersión entre pliegues |
+| `fig-matriz-confusion.png` | Matriz de confusión y curva precisión-exhaustividad del clasificador de parada |
+
+La segunda es un hallazgo nuevo de esta entrega y el más accionable: el algoritmo
+**entrena de más**. Medido con tres particiones para que elegir la generación no
+contamine el juicio, parar temprano rinde +0,258 s de media, que es del orden de
+toda la ventaja del algoritmo sobre la mejor regla enunciable.
 
 Análisis completo en **§6**, que ocupa la mayor parte del informe. Incluye los
 **errores de método propios** que se encontraron y corrigieron —cada uno daba
