@@ -971,7 +971,7 @@ Contra reglas que sí se pueden enunciar de antemano:
 | «siempre 1 parada, duro» | **+10,80 s** |
 | «siempre 2 paradas, duro» | +0,07 |
 | «siempre 3 paradas, duro» | **+10,91 s** |
-| el oráculo | +0,07 |
+| el **oráculo**: la mejor de las tres para cada auto, elegida sabiendo el resultado | +0,07 |
 
 **El algoritmo le gana a cualquier regla enunciable, y lo que gana es exactamente
 el valor de acertar la cantidad de paradas.** Contra el oráculo empata, y ésa era

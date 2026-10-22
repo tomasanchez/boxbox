@@ -265,11 +265,17 @@ empatan con veinticinco**.
 | «siempre 1 parada, duro» | **+10,80 s** |
 | «siempre 2 paradas, duro» | +0,07 |
 | «siempre 3 paradas, duro» | **+10,91 s** |
-| el oráculo, que ya sabe la respuesta | +0,07 |
+| el **oráculo** | +0,07 |
 
-**El algoritmo le gana a cualquier regla enunciable, y lo que gana es exactamente el valor de
-acertar la cantidad de paradas** — que son 12,5 segundos. La vuelta exacta de la parada vale 0,30
-segundos.
+**El oráculo no es una regla: es el techo de todas ellas.** Para cada auto toma la mejor de las
+tres reglas de arriba *para ese auto*, que es una elección que sólo se puede hacer sabiendo ya el
+resultado. Sirve como cota superior de lo que cualquier regla del tipo «siempre N paradas al
+duro» podría lograr con suerte perfecta.
+
+**El algoritmo le gana a cualquier regla enunciable de antemano, y lo que gana es exactamente el
+valor de acertar la cantidad de paradas** — que son 12,5 segundos. Contra el oráculo empata: los
+0,07 s de diferencia están dentro del ruido. Y la vuelta exacta de la parada, que es lo que una
+versión anterior de este trabajo estaba midiendo, vale 0,30 segundos.
 
 ### Problemas e inconvenientes, y cómo se resolvieron
 
