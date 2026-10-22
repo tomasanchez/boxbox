@@ -171,11 +171,17 @@ cada uno —uno terminó puntuando en puestos y el otro en puntos— y esos dos 
 restar. La diferencia absoluta media de 0,86 que reporta el script es esa resta, y no mide
 calidad. Sin P13 es de seis milésimas.
 
-**3. Agente de Aprendizaje por Refuerzo (comparación — Unidad 5).**
+**3. Agente de Aprendizaje por Refuerzo (Unidad 5) — ⚠️ NO CONSTRUIDO.**
+
+> **Esto no existe todavía: no hay una sola línea de código de aprendizaje por
+> refuerzo en el repositorio.** Se describe acá porque es la comparación que el
+> trabajo propone y porque la Unidad 5 del programa se dicta para la Entrega 3,
+> no porque forme parte de lo que se entrega hoy. Los puntos 1 y 2 de arriba sí
+> están construidos y medidos; éste es un plan.
 
 El algoritmo genético arma el plan **antes de largar**. Pero en una carrera real las cosas
 cambian: sale un Safety Car, empieza a llover, un rival para antes de lo previsto. Un agente de
-aprendizaje por refuerzo decide **sobre la marcha**.
+aprendizaje por refuerzo decidiría **sobre la marcha**.
 
 La idea es la de enseñarle a jugar a alguien que no sabe las reglas, sólo si le fue bien o mal:
 
@@ -196,10 +202,18 @@ después arruina la mano. Cambiar eso por "sigo o boxeo" es casi cambiarle el no
 a lo que va pasando (el agente). Cuál gana, y en qué tipo de carreras gana cada uno, es en sí un
 resultado del trabajo.
 
-El simulador se programa con la interfaz **`gymnasium`**, que es la que usa la demo de la
-cátedra, así sirve para las dos técnicas sin escribirlo dos veces.
+La idea es envolver el simulador en la interfaz **`gymnasium`**, que es la que usa la demo de
+la cátedra, para que sirva a las dos técnicas sin escribirlo dos veces. **Todavía no está
+hecho:** el simulador de hoy expone funciones de NumPy vectorizadas sobre los sorteos, no un
+entorno con `reset()` y `step()`, y ningún módulo importa `gymnasium`.
 
-**Herramientas:** Python, `fastf1`, `pandas`, `DEAP`, `gymnasium`, `LightGBM`, Google Colab.
+**Herramientas que se usan hoy:** Python 3.13, `fastf1`, `pandas`, `numpy`, `DEAP`,
+`LightGBM`, `scikit-learn`, `matplotlib`, y del lado de la interfaz React 19, Vite y MUI.
+Cuadernos Jupyter —locales, vía `jupytext`— para dejar el cálculo a la vista.
+
+**Declaradas y todavía sin usar:** `gymnasium`, que figura en las dependencias y que no importa
+ningún módulo; está puesta para el agente de la Entrega 3. Se la nombra acá en vez de esconderla
+porque una dependencia declarada que nadie usa es una promesa, no una herramienta.
 
 **Línea futura:** una red bayesiana con `pgmpy` para modelar la incertidumbre del Safety Car. Se
 declara como línea futura y no como promesa: el trabajo es individual y prometer cuatro técnicas

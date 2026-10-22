@@ -190,7 +190,8 @@ olvido:
 
 - **El agente de Aprendizaje por Refuerzo.** Es la comparación propuesta
   —planificar contra reaccionar— y corresponde a la Unidad 5, que se dicta para
-  la **Entrega 3**. El entorno (`gymnasium`) ya está entre las dependencias.
+  la **Entrega 3**. No hay una sola línea escrita: `gymnasium` figura entre las
+  dependencias pero **todavía no la importa ningún módulo**.
 - **La asignación de neumáticos disponibles.** Sin ella la recomendación no es
   ejecutable para el 85% de los autos. El sistema es honesto dentro de ese techo
   y lo declara.
