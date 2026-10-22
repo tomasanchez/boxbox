@@ -1659,7 +1659,7 @@ el compuesto con una red neuronal MLP, con datos de 2020 a 2022.
 
 | | TP de IA 2025 | Este trabajo |
 |---|---|---|
-| Datos | 2020–2022, 782 registros | 2022–2026, 114.414 vueltas |
+| Datos | 2020–2022, 782 registros | 2022–2026, 117.545 vueltas |
 | Pregunta | ¿Qué compuesto? | ¿Cuándo parar y cuántas veces? |
 | Técnica | Red neuronal MLP | Algoritmo Genético sobre simulador Monte Carlo |
 | Resultado | 0,62–0,70 de exactitud, con sobreajuste | Plan por auto, con su distribución |
@@ -2012,83 +2012,118 @@ ser elitista y la de DEAP podía bajar.
 
 ## 7. Conclusiones
 
+### ¿Funciona?
 
-1. **La incertidumbre es más grande que la señal.** El desvío del ritmo de caída
-   de una tanda supera a la mediana del ritmo mismo. Ése es el argumento central
-   para devolver distribuciones y no números, y no es una preferencia de diseño:
-   es lo que dicen los datos.
+**Como constructor de planes, sí. Como pronosticador de carreras concretas, todavía
+no.** Las dos mitades de esa frase están medidas y conviene no mezclarlas.
 
-2. **El algoritmo genético vale lo que vale acertar la cantidad de paradas**, que
-   son 12,5 segundos de carrera. Le gana casi once segundos a cualquier regla
-   que se pueda enunciar de antemano, y empata con un oráculo al que ya le
-   dijeron la respuesta. La vuelta exacta de la parada, que es lo que una primera
-   versión de este informe estaba midiendo, vale 0,30 segundos.
+Lo que sí hace: arma planes **legales** —cero ilegales generados sobre miles de
+evaluaciones—, le gana **casi once segundos** de carrera a cualquier regla fija que se
+pueda enunciar de antemano, y cuando se le dan insumos correctos reproduce la
+estrategia que ganó la carrera.
 
-3. **El plan óptimo depende de cuándo salen las neutralizaciones, y eso no se
-   sabe.** Monza 2026 lo muestra en un caso concreto: el 90,6% de sus paradas
-   fueron bajo bandera o safety car, y con las paradas gratis la cantidad óptima
-   de paradas se invierte. Un número puntual habría estado mal por 18 segundos.
+Lo que no: acertar carreras. Sobre cuatro pruebas contra carreras reales de 2026
+—Monza, Madrid, la elección de compuesto sobre una grilla entera y Bakú— **no hubo
+ningún acierto limpio**. Monza se equivocó por dieciocho segundos, Bakú acertó uno de
+cuatro criterios escritos de antemano, y el compuesto de salida lo erró de la manera
+más clara posible: el modelo no pone medio **ni una vez de veintidós** y la realidad lo
+pone entre el 55% y el 85%.
 
-4. **El reglamento no es una molestia: es el que manda.** B6.3.8 obliga a usar
-   dos compuestos, y la decisión estratégica real no es cuál es más rápido sino
-   en qué tanda gastar la obligación. Antonelli ganó Monza poniendo el compuesto
-   obligatorio en una tanda de tres vueltas que la bandera roja le regaló.
+### Los nueve hallazgos
 
-5. **La mitad del trabajo fue encontrar errores propios.** El coeficiente de
-   combustible que sacaba el 63% del efecto; el ritmo de caída extrapolado que
-   hacía ganar a un auto desde noveno; el hueco de grilla cobrado cada vuelta; la
-   referencia de pérdida de boxes que hacía parecer cara la parada bajo safety
-   car; el escalado por circuito que duplicaba el tráfico de Zandvoort al revés;
-   los planes comparados contra carreras distintas; una comparación amañada a
-   favor de la regla que invertía la conclusión principal; una cifra de este
-   mismo informe que quedó rancia al aplicar B6.3.8 y que nadie volvió a medir; y
-   tres lecturas equivocadas de mediciones correctas, que es una familia aparte:
-   comparar contra el promedio de la temporada donde las carreras no se parecen
-   entre sí, y contar paradas totales donde había que contar las decididas.
-   Todos daban números confiados y plausibles hasta que algo aguas abajo salió
-   absurdo. El último es el más aleccionador: no hubo ningún error de cálculo, y
-   el número siguió pareciendo correcto durante una semana.
+1. **El algoritmo no estaba roto; los insumos sí.** Es el resultado más importante del
+   trabajo y sale de Madrid, que es la prueba capaz de separar las dos cosas. Con los
+   supuestos previos el modelo le decía al ganador que estaba equivocado por 4,5 s;
+   corrigiendo **una sola cosa** —el desgaste, medido en la propia carrera— el signo se
+   da vuelta y la búsqueda propone `M17-H40` contra el `M14-H43` que él hizo. Tres
+   vueltas. Eso dice dónde está el retorno de mejorar el sistema y dónde no: afinar la
+   búsqueda no es donde está.
 
-   Dos de la lista merecen una nota porque son la misma lección desde dos lados.
-   **La referencia de pérdida de boxes aparece dos veces**: se encontró, se
-   corrigió en el script del simulador, y la versión equivocada **siguió viva en
-   el camino que alimenta la pantalla** hasta que otro cambio la destapó. Arreglar
-   un error donde se lo encontró no es arreglarlo. Y **la pérdida de boxes se
-   sorteaba de una forma asumida mientras el desgaste se sorteaba de la medida**,
-   en el mismo archivo y a veinte líneas de distancia, durante todo el proyecto:
-   el argumento que justifica los nueve cortes estaba escrito ahí al lado y no se
-   aplicó al vecino. Las dos veces el síntoma fue el mismo — ningún número se veía
-   mal — y las dos veces lo que lo destapó fue tocar otra cosa.
+2. **La incertidumbre es más grande que la señal, y hay dos números que lo dicen.** El
+   desvío del ritmo de caída de una tanda supera a la mediana del ritmo mismo, en los
+   tres compuestos. La matriz de correlación lo confirma desde el otro lado: **el
+   objetivo no correlaciona con ninguna variable por encima de 0,31**, y las demás
+   quedan en 0,13 o menos. Predecir el valor de una vuelta con estas columnas no se
+   puede, y por eso el sistema devuelve distribuciones y simula. No es una preferencia
+   de diseño: es lo que permiten los datos.
 
-6. **La granularidad por circuito casi nunca la sostienen los datos, pero la
-   pregunta estaba mal planteada.** Cuatro cantidades, cuatro correlaciones entre
-   eras: dificultad para adelantar 0,21, avance de carrera 0,15, tráfico −0,04, y
-   desgaste 0,14 medido contra el reset de 2026. Ninguna cruza un cambio de
-   reglamento. Pero el simulador nunca necesita cruzarlo: simula circuitos que la
-   temporada ya visitó, y **dentro de la temporada la medición del desgaste tiene
-   confiabilidad 0,89**. Se le cree casi entera, y el plan recomendado cambia en
-   diez de doce casos. La lección no es «por circuito no se puede» sino «hay que
-   preguntar contra qué se va a usar».
+3. **Tres de las cuatro pruebas las decidió una neutralización, y ése es un techo
+   estructural.** En Monza el 90,6% de las paradas salieron gratis; en Bakú, 35 de 38,
+   con el safety car saliendo dos veces; en Madrid un VSC en la vuelta 14 se llevó 10
+   de 28. Las distribuciones medidas aciertan **que** va a haber una neutralización,
+   con qué frecuencia y cuánto dura. No aciertan **cuándo**, y el cuándo es lo que fija
+   el plan. Ninguna cantidad de datos levanta ese techo: hay que cambiar el entregable
+   de un plan a una política.
 
-7. **Los datos tienen un techo y conviene nombrarlo.** El desgaste medido se
-   aplana por supervivencia; el tráfico de rezagados queda afuera por
-   construcción; el escalón de ritmo entre compuestos se mide en práctica pero no
-   se puede llevar a carrera; la asignación de neumáticos no está, y hace que la
-   recomendación actual no sea ejecutable para el 85% de los autos. El sistema es
-   honesto dentro de ese techo y lo declara.
+4. **El algoritmo genético vale lo que vale acertar la cantidad de paradas**, que son
+   12,5 segundos de carrera. La vuelta exacta de la parada —que es lo que una primera
+   versión de este informe estaba midiendo— vale 0,30 segundos. Medir lo segundo y
+   concluir sobre lo primero fue el error de método más caro del trabajo.
 
-8. **Hay un segundo techo que no es de datos, y es el más caro.** Más datos no
-   arreglan que el modelo no vea el ritmo de los compuestos, que los rivales no
-   reaccionen ni anticipen, y que se optimice de a un auto cuando los equipos
-   tienen dos. La sección 6 los separa y los mide uno por uno. El primero ya está
-   contrastado contra una grilla real: el modelo **no pone medio ni una vez de
-   veintidós** y la realidad lo pone entre el 55% y el 85%, porque un compuesto
-   que es intermedio en todo no puede ganar en un modelo que sólo mira una
-   dimensión. Y el tercero tiene una ironía anotada: el cálculo de anticipación
-   está construido, medido y corriendo en pantalla, y el algoritmo del que trata
-   este trabajo no lo usa.
+5. **El algoritmo entrena de más, y se vio recién al dibujar la curva de validación.**
+   Con la aptitud en muestra nunca empeora, porque el motor es elitista; medido sobre
+   carreras que no vio, **la última generación no es la mejor en 16 de 24 corridas**.
+   Parar en la generación que mejor puntúa fuera de muestra gana 0,387 s cuando gana,
+   **nunca pierde**, y rinde 0,258 s de media — del orden de toda la ventaja del
+   algoritmo sobre la mejor regla enunciable.
 
-### Qué sigue
+6. **El reglamento no es una molestia: es el que manda.** El artículo B6.3.8 obliga a
+   usar dos compuestos secos, y la decisión estratégica real no es cuál es más rápido
+   sino **en qué tanda gastar la obligación**. Antonelli ganó Monza poniendo el
+   compuesto obligatorio en una tanda de tres vueltas que la bandera roja le regaló. En
+   el simulador esa misma regla es lo que hace recorrible el espacio de búsqueda: el
+   reparador la impone sobre cada hijo, y por eso no hace falta penalizar planes
+   ilegales en la aptitud — no se generan.
+
+7. **La granularidad por circuito casi nunca la sostienen los datos, pero la pregunta
+   estaba mal planteada.** Cuatro cantidades, cuatro correlaciones entre eras:
+   dificultad para adelantar 0,21, avance de carrera 0,15, tráfico −0,04 y desgaste
+   0,14. Ninguna cruza un cambio de reglamento. Pero el simulador nunca necesita
+   cruzarlo: corre circuitos que la temporada ya visitó, y **dentro de la temporada la
+   medición tiene confiabilidad 0,89**. Se le cree casi entera, y el plan recomendado
+   cambia en diez de doce casos. La lección no es «por circuito no se puede» sino «hay
+   que preguntar contra qué se va a usar». Bakú marcó el límite: ahí la regla eligió mal.
+
+8. **Hay dos techos distintos y confundirlos lleva a trabajar en el lugar equivocado.**
+   Los de **datos** se arreglan midiendo mejor: el desgaste se aplana por
+   supervivencia, el tráfico de rezagados queda afuera por construcción, y la
+   asignación de neumáticos no está —lo que hace que la recomendación no sea ejecutable
+   para el 85% de los autos—. Los **estructurales** no: que el modelo no vea el ritmo
+   de los compuestos, que los rivales no anticipen, que se optimice de a un auto cuando
+   los equipos tienen dos, y que el safety car pueda volver a salir sin que el modelo
+   tenga dónde ponerlo.
+
+9. **La mitad del trabajo fue encontrar errores propios, y el método de encontrarlos es
+   en sí un resultado.** Ninguno se cayó solo: todos daban números confiados y
+   plausibles hasta que **algo aguas abajo salió absurdo**. El coeficiente de
+   combustible que sacaba el 63% del efecto; el ritmo extrapolado que hacía ganar a un
+   auto desde noveno; la referencia de pérdida de boxes que hacía parecer cara la
+   parada bajo safety car; una comparación amañada a favor de la regla que invertía la
+   conclusión principal; la carrera que duraba 71 vueltas de 72; el salón de la fama
+   que se calculaba y se descartaba; la reparación reglamentaria que devolvía una tanda
+   más larga que la vida medida del compuesto; y el export de la interfaz que quedó un
+   mes sin regenerar después de arreglar el código.
+
+   Dos merecen una nota porque son la misma lección desde dos lados. **La referencia de
+   pérdida de boxes aparece dos veces**: se corrigió en el simulador y la versión
+   equivocada siguió viva en el camino que alimenta la pantalla. Y **la pérdida de
+   boxes se sorteaba de una forma asumida mientras el desgaste se sorteaba de la
+   medida**, en el mismo archivo y a veinte líneas de distancia. Las dos veces el
+   síntoma fue el mismo —ningún número se veía mal— y las dos veces lo destapó tocar
+   otra cosa. **Arreglar un error donde se lo encontró no es arreglarlo.**
+
+### Qué queda construido
+
+- El **pipeline de datos** completo: descarga, limpieza y cálculo de variables sobre
+  **106 carreras y 117.545 vueltas** de cinco temporadas.
+- El **simulador Monte Carlo**, con todo lo que sortea medido y no supuesto: desgaste,
+  pérdida de boxes por bandera, neutralizaciones, ruido de ritmo y tráfico.
+- El **algoritmo genético** con dos motores —DEAP y uno propio—, comparados entre sí.
+- Una **interfaz** que anima una carrera sorteada con los insights sobre el trazado.
+- Una **suite de 143 tests** sobre el núcleo del simulador, que encontró dos defectos
+  el mismo día que se escribió.
+
+### Qué falta, y qué no se va a hacer
 
 | Acción | Por qué | ¿Se puede? |
 |---|---|---|
@@ -2102,6 +2137,14 @@ ser elitista y la de DEAP podía bajar.
 | **Posición dentro de la vuelta** al parar | Cuesta 0,1 s con un plan fijo y es decisivo para reaccionar | Requisito de la Entrega 3, no deuda de hoy |
 | **Re-salida del safety car** | 11 despliegues contra 8 períodos contados en 2026; es lo que decidió Bakú | Sí: contar despliegues y no corridas contiguas |
 | Agente de **Refuerzo** | La comparación propuesta: planificar contra reaccionar | Para la Entrega 3 |
+
+Un pendiente no entra en esa tabla porque es un **hallazgo** y no una tarea: el modelo
+**dobla al doble de autos que la realidad** —54,8% contra 28,4%— porque extrapola el
+hueco de clasificación como un déficit constante por vuelta, y el último de la grilla
+termina 223 segundos atrás, casi tres vueltas. El factor se había validado con
+r = 0,880 contra el ritmo de carrera, que es autoconsistente; lo que nunca se chequeó
+fue la consecuencia. Queda medido y sin corregir a propósito: tocar el ritmo mueve cada
+cifra de este informe.
 
 **Lo que no se va a hacer:** más términos en la aptitud esperando que deje de ser
 plana. El tráfico se midió, se implementó correctamente y no movió el resultado;
@@ -2117,52 +2160,6 @@ además destapó un límite estructural que no estaba declarado, que es exactame
 lo que un pronóstico pre-registrado sirve para encontrar.
 
 ---
-
-### Lo que ya está hecho
-
-- **El pipeline de datos completo**: descarga, limpieza y cálculo de variables, sobre 103
-  carreras y 114.414 vueltas.
-- **El simulador de carrera**, con todo lo que sortea medido: desgaste, pérdida de boxes,
-  Safety Car, ruido de ritmo y tráfico.
-- **El algoritmo genético**, que para cada auto busca el plan de paradas con mejor distribución
-  de resultados sobre cientos de carreras sorteadas.
-- **Una interfaz de simulación** que muestra la carrera corriendo con los insights de estrategia
-  encima del trazado, al estilo de las gráficas de la transmisión.
-- **Tres cuadernos Jupyter** que dejan el registro reproducible de los datos, la limpieza y cada
-  medición, con el cálculo a la vista y no sólo el resultado.
-
-### Lo que falta
-
-- El agente de Aprendizaje por Refuerzo, que era la comparación propuesta.
-- El tráfico de **rezagados**. El 28,4% de los pilotos terminan al menos una vuelta abajo, y la
-  medición actual los excluye por construcción. Y midiéndolo apareció algo peor: **el modelo dobla
-  al doble de autos que la realidad** —54,8% contra 28,4%, con el cajón de dos vueltas abajo siete
-  veces más grande— porque `pace_from_qualifying` extrapola el hueco de clasificación como un
-  déficit constante por vuelta durante toda la carrera, y el último de la grilla termina 223
-  segundos atrás, casi tres vueltas. El factor 0,835 se validó con r=0,880 comparando hueco de
-  quali contra ritmo de carrera, que es autoconsistente; lo que nunca se chequeó fue la
-  consecuencia. Medido y sin corregir: tocar el ritmo mueve cada cifra de
-  este informe.
-- ~~La **ventana de parada** sale hoy de una heurística y debería salir del propio genético.~~
-  **Hecho**, y la heurística estaba peor de lo que este renglón sugería: calculaba un rango de
-  *factibilidad* con nombre de rango de *optimalidad* —35 vueltas de ancho, con el cierre en una
-  constante idéntica para los veintidós autos— y para los once que largan en blando describía un
-  plan que el modelo no puede correr. Ahora  mueve la parada por todas las vueltas
-  representables y se queda con la banda que cae dentro de un cuarto de puesto del óptimo, sobre
-  las mismas carreras sorteadas. Se puntúa en **puestos y no en segundos**, que es lo que la hace
-  parecerse a la de la transmisión: nueve vueltas de ancho en blando, catorce a dieciséis en duro.
-  Y resiste la elección de datos, que era la duda razonable: el desgaste de Zandvoort medido con
-  todas las temporadas difiere del de 2026 un 11% en blando, un 14% en duro y un **49,5% en
-  medio**, y aun así la ventana se corre **cero vueltas en la mediana** —doce de los veintidós dan
-  idénticos—. Es una comparación entre vueltas del mismo modelo, no un valor absoluto, y se puntúa
-  en puestos, que son discretos. La excepción es el único auto que larga en medio, que se corre
-  2,5 vueltas: es el compuesto con la celda más fina del circuito, once tandas. Esa celda se
-  revisó aparte y **no es frágil**: sacando cualquiera de las once la mediana se mueve 0,0086,
-  el intervalo del 95% va de 0,0839 a 0,1193 y deja **afuera** al 0,0625 de la otra medición —o
-  sea que la diferencia entre eras es real y no ruido—, y entre los catorce circuitos de 2026
-  Zandvoort sale duodécimo, alto pero no extremo. Lo que sostiene el número pese a la muestra
-  chica es haber elegido la mediana: dos de las once tandas dan 0,22 y 0,59 s/vuelta, que no es
-  desgaste sino autos rotos, y una media daría 0,133 gobernada por ellas.
 
 ---
 
