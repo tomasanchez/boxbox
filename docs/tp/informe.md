@@ -1,13 +1,13 @@
 # BoxBox — Estrategia de neumáticos en Fórmula 1
 
-**Propuesta de Trabajo Práctico Integral**
+**Trabajo Práctico Integral — Entrega N.º 2: prototipo y evaluación**
 Inteligencia Artificial Avanzada — UTN FRBA — 2do Cuatrimestre 2026
 
 | Apellido y Nombres | E-Mail | Aporte |
 |---|---|---|
 | Sánchez, Tomás Agustín | tosanchez@frba.utn.edu.ar | 100% |
 
-**Fecha de Presentación:** _(completar)_
+**Fecha de Presentación:** 22 de octubre de 2026
 
 **Repositorio:** https://github.com/tomasanchez/boxbox
 
@@ -31,7 +31,7 @@ el mejor plan. Como comparación se propone un **agente de Aprendizaje por Refue
 vuelta a vuelta.
 
 **Estado.** El pipeline de datos, el simulador y el algoritmo genético están construidos y
-medidos; el agente de refuerzo no. El algoritmo le gana entre 7 y 11 segundos de carrera a
+medidos; el agente de refuerzo no. El algoritmo le gana entre 8 y 11 segundos de carrera a
 cualquier regla que se pueda enunciar de antemano, y lo que gana es el valor de acertar la cantidad
 de paradas.
 
@@ -44,6 +44,12 @@ hasta que algo aguas abajo salió absurdo.
 La prueba más dura la dio Monza 2026, cuatro fechas después de la carrera sobre la que está armado
 el simulador: **el modelo se equivocó por dieciocho segundos**, y por qué se equivocó es el
 resultado más útil del trabajo. Está en la sección 6.
+
+La prueba más limpia la dio **Bakú 2026**, y lo que la hace limpia es el orden: la predicción se
+escribió con criterios de falsación explícitos y se commiteó **antes** de cargar la carrera. Salió
+**uno de cuatro**, y el análisis de por qué falló vale más que el marcador — tres de los cuatro
+criterios los decidió un safety car que salió dos veces, y al ir a explicarlo apareció un límite
+estructural del modelo que no estaba declarado.
 
 ---
 
@@ -910,9 +916,10 @@ disfrazada. Medir la distribución de la diferencia es trabajo pendiente.
 | Qué | Cómo | Estado |
 |---|---|---|
 | Simulador | Error del modelo de degradación | Mejor que la mediana ✅ |
-| Algoritmo genético | Segundos contra reglas enunciables | +6,9 a +10,7 s ✅ |
+| Algoritmo genético | Segundos contra reglas enunciables | +8,6 a +10,9 s ✅ |
 | Sistema completo | ¿La estrategia real cayó en el rango? | Probado en Monza, ver §6 |
 | Reglamento | Planes ilegales generados | Cero ✅ |
+| Pronóstico | Criterios de falsación escritos **antes** de la carrera | 1 de 4 en Bakú, ver §6 |
 
 **La exactitud no se usa como métrica.** «No parar nunca» acierta el 96,6% de las
 vueltas, y además de inútil **es ilegal**.
@@ -1062,6 +1069,111 @@ durabilidad, y **ése es un argumento que el modelo no puede formular.**
 
 Es la limitación más cara que tiene el trabajo, y ahora está medida contra una
 grilla real en vez de declarada como sospecha.
+
+### La cuarta prueba: un pronóstico escrito antes de la carrera
+
+Las tres pruebas anteriores comparten una debilidad de método: se corrieron
+sabiendo el resultado. Aunque nadie haga trampa, el analista elige qué mirar
+*después* de ver qué pasó, y eso infla cualquier acierto. Bakú 2026 se usó para
+cerrar ese agujero.
+
+El procedimiento fue: cargar la clasificación, **no** cargar la carrera, escribir
+la predicción con criterios de falsación explícitos, y commitearla. Recién
+entonces mirar el resultado. El commit `418e90f` fecha el orden, y es lo único
+que hace que el ejercicio mida algo.
+
+Se escribieron dos pronósticos, porque la pregunta interesante no es si acierta
+una persona sino **si el modelo le gana al historial del circuito**. Bakú no está
+en la tabla de desgaste medido —esa tabla se arma sólo con 2026 y con celdas de
+seis tandas o más—, así que el simulador lo corrió con el promedio de la
+temporada, igual que había hecho con Madrid.
+
+#### El marcador: uno de cuatro
+
+| Criterio | Predicho | Real | |
+|---|---|---|---|
+| compuesto de salida | medio 12-17, duro 4-8, blando ≤3 | medio 12, duro **0**, blando **10** | error |
+| paradas | una, 60% o más | **dos, 94%** | error |
+| secuencia | medio → duro la más común | **medio → blando → blando** | error |
+| neutralización | al menos una | safety car, vueltas 29-38 | acierto |
+
+Tres de cuatro cayeron, y conviene decirlo así de seco antes de explicar nada.
+
+#### Las tres que fallaron fallaron por lo mismo
+
+**35 de las 38 paradas de la carrera se hicieron bajo neutralización.** Contando
+sólo las tomadas en verde —las únicas que fueron una decisión— catorce de los
+dieciséis clasificados no pararon ninguna vez.
+
+La pista de que faltaba algo estaba en la secuencia del ganador, `M31-S5-S15`:
+nadie tira un juego de blandos a las cinco vueltas salvo que le salga gratis. El
+safety car había salido **dos veces** — en la vuelta 31, entró en la 35, y volvió
+a salir en la 36 porque el relanzamiento terminó en un choque en la curva 1 que
+eliminó a tres autos. Dos despliegues, dos oleadas de boxes, y por eso la última
+tanda de los dieciséis clasificados mide exactamente quince vueltas.
+
+Así que la cuenta cruda de «dos paradas» no refuta el pronóstico de una parada:
+describe una carrera que no hubo. Pero el criterio de falsación se había escrito
+sobre la cuenta cruda en vez de sobre las decisiones, y eso no se arregla a
+posteriori. **Un criterio mal elegido cuenta como error aunque la intuición fuera
+buena**, y ése es justamente el valor de haberlo escrito antes.
+
+#### El duro no existió, y los dos pronósticos lo tenían
+
+Nadie calzó un duro en toda la carrera: blando 51,4% de las vueltas, medio 48,6%,
+duro 0,0%. Los veintidós cumplieron B6.3.8 con medio + blando.
+
+| compuesto | real | historial | modelo |
+|---|---|---|---|
+| blando | 10 (45%) | 3 (14%) | 7 (32%) |
+| medio | 12 (55%) | 14 (64%) | 6 (27%) |
+| duro | 0 (0%) | 5 (23%) | 9 (41%) |
+| **desvío total** | | **64 pp** | **82 pp** |
+
+Gana el historial, pero la lectura honesta no es «ganó el historial». Ganó por el
+medio y perdió por el blando, que era su afirmación más fuerte y más específica
+—en Bakú nunca había largado nadie en blando en cuatro años— y largaron diez. El
+modelo, que no tiene ningún motivo para preferir un compuesto porque
+`COMPOUND_OFFSET_S` vale cero, acertó que el blando correría mucho por la razón
+equivocada. **El error compartido, y el más caro, fue poner el duro donde no
+estuvo.**
+
+#### Lo que sí acertó el algoritmo
+
+Corriendo la búsqueda con el desgaste medido en la propia carrera:
+
+```
+búsqueda con el desgaste real:  M32-S19
+lo que hizo RUS (ganador):      M31-S5-S15
+```
+
+La primera tanda coincide dentro de una vuelta y el orden de compuestos coincide
+entero. Todo lo que las separa son las dos paradas que el safety car regaló.
+
+Es la misma lectura que había dejado Madrid —el algoritmo no estaba roto, los
+insumos sí— con una vuelta de tuerca: acá ni siquiera los insumos alcanzan a
+explicar la diferencia, la explica la bandera. Con una salvedad que se midió en
+vez de afirmarse: levantando el tope de vida del medio la búsqueda se estira
+hasta `M51`, así que parte de la coincidencia con RUS es mérito del tope y no del
+algoritmo.
+
+#### Lo que destapó ese contrafáctico
+
+`M51` es la carrera entera con un solo juego: **ilegal bajo B6.3.8**.
+`_enforce_two_compounds` corrige un plan ilegal cambiando el compuesto de la
+última parada, y su documentación afirma que un plan sin ninguna parada «lo
+castiga la aptitud y pierde». Con desgaste positivo es cierto —probado a 40, 44 y
+51 vueltas la búsqueda devuelve siempre un plan legal de una parada— pero el
+desgaste medido en Bakú sale **negativo**, y entonces la goma vieja es más rápida,
+no parar nunca es óptimo, y nada en la aptitud lo penaliza.
+
+El signo negativo no significa que la goma mejore: el coeficiente de combustible
+es fijo (0,035 s/vuelta), está calibrado sobre la era anterior y sub-corrige a los
+autos de 2026. Lo que el episodio muestra es que **ese artefacto deja de ser ruido
+de medición cuando se realimenta como insumo** — ahí vuelve preferible una
+estrategia ilegal. Ninguna cifra publicada se mueve, porque el simulador corre con
+desgastes positivos, pero es la razón concreta por la que una pendiente medida no
+se puede enchufar sin mirarle el signo.
 
 ### Por qué es difícil ganarle a una regla razonable
 
@@ -1283,7 +1395,7 @@ cuando la caída pase de tanto o cuando salga una neutralización con más de ta
 goma; si tenés a alguien a menos de dos segundos, te cubrís primero».
 
 Es un entregable distinto del que este trabajo define, y es exactamente la
-comparación que la Entrega 2 ya tenía anotada: **planificar contra reaccionar**.
+comparación que el trabajo ya tenía anotada: **planificar contra reaccionar**.
 Lo que se agrega hoy es que deja de ser una intuición y pasa a tener el tamaño
 medido de lo que está en juego.
 
@@ -1356,7 +1468,7 @@ pero están mal medidas o no se pudieron medir. Se arreglan con más datos o con
 mejores diseños de medición.
 
 Los **límites estructurales** son otra cosa: el modelo **no tiene dónde ponerlos**.
-Ninguna cantidad de datos los arregla. Son cuatro y conviene nombrarlos.
+Ninguna cantidad de datos los arregla. Son cinco y conviene nombrarlos.
 
 **1. El modelo no ve el ritmo de los compuestos, sólo su desgaste.** Es el que la
 sección anterior midió contra una grilla real. `COMPOUND_OFFSET_S` está en cero, y
@@ -1455,6 +1567,26 @@ desgaste, clasifican cerca, y el plan óptimo les da parecido porque lo son.
 Que no aparezca no prueba que no exista — prueba que no es una política, y eso ya
 es más de lo que se sabía.
 
+**5. El safety car puede volver a salir, y el modelo no tiene dónde ponerlo.**
+Las neutralizaciones se sortean como períodos contiguos. Que el coche de seguridad
+entre y **vuelva a salir sin que se corra una vuelta en verde** no es un período
+más largo: es una segunda oportunidad de parar gratis, y el modelo no la puede
+generar.
+
+No es hipotético. Bakú 2026 se decidió exactamente así, y medido sobre las quince
+carreras de 2026 hubo **11 despliegues de safety car contra 8 períodos contados**
+—un 27% de subconteo, repartido en 3 carreras: Mónaco, Gran Bretaña y Bakú—.
+El subconteo no cae al azar: cae entero en las re-salidas rápidas, que son justo
+las que regalan la segunda parada.
+
+Conviene decir qué mueve y qué no. Las *vueltas* neutralizadas están bien
+contadas, así que el costo de parar —y con él las cifras publicadas de este
+informe— no cambia. Lo subestimado es el número de **oportunidades distintas**,
+que es lo que usa la política de rivales reactivos, porque deja parar una vez por
+período. Esa política está detrás de una bandera, así que esto es una limitación
+declarada y no una corrección de resultados. Reproducible con
+`uv run python scripts/sc_redeployments.py`.
+
 **Una que parecía estructural y resultó no serlo.** El modelo decide si una parada
 sale barata mirando si **la vuelta** estaba neutralizada, sin saber en qué parte
 de la vuelta estaba el auto: si el safety car sale cuando ya pasó la entrada a
@@ -1465,7 +1597,7 @@ sólo en la primera importa dónde estás. Es despreciable para un plan fijo.
 Pero **no lo es para reaccionar**, que vale entre 0,5 y 2,0 segundos: ahí poder
 entrar *esta* vuelta o tener que dar una más es toda la diferencia, y depende
 exactamente de dónde estás cuando aparece la bandera. Es un requisito del agente
-de refuerzo de la Entrega 2, no una deuda del simulador actual — y sin él, la
+de refuerzo de la Entrega 3, no una deuda del simulador actual — y sin él, la
 ventaja de reaccionar saldría optimista.
 
 ---
@@ -1478,7 +1610,7 @@ ventaja de reaccionar saldría optimista.
    es lo que dicen los datos.
 
 2. **El algoritmo genético vale lo que vale acertar la cantidad de paradas**, que
-   son 12,5 segundos de carrera. Le gana entre 7 y 11 segundos a cualquier regla
+   son 12,5 segundos de carrera. Le gana entre 8 y 11 segundos a cualquier regla
    que se pueda enunciar de antemano, y empata con un oráculo al que ya le
    dijeron la respuesta. La vuelta exacta de la parada, que es lo que una primera
    versión de este informe estaba midiendo, vale 0,30 segundos.
@@ -1558,8 +1690,9 @@ ventaja de reaccionar saldría optimista.
 | ~~Portar a **DEAP**~~ | Es la herramienta que recomienda la cátedra | **Hecho.** Los dos motores conviven, se elige con un parámetro |
 | Tráfico de **rezagados** | 23,1% de los pilotos terminan una vuelta abajo | Requiere comparar por posición y no por vuelta |
 | ~~**Anticipar una movida** en el buscador: elegir el plan asumiendo que los vecinos cubren~~ | El escenario que le cuesta la carrera a un plan era insorteable: nadie reaccionaba a nada | **Hecho.** Los rivales responden a las banderas dentro de la búsqueda y al auto elegido al puntuarlo, detrás de un interruptor |
-| **Posición dentro de la vuelta** al parar | Cuesta 0,1 s con un plan fijo y es decisivo para reaccionar | Requisito de la Entrega 2, no deuda de hoy |
-| Agente de **Refuerzo** | La comparación propuesta: planificar contra reaccionar | Para la Entrega 2 |
+| **Posición dentro de la vuelta** al parar | Cuesta 0,1 s con un plan fijo y es decisivo para reaccionar | Requisito de la Entrega 3, no deuda de hoy |
+| **Re-salida del safety car** | 11 despliegues contra 8 períodos contados en 2026; es lo que decidió Bakú | Sí: contar despliegues y no corridas contiguas |
+| Agente de **Refuerzo** | La comparación propuesta: planificar contra reaccionar | Para la Entrega 3 |
 
 **Lo que no se va a hacer:** más términos en la aptitud esperando que deje de ser
 plana. El tráfico se midió, se implementó correctamente y no movió el resultado;
@@ -1567,9 +1700,12 @@ el escalón de compuestos se midió y no se pudo transferir. Dos negativos
 seguidos son suficiente señal.
 
 **Riesgo que se asume:** publicar una predicción antes de la carrera puede salir
-mal en público. Es a propósito, y ya pasó: la predicción para Monza estuvo mal
-por 18 segundos. Se evalúa si el rango estaba bien calculado, no si se acertó
-justo — y el caso enseñó más que un acierto.
+mal en público. Es a propósito, y ya pasó dos veces: la predicción para Monza
+estuvo mal por 18 segundos, y la de Bakú —ésta sí pre-registrada con criterios de
+falsación— salió uno de cuatro. Se evalúa si el rango estaba bien calculado, no si
+se acertó justo, y las dos veces el caso enseñó más que un acierto. La de Bakú
+además destapó un límite estructural que no estaba declarado, que es exactamente
+lo que un pronóstico pre-registrado sirve para encontrar.
 
 ---
 
@@ -1592,4 +1728,4 @@ Pasqualino, F.; Denoya, A.; Sánchez, C.; Sánchez, T.; Lingeri, M. (2025). *Cla
 Compuesto para la Fórmula 1 utilizando una Red Neuronal Artificial del Tipo Multiperceptrón*.
 TP N.º 2, Inteligencia Artificial, UTN FRBA. https://github.com/FrancoP08/TP2-IA-2025
 
-**Repositorio:** _(completar)_
+**Repositorio:** https://github.com/tomasanchez/boxbox
