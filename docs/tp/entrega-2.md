@@ -53,9 +53,11 @@ aptitud.
 | Calidad | uv, ruff, pytest, oxlint, TypeScript | Lint y tests en CI |
 
 **Se implementaron dos motores evolutivos sobre la misma función de aptitud** —DEAP
-y uno propio— y se compararon. Esa comparación está en «Pruebas realizadas» del informe, y no es
-decorativa: destapó que `eaMuPlusLambda` con `selTournament` **no es elitista** y
-que el salón de la fama se estaba calculando y descartando.
+y uno propio— y se compararon. **Los resultados publicados salen del motor propio**
+(`"engine": "builtin"` en la metadata del export); DEAP está implementado, funciona
+y se activa con un parámetro, pero su papel es el contraste. La comparación está en
+«Desarrollo» y no es decorativa: destapó que `eaMuPlusLambda` con `selTournament`
+**no es elitista** y que el salón de la fama se estaba calculando y descartando.
 
 ## 2. Construcción del prototipo
 

@@ -429,7 +429,23 @@ cátedra. La implementación se escribió primero a medida, porque el genoma es 
 paradas, separarlas al menos seis vueltas y forzar una parada cuando la tanda excede lo que la
 evidencia puede cotizar. Eso no encaja cómodo en los operadores estándar.
 
-**Ya está portado, y los dos motores conviven.** Se elige con un parámetro. El port es
+**Ya está portado, y los dos motores conviven.** Se elige con un parámetro.
+
+> **Qué motor produjo los números de este informe, porque conviene decirlo sin
+> rodeos: el propio.** Las dos implementaciones existen y las dos funcionan —
+> `boxbox_ml.deap_search` importa `algorithms`, `base`, `creator` y `tools` de
+> DEAP, y se activa con `engine="deap"`— pero el valor por omisión es `builtin`,
+> y el export que alimenta todas las cifras publicadas lo anota así en su
+> metadata: `"engine": "builtin"`.
+>
+> **DEAP se usa para contrastar, no para producir.** La comparación de más abajo
+> es su razón de ser: sobre 75 problemas los dos motores dan el mismo plan en el
+> 81,3% de los casos y ninguno le gana al otro de forma sistemática, así que
+> elegir uno u otro no cambia la respuesta — y el propio es un 20% más rápido.
+> Habiendo medido eso, producir con el motor propio es una decisión justificada
+> y no una omisión.
+
+El port es
 deliberadamente un re-alojamiento y no un rediseño: las semillas, la aptitud con números
 aleatorios comunes, el reparador, la cruza y la mutación son los mismos objetos; lo único que
 cambia es el bucle, que pasa a ser `eaMuPlusLambda` con selección por torneo. Los operadores de
