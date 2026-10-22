@@ -205,12 +205,66 @@ para entregar una es peor que proponer dos y cumplirlas.
 
 ---
 
+### Cómo funciona el algoritmo genético
+
+**El individuo.** Un plan es una secuencia de paradas de largo variable, de cero a
+cuatro. Cada parada lleva dos cosas: la vuelta en la que entra y el compuesto que
+calza. No hay codificación binaria ni vector de largo fijo: el genoma *es* el plan.
+
+**La población inicial** no es puramente al azar. Se siembra con los planes obvios
+—repartir la distancia en partes iguales para una, dos, tres y cuatro paradas, al
+compuesto más duradero— y el resto se completa con planes aleatorios. Sembrar
+importa: ciento dieciocho planes de dos paradas al azar dieron como mejor 93,3 s
+contra 91,0 del reparto parejo hecho a mano.
+
+**Selección: elitismo explícito.** Cada generación se ordena por aptitud y la cuarta
+parte superior —diez de cuarenta— pasa **intacta**. Los hijos se arman tomando un
+padre de esa élite y el otro de la población entera, así que el campeón nunca se
+pierde. Es la diferencia con el motor de DEAP, que usa `selTournament` dentro de
+`eaMuPlusLambda` y **no** garantiza que el mejor sobreviva.
+
+**Cruza en un punto, cortando por vuelta y no por índice.** Se sortea una vuelta de
+corte y el hijo hereda las paradas anteriores al corte de un padre y las
+posteriores del otro. Cortar por vuelta es lo que hace que el hijo tenga una
+primera mitad de carrera coherente y una segunda mitad coherente, en vez de
+intercalar dos planes que no tienen nada que ver.
+
+**La regla de mutación**, que se aplica al 60% de los hijos. Se sortea un número
+entre 0 y 1 y se hace una sola de cuatro cosas:
+
+| Sorteo | Operación | Condición |
+|---|---|---|
+| < 0,15 | **agrega** una parada en una vuelta al azar, con compuesto al azar | si tiene menos de 4 |
+| 0,15 – 0,30 | **quita** una parada al azar | si tiene alguna |
+| 0,30 – 0,65 | **mueve** una parada entre −6 y +6 vueltas | si tiene alguna |
+| > 0,65 | **cambia el compuesto** de una parada | si tiene alguna |
+
+O sea: 15% agregar, 15% quitar, 35% mover y 35% recompuestar. Las dos primeras
+cambian *cuántas* paradas y las dos últimas, *cómo* son. La ventana de ±6 vueltas
+es deliberadamente chica: mover una parada treinta vueltas produce otro plan
+distinto, no una variación del mismo, y eso es cruza y no mutación.
+
+**Reparación, después de cada operador.** Es la pieza que no es estándar y la que
+hace que el espacio sea recorrible. Todo hijo pasa por un reparador que impone, en
+este orden: paradas ordenadas y separadas por al menos 6 vueltas; ninguna tanda más
+larga que la vida medida de su compuesto (41 el duro, 31 el medio, 25 el blando);
+ninguna parada tan tarde que no quede carrera para amortizarla; y los **dos
+compuestos secos** que exige el artículo B6.3.8.
+
+Sin reparación, la mayoría de la población sería ilegal y la búsqueda gastaría sus
+evaluaciones en planes que ningún comisario dejaría correr. Con ella, **cualquier**
+mutación cae en un plan válido, y por eso la tasa de planes ilegales generados es
+cero y no hace falta penalizarlos en la aptitud.
+
+**El ciclo completo** son 25 generaciones de 40 individuos: 1.040 evaluaciones, cada
+una sobre 1.200 carreras sorteadas.
+
 ### La topología del sistema
 
 Un trabajo de redes neuronales muestra acá su pila de capas. La técnica de éste
 es un algoritmo genético sobre un simulador, así que la «topología» son tres
 cosas distintas y amontonarlas en un diagrama las haría ilegibles. Las tres se
-generan con `scripts/architecture_diagrams.py`.
+describen abajo.
 
 **De dónde salen los datos y en qué se convierten.**
 
@@ -238,10 +292,155 @@ sería inválida y el espacio dejaría de ser recorrible por mutación.
 
 ## 3. Método empleado para seleccionar los datos
 
-Para la construcción y la validación del sistema. Es la sección que decide si
-todo lo que viene después significa algo: una partición mal hecha —por vuelta
-en vez de por carrera, o al azar en vez de cronológica— filtra información del
-futuro y devuelve métricas que no se van a repetir.
+De dónde salen los datos, qué se tira y por qué, y qué queda para ajustar. Todo
+lo que sigue son las cifras del conjunto real, no una descripción del procedimiento.
+
+#### Volumen por temporada
+
+|   temporada |   carreras |   circuitos |   pilotos |   vueltas |
+|------------:|-----------:|------------:|----------:|----------:|
+|        2022 |         22 |          22 |        22 |    23,577 |
+|        2023 |         22 |          22 |        22 |    24,420 |
+|        2024 |         24 |          24 |        24 |    26,604 |
+|        2025 |         24 |          24 |        21 |    26,689 |
+|        2026 |         14 |          14 |        23 |    16,255 |
+| **total** | **106** | | | **117,545** |
+
+Cinco temporadas completas salvo 2026, que está en curso. Las temporadas viejas
+entran aunque el reglamento haya cambiado: se midió que agregarlas baja el error
+del modelo de degradación un 56%, y ese resultado está en la sección de pruebas.
+
+### Limpieza: qué se descarta y por qué
+
+#### Embudo de filtrado
+
+| paso                     |   vueltas | % del crudo   | pierde   | qué exige                                                                                                               |
+|:-------------------------|----------:|:--------------|:---------|:------------------------------------------------------------------------------------------------------------------------|
+| vueltas crudas de FastF1 |   117,545 | 100.0%        | —        | todo lo que devuelve la API                                                                                             |
+| con tiempo de vuelta     |   115,715 | 98.4%         | 1,830    | descarta abandonos y vueltas sin cronometrar                                                                            |
+| representativas          |   101,273 | 86.2%         | 14,442   | y además: no es entrada ni salida de boxes, no fue borrada por los comisarios, y pasa el control `IsAccurate` de FastF1 |
+| en seco                  |    95,782 | 81.5%         | 5,491    | fuera intermedio y lluvia, que el simulador no representa                                                               |
+
+**No hay un paso «en verde» aparte, y conviene explicar por qué.** De las 8,571 vueltas corridas bajo alguna bandera, **todas fallan el control `IsAccurate` de FastF1**, así que el filtro de representativas ya se las llevó: quedan 0 vueltas neutralizadas en el conjunto de ajuste. Filtrar por bandera después no saca ninguna fila más: es redundante, no incorrecto.
+
+Y el objetivo `degradation_s` resulta no nulo **exactamente** en esas mismas 101,273 filas, porque se calcula contra una referencia que sólo existe cuando la tanda tiene vueltas representativas.
+
+Los **14.442** que se pierden en el paso de representativas son, en orden de
+volumen: vueltas bajo bandera (que FastF1 marca imprecisas), entradas y salidas
+de boxes —que llevan el tránsito del pit lane y no describen ritmo— y vueltas
+anuladas por los comisarios. Ninguna se borra del conjunto: se marcan, porque una
+vuelta de entrada a boxes es inservible para medir ritmo y es **exactamente** donde
+vive la etiqueta de «paró».
+
+### La matriz de variables
+
+#### La matriz de columnas · 19 variables sobre 101,273 vueltas en verde
+
+| columna                    | qué es                                                    | tipo    | nulos   | mín · mediana · máx                  | rol                                  |
+|:---------------------------|:----------------------------------------------------------|:--------|:--------|:-------------------------------------|:-------------------------------------|
+| stint_lap                  | vuelta dentro de la tanda, 1 en la primera                | int64   | 0.0%    | 1.0 … 13.0 … 77.0                    | regresor                             |
+| TyreLife                   | vueltas que lleva el juego, incluye las de práctica       | float64 | 0.8%    | 1.0 … 13.0 … 78.0                    | regresor                             |
+| laps_remaining             | vueltas que faltan para la bandera                        | float64 | 0.0%    | 0.0 … 30.0 … 76.0                    | regresor                             |
+| TrackTemp                  | temperatura de pista (°C)                                 | float64 | 0.0%    | 15.6 … 35.5 … 57.5                   | regresor                             |
+| AirTemp                    | temperatura del aire (°C)                                 | float64 | 0.0%    | 12.1 … 24.5 … 37.2                   | regresor                             |
+| Compound                   | blando / medio / duro                                     | object  | 0.0%    | 7 valores · más común HARD (46%)     | regresor                             |
+| total_laps                 | largo de la carrera                                       | float64 | 0.0%    | 29.0 … 58.0 … 78.0                   | clasificador                         |
+| FreshTyre                  | el juego salió nuevo                                      | bool    | 0.0%    | 2 valores · más común True (80%)     | clasificador                         |
+| is_neutralised             | la vuelta corrió bajo alguna bandera                      | bool    | 0.0%    | 2 valores · más común False (93%)    | clasificador                         |
+| sc                         | safety car                                                | bool    | 0.0%    | 2 valores · más común False (95%)    | clasificador                         |
+| vsc                        | safety car virtual                                        | bool    | 0.0%    | 2 valores · más común False (98%)    | clasificador                         |
+| yellow                     | bandera amarilla                                          | bool    | 0.0%    | 2 valores · más común False (95%)    | clasificador                         |
+| circuit                    | el trazado                                                | object  | 0.0%    | 28 valores · más común Budapest (6%) | clasificador                         |
+| degradation_s              | segundos perdidos contra la referencia de la propia tanda | float64 | 0.0%    | -31.1 … 0.3 … 68.9                   | clasificador (de la vuelta anterior) |
+| degradation_rate_s_per_lap | pendiente de esa caída                                    | float64 | 5.6%    | -69.0 … 0.0 … 15.1                   | clasificador (de la vuelta anterior) |
+| lap_time_fuel_corrected    | vuelta con el efecto de combustible descontado            | float64 | 0.0%    | 65.8 … 85.3 … 146.6                  | clasificador (de la vuelta anterior) |
+| gap_ahead_s                | hueco al auto de adelante                                 | float64 | 5.5%    | 0.0 … 2.4 … 1144.7                   | clasificador (de la vuelta anterior) |
+| gap_behind_s               | hueco al de atrás                                         | float64 | 4.9%    | -848.7 … 2.4 … 3916.2                | clasificador (de la vuelta anterior) |
+| Position                   | puesto en esa vuelta                                      | float64 | 0.0%    | 1.0 … 10.0 … 22.0                    | clasificador (de la vuelta anterior) |
+
+Las tres primeras filas del regresor y las seis retardadas del clasificador son
+las que llevan información; el resto es contexto. El rol «de la vuelta anterior»
+no es un detalle: el clasificador tiene que decidir **antes** de ver la vuelta, así
+que consume el valor desplazado un lugar y nunca el de la vuelta que predice.
+
+### Qué se intenta predecir
+
+#### El objetivo: `degradation_s`, segundos perdidos contra la referencia de la tanda
+
+| compuesto   |   vueltas |    p10 |   mediana |   p90 |   desvio |
+|:------------|----------:|-------:|----------:|------:|---------:|
+| HARD        |    46,664 | -0.623 |     0.391 | 1.88  |    1.61  |
+| MEDIUM      |    36,717 | -0.67  |     0.335 | 1.679 |    1.857 |
+| SOFT        |    12,401 | -0.566 |     0.419 | 1.796 |    3.086 |
+
+El desvío es **mayor que la mediana en los tres compuestos**: la incertidumbre de una vuelta es más grande que la señal que se intenta predecir, y eso es lo que justifica simular en vez de estimar un valor puntual.
+
+
+### Las variables entre sí
+
+![Matriz de correlación de Spearman entre las variables del modelo](figuras/fig-correlacion.png)
+
+#### Matriz de correlación de Spearman · 95,782 vueltas
+
+|                         |   degradation_s |   stint_lap |   TyreLife |   laps_remaining |   total_laps |   TrackTemp |   AirTemp |   gap_ahead_s |   gap_behind_s |   Position |   lap_time_fuel_corrected |
+|:------------------------|----------------:|------------:|-----------:|-----------------:|-------------:|------------:|----------:|--------------:|---------------:|-----------:|--------------------------:|
+| degradation_s           |            1    |        0.31 |       0.3  |            -0.12 |         0.13 |        0.1  |      0.08 |          0.01 |           0    |       0.03 |                     -0.03 |
+| stint_lap               |            0.31 |        1    |       0.99 |            -0.43 |         0.08 |       -0.03 |     -0.03 |          0.21 |           0.15 |      -0.15 |                     -0.03 |
+| TyreLife                |            0.3  |        0.99 |       1    |            -0.44 |         0.09 |       -0.03 |     -0.03 |          0.21 |           0.14 |      -0.15 |                     -0.05 |
+| laps_remaining          |           -0.12 |       -0.43 |      -0.44 |             1    |         0.26 |        0.18 |      0.02 |         -0.31 |          -0.3  |       0.06 |                     -0.24 |
+| total_laps              |            0.13 |        0.08 |       0.09 |             0.26 |         1    |        0.21 |     -0.05 |          0.04 |           0.04 |       0    |                     -0.82 |
+| TrackTemp               |            0.1  |       -0.03 |      -0.03 |             0.18 |         0.21 |        1    |      0.7  |          0.02 |           0.02 |       0.01 |                     -0.16 |
+| AirTemp                 |            0.08 |       -0.03 |      -0.03 |             0.02 |        -0.05 |        0.7  |      1    |          0.04 |           0.05 |       0.01 |                      0.14 |
+| gap_ahead_s             |            0.01 |        0.21 |       0.21 |            -0.31 |         0.04 |        0.02 |      0.04 |          1    |           0.32 |      -0.12 |                     -0.02 |
+| gap_behind_s            |            0    |        0.15 |       0.14 |            -0.3  |         0.04 |        0.02 |      0.05 |          0.32 |           1    |      -0.1  |                     -0.03 |
+| Position                |            0.03 |       -0.15 |      -0.15 |             0.06 |         0    |        0.01 |      0.01 |         -0.12 |          -0.1  |       1    |                      0.07 |
+| lap_time_fuel_corrected |           -0.03 |       -0.03 |      -0.05 |            -0.24 |        -0.82 |       -0.16 |      0.14 |         -0.02 |          -0.03 |       0.07 |                      1    |
+
+Spearman y no Pearson porque varias columnas tienen colas largas —el hueco al de
+adelante llega a 1.144 s— y una correlación lineal las dejaría dominar.
+
+**Tres cosas salen de acá, y las tres cambian cómo hay que leer los resultados.**
+
+1. **`stint_lap` y `TyreLife` correlacionan 0,99.** Son la misma variable con dos
+   nombres: vueltas de la tanda y vueltas del juego coinciden salvo cuando el juego
+   venía usado de práctica. Tenerlas las dos en el regresor no agrega información,
+   le reparte la importancia a la misma señal entre dos columnas.
+2. **`total_laps` y el tiempo de vuelta correlacionan −0,82**, que es una identidad
+   disfrazada: las carreras largas son las de vuelta corta. Y las dos temperaturas
+   van a 0,70 entre sí.
+3. **El objetivo no correlaciona con nada por encima de 0,31.** Ésa es la cifra que
+   explica el resto del trabajo: el mejor predictor individual del desgaste de una
+   vuelta apenas lo roza, y todos los demás quedan en 0,13 o menos. Un regresor
+   sobre estas columnas no puede ir mucho más allá de la mediana — y la sección de
+   pruebas muestra que, en efecto, no va.
+
+Eso **no** invalida el enfoque: lo redirige. Si el valor de una vuelta no se puede
+predecir, lo que queda es describir bien su *distribución* y simular. Es la decisión
+de diseño central del trabajo y acá está su justificación numérica.
+
+### Dónde hay datos y dónde no
+
+#### Cobertura 2026 por circuito y compuesto (vueltas en verde con objetivo medible)
+
+| circuito          |   blando |   medio |   duro |   total |
+|:------------------|---------:|--------:|-------:|--------:|
+| Budapest          |      312 |     343 |    617 |    1272 |
+| Monte Carlo       |      254 |     600 |    323 |    1177 |
+| Spielberg         |      131 |     498 |    535 |    1164 |
+| Zandvoort         |      339 |     198 |    582 |    1119 |
+| Montréal          |      442 |     540 |     62 |    1044 |
+| Barcelona         |      118 |     258 |    659 |    1035 |
+| Madrid            |       75 |     155 |    781 |    1011 |
+| Suzuka            |        0 |     432 |    491 |     923 |
+| Monza             |       75 |     370 |    469 |     914 |
+| Miami Gardens     |       55 |     356 |    447 |     858 |
+| Silverstone       |       14 |     463 |    379 |     856 |
+| Melbourne         |      112 |     223 |    500 |     835 |
+| Shanghai          |       15 |     146 |    655 |     816 |
+| Spa-Francorchamps |       62 |     160 |    481 |     703 |
+
+**1 celdas vacías** de 42. Un circuito sin celdas propias se corre con el promedio de la temporada, que es exactamente lo que se hizo con Madrid y con Bakú.
+
 
 ### Datos
 
@@ -376,7 +575,7 @@ Qué se probó, con qué parámetros y qué dio. Las pruebas contra carreras rea
 
 Cinco semillas por combinación, todas juzgadas sobre las **mismas 20.000 carreras
 retenidas** — si el árbitro fuera tan ruidoso como lo que juzga, la tabla no
-diría nada. Reproducible con `scripts/hyperparameters.py`.
+diría nada.
 
 | # | Sorteos | Población | Generaciones | Evaluaciones | Tiempo medio | Dispersión entre semillas | |
 |---|---|---|---|---|---|---|---|
@@ -465,7 +664,7 @@ Madrid caían ahí.
 
 El p25, la mediana y el p75 **no se movieron**: son los mismos tres números de antes. Lo único
 que se agregó es lo que hay más allá, y alcanzó para mover resultados publicados. Se detalla en
-«Lo que cambió al medir la parada» y se reproduce con `scripts/effective_pit_loss.py`.
+«Lo que cambió al medir la parada».
 
 #### Hubo que ajustar el efecto del combustible, y no fue rápido
 
@@ -735,7 +934,7 @@ algoritmo agrega es acertar el caso del duro, donde la respuesta cambia.
 
 ### Lo que cambió al medir la parada
 
-Cambiar la pérdida de boxes de una triangular a su distribución medida (§4) movió
+Cambiar la pérdida de boxes de una triangular a su distribución medida movió
 cifras que este informe ya había publicado. Van todas, porque el criterio del
 trabajo es que una cifra que se mueve se declara:
 
@@ -767,7 +966,7 @@ tapando.** La pantalla sorteaba sus paradas con cortes de Zandvoort medidos
 contra la mediana verde *de la carrera* —un solo número por carrera, que le carga
 al auto el combustible, la evolución de la pista y el tráfico de esa vuelta—
 mientras el simulador usaba la mediana del campo *en esa misma vuelta*, que es la
-referencia correcta y para la que existe `scripts/effective_pit_loss.py`. Con una
+referencia correcta: la mediana del campo en esa misma vuelta. Con una
 triangular sólo se le pedían tres cuartiles a cada método y la diferencia pasaba
 inadvertida: 19,8 / 22,7 / 26,7 contra 20,6 / 23,5 / 31,3. Con los nueve cortes se
 separan justo en la cola, que es lo que los nueve cortes vinieron a representar:
@@ -791,9 +990,9 @@ disfrazada. Medir la distribución de la diferencia es trabajo pendiente.
 |---|---|---|
 | Simulador | Error del modelo de degradación | Mejor que la mediana ✅ |
 | Algoritmo genético | Segundos contra reglas enunciables | +10,8 a +10,9 s ✅ |
-| Sistema completo | ¿La estrategia real cayó en el rango? | Probado en Monza, ver §5 |
+| Sistema completo | ¿La estrategia real cayó en el rango? | Probado en Monza (Evaluación) |
 | Reglamento | Planes ilegales generados | Cero ✅ |
-| Pronóstico | Criterios de falsación escritos **antes** de la carrera | 1 de 4 en Bakú, ver §5 |
+| Pronóstico | Criterios de falsación escritos **antes** de la carrera | 1 de 4 en Bakú (Evaluación) |
 | Parada temprana | ¿La última generación es la mejor fuera de muestra? | **No**: parar antes gana 16 de 24 |
 | Tests automatizados | Núcleo del simulador | 143 tests, 1,7 s; dos defectos encontrados |
 
@@ -828,9 +1027,8 @@ entrenamiento/validación ya existía en el código** — la búsqueda optimiza 
 un juego de carreras sorteadas y su resultado se vuelve a puntuar sobre otro que
 nunca vio. Esa diferencia es `Search.optimism`.
 
-Las cuatro figuras salen de `scripts/validation_plots.py`, que lee los números de
-`scripts/holdout_eval.py` y `scripts/early_stopping.py` en vez de copiarlos, para
-que la figura y el número impreso no se puedan desincronizar.
+Las cuatro figuras se construyen a partir de los mismos números que aparecen en el
+texto, de modo que figura y cifra no puedan decir cosas distintas.
 
 #### La búsqueda, en muestra y fuera de ella
 
@@ -879,7 +1077,7 @@ Con esa precaución, sobre ocho semillas por tres compuestos de salida:
 **Nunca pierde, y lo que gana es del mismo orden que toda la ventaja del
 algoritmo sobre la mejor regla enunciable.** El arreglo es el de cualquier modelo
 entrenado —parada temprana sobre un juego retenido— y no está implementado: queda
-declarado, medido y reproducible con `scripts/early_stopping.py`.
+declarado y medido.
 
 #### El error del regresor de degradación
 
@@ -896,7 +1094,7 @@ datos de 2026 solos el modelo pierde contra predecir la mediana** (0,943 contra
 0,764) y el R² es negativo. La dispersión entre pliegues, de 0,72 a 1,09, dice que
 tampoco las cuatro particiones coinciden.
 
-Eso no contradice la tabla de §4: ahí la fila que gana es la de **todas las
+Eso no contradice la comparación contra la mediana de más arriba: ahí la fila que gana es la de **todas las
 temporadas** (0,698 contra 0,726), y la de 2026 sola también perdía. La figura
 muestra la partición exigente, que es la que corresponde enseñar.
 
@@ -1151,7 +1349,7 @@ orden se da vuelta por completo.
 
 > **Cómo se corrigió esta tabla, porque es el octavo error de la lista.** Una
 > versión anterior decía 57,95 / 78,96 / +21,01, y un vuelco de 22,5 s. Esos
-> números se midieron cuando se escribió `scripts/monza_2026.py` y **nunca se
+> números se midieron al armar el caso de Monza y **nunca se
 > volvieron a medir después de aplicar B6.3.8**. Trazado commit por commit: al
 > crear el script daba 21,01; al meter las tres banderas al sorteo, 20,74; al
 > obligar los dos compuestos secos, 18,40; al cambiar la pérdida de boxes por su
@@ -1222,7 +1420,7 @@ van pegadas — *¿la búsqueda encuentra buenos planes?* y *¿los números que 
 damos son correctos?*
 
 La predicción quedó congelada en `data/madrid2026_prediccion.json`, escrita sin
-cargar la carrera. Reproducible con `scripts/madrid_2026_review.py`.
+cargar la carrera.
 
 #### Lo que acertó
 
@@ -1684,8 +1882,7 @@ contadas, así que el costo de parar —y con él las cifras publicadas de este
 informe— no cambia. Lo subestimado es el número de **oportunidades distintas**,
 que es lo que usa la política de rivales reactivos, porque deja parar una vez por
 período. Esa política está detrás de una bandera, así que esto es una limitación
-declarada y no una corrección de resultados. Reproducible con
-`uv run python scripts/sc_redeployments.py`.
+declarada y no una corrección de resultados.
 
 **Una que parecía estructural y resultó no serlo.** El modelo decide si una parada
 sale barata mirando si **la vuelta** estaba neutralizada, sin saber en qué parte
@@ -1944,7 +2141,7 @@ lo que un pronóstico pre-registrado sirve para encontrar.
   déficit constante por vuelta durante toda la carrera, y el último de la grilla termina 223
   segundos atrás, casi tres vueltas. El factor 0,835 se validó con r=0,880 comparando hueco de
   quali contra ritmo de carrera, que es autoconsistente; lo que nunca se chequeó fue la
-  consecuencia. Medido en `scripts/laps_down.py`, sin corregir: tocar el ritmo mueve cada cifra de
+  consecuencia. Medido y sin corregir: tocar el ritmo mueve cada cifra de
   este informe.
 - ~~La **ventana de parada** sale hoy de una heurística y debería salir del propio genético.~~
   **Hecho**, y la heurística estaba peor de lo que este renglón sugería: calculaba un rango de
@@ -1989,4 +2186,6 @@ Pasqualino, F.; Denoya, A.; Sánchez, C.; Sánchez, T.; Lingeri, M. (2025). *Cla
 Compuesto para la Fórmula 1 utilizando una Red Neuronal Artificial del Tipo Multiperceptrón*.
 TP N.º 2, Inteligencia Artificial, UTN FRBA. https://github.com/FrancoP08/TP2-IA-2025
 
-**Repositorio:** https://github.com/tomasanchez/boxbox
+**Repositorio:** https://github.com/tomasanchez/boxbox — el código, los datos y los
+scripts que producen cada cifra y cada figura de este informe. Las mediciones están
+en el texto; el repositorio sirve para auditarlas, no para completarlas.
