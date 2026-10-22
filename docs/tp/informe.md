@@ -202,8 +202,11 @@ el pit lane. Se marcan aparte. Quedan usables el 90% de las vueltas.
 comparar la vuelta 8 con la vuelta 45.
 
 **3. `TyreLife` no es lo mismo que "vueltas de este stint".** Un piloto que arranca con gomas ya
-usadas en clasificación empieza la carrera con `TyreLife = 4`. Hay que contar las vueltas dentro
-del stint aparte.
+usadas en clasificación empieza la carrera con `TyreLife = 4`. Y no pasa sólo en la largada: un
+equipo puede calzar un juego usado en cualquier parada, y de hecho lo hace. Medido sobre las
+95.595 vueltas secas representativas, **las dos columnas coinciden en el 80,7%** —todas las de
+juego nuevo— y difieren en el 19,3% restante, con una mediana de 2 vueltas y un máximo de 25.
+Hay que contar las vueltas dentro del stint aparte.
 
 **4. Los cambios de goma bajo bandera roja son gratis.** Con la carrera detenida, cambiar
 neumáticos no cuesta tiempo. En Zandvoort 2026, 21 de 22 pilotos "pararon" en la vuelta 2 por una
@@ -301,10 +304,23 @@ adelante llega a 1.144 s— y una correlación lineal las dejaría dominar.
 
 **Tres cosas salen de acá, y las tres cambian cómo hay que leer los resultados.**
 
-1. **`stint_lap` y `TyreLife` correlacionan 0,99.** Son la misma variable con dos
-   nombres: vueltas de la tanda y vueltas del juego coinciden salvo cuando el juego
-   venía usado de práctica. Tenerlas las dos en el regresor no agrega información,
-   le reparte la importancia a la misma señal entre dos columnas.
+1. **`stint_lap` y `TyreLife` correlacionan 0,99, pero no son la misma variable**, y
+   la diferencia es la de arriba: vueltas de la tanda contra vueltas del juego. El
+   0,99 global esconde dos poblaciones:
+
+   | | vueltas | coinciden | correlación |
+   |---|---|---|---|
+   | juego **nuevo** (`FreshTyre`) | 77.108 · 80,7% | **100%** | 1,000 |
+   | juego **usado** | 18.487 · 19,3% | 8,2% | 0,966 |
+
+   En cuatro de cada cinco vueltas son **idénticas por construcción**; en la quinta
+   difieren una mediana de 2 vueltas y hasta 25. O sea que la redundancia es real
+   pero **de tres columnas y no de dos**: `stint_lap`, `TyreLife` y `FreshTyre`
+   guardan entre las tres la información que dos ya determinan. Tener las dos
+   primeras en el regresor reparte la importancia de la misma señal entre dos
+   columnas en el 80,7% de los casos, y sólo aporta algo distinto en el 19,3%
+   restante — que es, justamente, donde el modelo más necesitaría acertar, porque
+   un juego usado se degrada desde un punto que no es cero.
 2. **`total_laps` y el tiempo de vuelta correlacionan −0,82**, que es una identidad
    disfrazada: las carreras largas son las de vuelta corta. Y las dos temperaturas
    van a 0,70 entre sí.
