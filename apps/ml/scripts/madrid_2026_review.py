@@ -18,7 +18,7 @@ acertó la estructura y todas las capas que le agregué encima la empeoraron.**
   del 10% de las vueltas y corrió el 76%.
 
 Lo más útil está en la descomposición del final: **con el desgaste real medido en
-la carrera, y sin tocar nada más, la búsqueda propone M15-H41 y el ganador hizo
+la carrera, y sin tocar nada más, la búsqueda propone M17-H40 y el ganador hizo
 M14-H43.** El algoritmo nunca estuvo roto; los insumos sí.
 
 Correr con ``uv run python scripts/madrid_2026_review.py``.
@@ -303,7 +303,10 @@ print()
 # vuelta» y dejó de ser cierta al cambiar la pérdida de boxes, que movió la
 # parada recomendada sin que nadie volviera a leer la frase.
 _mine = found.best.stops[0].lap
-_theirs = int(winner_real.split("-")[0][1:]) + CAR.from_lap
+# `describe` cuenta la tanda desde `from_lap - 1`, así que una tanda de N
+# vueltas termina en la vuelta N + from_lap - 1. Con `+ from_lap` a secas
+# esto leía una vuelta de menos: el mismo desfasaje de siempre.
+_theirs = int(winner_real.split("-")[0][1:]) + CAR.from_lap - 1
 _gap = abs(_mine - _theirs)
 _word = "Una vuelta" if _gap == 1 else f"{_gap} vueltas"
 print(f"  {_word} de diferencia en la parada. Dándole los números correctos, la")

@@ -15,45 +15,51 @@ Inteligencia Artificial Avanzada — UTN FRBA — 2do Cuatrimestre 2026
 
 ## Resumen
 
-En una carrera de Fórmula 1, el equipo tiene que decidir cuándo parar en boxes y qué neumático
-poner. Es una decisión difícil: depende del desgaste de la goma, de los rivales cercanos y de si
-sale un Safety Car.
 
-Este trabajo propone un sistema que **arma el plan de neumáticos de una carrera**: cuántas
-paradas hacer, en qué vueltas y con qué compuesto. No predice quién gana.
+En una carrera de Fórmula 1 el equipo tiene que decidir cuándo parar en boxes y qué neumático
+poner. Este trabajo construye un sistema que **arma ese plan**: cuántas paradas, en qué vueltas y
+con qué compuesto. No predice quién gana.
 
-El foco está en la temporada **2026**, la primera del nuevo reglamento. Para entrenar se usan
-además las temporadas anteriores: se midió que agregarlas mejora el modelo un 56%, aunque el
-orden de desgaste de los compuestos se haya invertido este año.
+**La pregunta que organiza el informe es si funciona, y la respuesta honesta es que todavía no
+como pronosticador.** Se probó contra cuatro carreras reales de 2026 y el marcador es éste:
 
-La idea central es un **simulador de carrera** y, sobre él, un **Algoritmo Genético** que busca
-el mejor plan. Como comparación se propone un **agente de Aprendizaje por Refuerzo** que decide
-vuelta a vuelta.
+| Prueba | Veredicto |
+|---|---|
+| **Monza**, fecha 13 | falló: recomendó una parada, el ganador hizo dos — 18 s de error |
+| **Madrid**, fecha 14 | acertó la forma del plan ganador, falló el desgaste por un factor de tres |
+| **Compuesto de salida**, grilla de 22 | falló: pone medio 0 de 22 y la realidad lo pone entre 55% y 85% |
+| **Bakú**, fecha 15 | 1 de 4 criterios, escritos y commiteados **antes** de la carrera |
 
-**Estado.** El pipeline de datos, el simulador y el algoritmo genético están construidos y
-medidos; el agente de refuerzo no. El algoritmo le gana casi once segundos de carrera a
-cualquier regla que se pueda enunciar de antemano, y lo que gana es el valor de acertar la cantidad
-de paradas.
+Tres de esas cuatro las decidió **una neutralización**, y ahí hay un techo que ningún dato
+levanta: las distribuciones medidas aciertan *que* va a salir un safety car, no *cuándo*, y el
+cuándo es lo que fija el plan. En Monza el 90,6% de las paradas salieron gratis; en Bakú, 35 de
+38; en Madrid, un VSC en la vuelta 14 se llevó 10 de 28.
 
-Ese resultado corrige una versión anterior de este informe, que reportaba que el algoritmo apenas
-le ganaba a una regla simple. Esa conclusión salía de una comparación mal armada, a favor de la
-regla, y de cuatro defectos de método en la búsqueda. Las secciones 4, 5 y 6 documentan los nueve
-errores propios que se encontraron y corrigieron, porque todos daban números confiados y plausibles
-hasta que algo aguas abajo salió absurdo.
+**Lo que sí quedó demostrado, y es un resultado distinto.** En Madrid, volviendo a correr la
+búsqueda con el desgaste medido *en la carrera* y sin tocar nada más, propone `M17-H40` contra el
+`M14-H43` que hizo el ganador: tres vueltas. **El algoritmo no estaba roto; los insumos sí**, y
+eso dice dónde está el retorno y dónde no.
 
-La prueba más dura la dio Monza 2026, cuatro fechas después de la carrera sobre la que está armado
-el simulador: **el modelo se equivocó por dieciocho segundos**, y por qué se equivocó es el
-resultado más útil del trabajo. Está en la sección 6.
+Sobre el método: el sistema le gana **casi once segundos** de carrera a cualquier regla fija que
+se pueda enunciar de antemano, genera **cero planes ilegales**, y una medición nueva de esta
+entrega muestra que **entrena de más** — parar en la generación que mejor puntúa fuera de muestra
+gana 16 de 24 corridas y nunca pierde.
 
-La prueba más limpia la dio **Bakú 2026**, y lo que la hace limpia es el orden: la predicción se
-escribió con criterios de falsación explícitos y se commiteó **antes** de cargar la carrera. Salió
-**uno de cuatro**, y el análisis de por qué falló vale más que el marcador — tres de los cuatro
-criterios los decidió un safety car que salió dos veces, y al ir a explicarlo apareció un límite
-estructural del modelo que no estaba declarado.
+La idea central es un **simulador Monte Carlo** y, sobre él, un **Algoritmo Genético** —con dos
+motores, DEAP y uno propio— que busca el mejor plan. El foco es la temporada **2026**, la primera
+del nuevo reglamento; agregar las anteriores mejora el modelo un 56%. Como contraste queda
+propuesto un **agente de Aprendizaje por Refuerzo**, que corresponde a la Entrega 3.
+
+Las secciones 4, 5 y 6 documentan además los **errores propios** que se encontraron y
+corrigieron, porque todos daban números confiados y plausibles hasta que algo aguas abajo salió
+absurdo. Uno de ellos cambió una conclusión central del informe anterior.
+
+---
 
 ---
 
 ## 1. Introducción
+
 
 Cada vuelta, el ingeniero de estrategia tiene que responder una pregunta simple de enunciar y
 difícil de contestar: ¿entro a boxes ahora o sigo?
@@ -77,7 +83,165 @@ neumáticos y posición, y esto se aclara desde el principio.
 
 ---
 
-## 2. Materiales Disponibles
+---
+
+## 2. Herramientas, frameworks y librerías seleccionadas
+
+
+Tres piezas:
+
+**1. Simulador de carrera (la base).** Simula una carrera vuelta a vuelta: cuánto se degrada cada
+goma, cuánto cuesta parar, y si sale o no un Safety Car. Se corre miles de veces para ver todos
+los escenarios posibles. No es una técnica de IA: es el banco de pruebas de las que sí lo son.
+
+**2. Algoritmo Genético (la técnica principal — Unidad 3).**
+
+Un algoritmo genético busca la mejor solución imitando la evolución: prueba muchas opciones, se
+queda con las mejores, las combina entre sí y repite el proceso muchas veces.
+
+Acá cada "individuo" es **un plan de carrera completo**. Por ejemplo:
+
+> *Arrancar con neumático Medio y parar en la vuelta 18. Poner Duro y parar en la vuelta 43.
+> Terminar con Blando.*
+
+El procedimiento es:
+
+1. **Se generan 100 planes al azar.**
+2. **Se le pone una nota a cada uno.** Se simula la carrera con ese plan y se mira en qué
+   posición termina el auto. Cuanto más adelante, mejor la nota. A eso se lo llama **función de
+   aptitud**.
+3. **Se eligen los mejores y se combinan.** De dos planes buenos sale uno nuevo que toma el
+   principio de uno y el final del otro. Eso es el **cruce**.
+4. **De vez en cuando se cambia algo al azar:** alargar un stint dos vueltas, acortarlo, o
+   cambiar el compuesto. Eso es la **mutación**, y sirve para que la búsqueda no se quede
+   siempre dando vueltas alrededor de las mismas ideas.
+5. **Se repite 200 veces.** Los planes malos se descartan, los buenos se mezclan entre sí, y al
+   final queda el mejor que se encontró.
+
+**El reglamento actúa como filtro.** Un plan que use un solo compuesto de seco queda descartado
+de entrada, porque en la carrera real sería descalificación. Nunca llega a competir.
+
+**Sobre DEAP.** La propuesta decía que se iba a usar DEAP, la librería que recomienda la
+cátedra. La implementación se escribió primero a medida, porque el genoma es de largo variable
+—un plan tiene una, dos o tres paradas— y necesita reglas de reparación propias: ordenar las
+paradas, separarlas al menos seis vueltas y forzar una parada cuando la tanda excede lo que la
+evidencia puede cotizar. Eso no encaja cómodo en los operadores estándar.
+
+**Ya está portado, y los dos motores conviven.** Se elige con un parámetro. El port es
+deliberadamente un re-alojamiento y no un rediseño: las semillas, la aptitud con números
+aleatorios comunes, el reparador, la cruza y la mutación son los mismos objetos; lo único que
+cambia es el bucle, que pasa a ser `eaMuPlusLambda` con selección por torneo. Los operadores de
+caja de DEAP no sirven acá —`cxTwoPoint` asume largo fijo y no sabe de restricciones— así que se
+registran los propios en un `Toolbox`, que es la forma en que se espera leer un algoritmo
+genético.
+
+Dos cosas que el port enseñó. La primera: **el caché de aptitud de DEAP acá es correcto**, y no
+era obvio. DEAP no reevalúa un individuo cuya aptitud sigue válida, lo cual es el error clásico
+con Monte Carlo; pero la nuestra usa números aleatorios comunes con semilla fija, así que para un
+plan dado es determinística. La segunda salió de verificar: **`eaMuPlusLambda` y `selTournament`
+usan el generador global de `random`, que nunca sembrábamos**, así que el motor DEAP era no
+determinístico y dos corridas idénticas daban planes distintos. Está sembrado desde el mismo
+generador que ya comparte la búsqueda.
+
+Verificado sobre 75 problemas —tres compuestos de salida, cuatro posiciones de grilla, tres
+apetitos de riesgo, cinco semillas— comparando el puntaje fuera de muestra: **DEAP gana 9, el
+motor propio 2, empatan 64**, con el mismo plan exacto en el **81,3%** de los casos. Ninguno le
+gana al otro de forma sistemática; DEAP cuesta 6,74 s por búsqueda contra 5,36 s.
+
+> **Esta comparación se rehízo, porque la primera estaba viciada.** Decía «DEAP gana 7, el propio
+> 6, empatan 62» con 74,7% de acuerdo, y se corrió cuando el motor DEAP todavía **descartaba su
+> salón de la fama**: podía devolver un plan peor que el mejor que él mismo había encontrado. Parte
+> de lo que el motor propio le ganaba era eso. Corregido, DEAP sube y el acuerdo también, que es lo
+> que uno espera si el defecto era ruido de selección y no exploración distinta.
+
+Dos lecciones de método salieron del propio experimento, y las dos son sobre **cuándo una
+comparación significa algo**.
+
+**«Mismo plan» sólo vale donde la aptitud discrimina.** El auto vigésimo con apetito conservador
+tiene 0% de acuerdo entre motores y puntaje idéntico −20,000 en los dos — termina vigésimo haga lo
+que haga, así que todos los planes empatan y cada motor se queda con uno distinto.
+
+**Y «mismo puntaje» sólo vale donde los dos miden en la misma unidad.** Doce de los quince grupos
+de problemas coinciden dentro de 0,06; los tres restantes son todos el auto que larga
+decimotercero, justo en la burbuja de los puntos, y ahí los puntajes son −5,092 contra 0,193. No
+es que un motor encuentre algo mucho mejor: es que el objetivo **adaptativo** resolvió distinto en
+cada uno —uno terminó puntuando en puestos y el otro en puntos— y esos dos números no se pueden
+restar. La diferencia absoluta media de 0,86 que reporta el script es esa resta, y no mide
+calidad. Sin P13 es de seis milésimas.
+
+**3. Agente de Aprendizaje por Refuerzo (comparación — Unidad 5).**
+
+El algoritmo genético arma el plan **antes de largar**. Pero en una carrera real las cosas
+cambian: sale un Safety Car, empieza a llover, un rival para antes de lo previsto. Un agente de
+aprendizaje por refuerzo decide **sobre la marcha**.
+
+La idea es la de enseñarle a jugar a alguien que no sabe las reglas, sólo si le fue bien o mal:
+
+1. **El agente ve el estado de la carrera** en cada vuelta: en qué posición está, cuánto se
+   degradó su goma, a cuánto tiene al de adelante y al de atrás, si hay Safety Car.
+2. **Elige una acción:** seguir en pista, o boxear y con qué compuesto.
+3. **Se simula la carrera hasta el final** y se le da un **premio**: las posiciones que ganó o
+   perdió.
+4. **Se repite miles de carreras.** Al principio decide cualquier cosa. Con el tiempo aprende
+   solo que boxear con Safety Car sale barato y que quedarse demasiado con la goma gastada sale
+   caro. Nadie se lo programó: lo dedujo de los premios.
+
+La demo de la cátedra sobre Blackjack (`Q-Blackjack.ipynb`) es el mismo problema con otra ropa:
+decidir "pido carta o me planto" bajo incertidumbre, donde seguir conviene hasta cierto punto y
+después arruina la mano. Cambiar eso por "sigo o boxeo" es casi cambiarle el nombre.
+
+**Lo interesante es la comparación:** planificar todo de antemano (el genético) contra reaccionar
+a lo que va pasando (el agente). Cuál gana, y en qué tipo de carreras gana cada uno, es en sí un
+resultado del trabajo.
+
+El simulador se programa con la interfaz **`gymnasium`**, que es la que usa la demo de la
+cátedra, así sirve para las dos técnicas sin escribirlo dos veces.
+
+**Herramientas:** Python, `fastf1`, `pandas`, `DEAP`, `gymnasium`, `LightGBM`, Google Colab.
+
+**Línea futura:** una red bayesiana con `pgmpy` para modelar la incertidumbre del Safety Car. Se
+declara como línea futura y no como promesa: el trabajo es individual y prometer cuatro técnicas
+para entregar una es peor que proponer dos y cumplirlas.
+
+---
+
+### La topología del sistema
+
+Un trabajo de redes neuronales muestra acá su pila de capas. La técnica de éste
+es un algoritmo genético sobre un simulador, así que la «topología» son tres
+cosas distintas y amontonarlas en un diagrama las haría ilegibles. Las tres se
+generan con `scripts/architecture_diagrams.py`.
+
+**De dónde salen los datos y en qué se convierten.**
+
+![Pipeline del sistema, de FastF1 a la interfaz](figuras/fig-pipeline.png)
+
+**Cómo se codifica un individuo y qué le hacen los operadores.** Es el análogo
+más directo de la topología de una red, porque es lo que define el espacio que la
+búsqueda recorre: un plan es una secuencia de paradas de **largo variable**, de
+cero a cuatro, y cada gen lleva una vuelta y un compuesto.
+
+![Codificación del cromosoma y cadena de operadores del algoritmo genético](figuras/fig-cromosoma.png)
+
+La pieza que no es estándar es la **reparación**. Cualquier mutación cae en un
+plan legal —separación mínima entre paradas, vida máxima de cada juego, y los dos
+compuestos secos que exige B6.3.8— así que la búsqueda nunca gasta evaluaciones
+en planes que el reglamento no permite. Sin ella, la mayor parte de la población
+sería inválida y el espacio dejaría de ser recorrible por mutación.
+
+**Cómo se puntúa un plan**, que es donde vive el simulador:
+
+![El lazo de aptitud: sorteos compartidos, objetivo y apetito de riesgo](figuras/fig-aptitud.png)
+
+
+---
+
+## 3. Método empleado para seleccionar los datos
+
+Para la construcción y la validación del sistema. Es la sección que decide si
+todo lo que viene después significa algo: una partición mal hecha —por vuelta
+en vez de por carrera, o al azar en vez de cronológica— filtra información del
+futuro y devuelve métricas que no se van a repetir.
 
 ### Datos
 
@@ -201,172 +365,46 @@ aparece a la vez en entrenamiento y validación.
 
 ---
 
-## 3. Solución Propuesta
-
-Tres piezas:
-
-**1. Simulador de carrera (la base).** Simula una carrera vuelta a vuelta: cuánto se degrada cada
-goma, cuánto cuesta parar, y si sale o no un Safety Car. Se corre miles de veces para ver todos
-los escenarios posibles. No es una técnica de IA: es el banco de pruebas de las que sí lo son.
-
-**2. Algoritmo Genético (la técnica principal — Unidad 3).**
-
-Un algoritmo genético busca la mejor solución imitando la evolución: prueba muchas opciones, se
-queda con las mejores, las combina entre sí y repite el proceso muchas veces.
-
-Acá cada "individuo" es **un plan de carrera completo**. Por ejemplo:
-
-> *Arrancar con neumático Medio y parar en la vuelta 18. Poner Duro y parar en la vuelta 43.
-> Terminar con Blando.*
-
-El procedimiento es:
-
-1. **Se generan 100 planes al azar.**
-2. **Se le pone una nota a cada uno.** Se simula la carrera con ese plan y se mira en qué
-   posición termina el auto. Cuanto más adelante, mejor la nota. A eso se lo llama **función de
-   aptitud**.
-3. **Se eligen los mejores y se combinan.** De dos planes buenos sale uno nuevo que toma el
-   principio de uno y el final del otro. Eso es el **cruce**.
-4. **De vez en cuando se cambia algo al azar:** alargar un stint dos vueltas, acortarlo, o
-   cambiar el compuesto. Eso es la **mutación**, y sirve para que la búsqueda no se quede
-   siempre dando vueltas alrededor de las mismas ideas.
-5. **Se repite 200 veces.** Los planes malos se descartan, los buenos se mezclan entre sí, y al
-   final queda el mejor que se encontró.
-
-**El reglamento actúa como filtro.** Un plan que use un solo compuesto de seco queda descartado
-de entrada, porque en la carrera real sería descalificación. Nunca llega a competir.
-
-**Sobre DEAP.** La propuesta decía que se iba a usar DEAP, la librería que recomienda la
-cátedra. La implementación se escribió primero a medida, porque el genoma es de largo variable
-—un plan tiene una, dos o tres paradas— y necesita reglas de reparación propias: ordenar las
-paradas, separarlas al menos seis vueltas y forzar una parada cuando la tanda excede lo que la
-evidencia puede cotizar. Eso no encaja cómodo en los operadores estándar.
-
-**Ya está portado, y los dos motores conviven.** Se elige con un parámetro. El port es
-deliberadamente un re-alojamiento y no un rediseño: las semillas, la aptitud con números
-aleatorios comunes, el reparador, la cruza y la mutación son los mismos objetos; lo único que
-cambia es el bucle, que pasa a ser `eaMuPlusLambda` con selección por torneo. Los operadores de
-caja de DEAP no sirven acá —`cxTwoPoint` asume largo fijo y no sabe de restricciones— así que se
-registran los propios en un `Toolbox`, que es la forma en que se espera leer un algoritmo
-genético.
-
-Dos cosas que el port enseñó. La primera: **el caché de aptitud de DEAP acá es correcto**, y no
-era obvio. DEAP no reevalúa un individuo cuya aptitud sigue válida, lo cual es el error clásico
-con Monte Carlo; pero la nuestra usa números aleatorios comunes con semilla fija, así que para un
-plan dado es determinística. La segunda salió de verificar: **`eaMuPlusLambda` y `selTournament`
-usan el generador global de `random`, que nunca sembrábamos**, así que el motor DEAP era no
-determinístico y dos corridas idénticas daban planes distintos. Está sembrado desde el mismo
-generador que ya comparte la búsqueda.
-
-Verificado sobre 75 problemas —tres compuestos de salida, cuatro posiciones de grilla, tres
-apetitos de riesgo, cinco semillas— comparando el puntaje fuera de muestra: **DEAP gana 9, el
-motor propio 2, empatan 64**, con el mismo plan exacto en el **81,3%** de los casos. Ninguno le
-gana al otro de forma sistemática; DEAP cuesta 6,74 s por búsqueda contra 5,36 s.
-
-> **Esta comparación se rehízo, porque la primera estaba viciada.** Decía «DEAP gana 7, el propio
-> 6, empatan 62» con 74,7% de acuerdo, y se corrió cuando el motor DEAP todavía **descartaba su
-> salón de la fama**: podía devolver un plan peor que el mejor que él mismo había encontrado. Parte
-> de lo que el motor propio le ganaba era eso. Corregido, DEAP sube y el acuerdo también, que es lo
-> que uno espera si el defecto era ruido de selección y no exploración distinta.
-
-Dos lecciones de método salieron del propio experimento, y las dos son sobre **cuándo una
-comparación significa algo**.
-
-**«Mismo plan» sólo vale donde la aptitud discrimina.** El auto vigésimo con apetito conservador
-tiene 0% de acuerdo entre motores y puntaje idéntico −20,000 en los dos — termina vigésimo haga lo
-que haga, así que todos los planes empatan y cada motor se queda con uno distinto.
-
-**Y «mismo puntaje» sólo vale donde los dos miden en la misma unidad.** Doce de los quince grupos
-de problemas coinciden dentro de 0,06; los tres restantes son todos el auto que larga
-decimotercero, justo en la burbuja de los puntos, y ahí los puntajes son −5,092 contra 0,193. No
-es que un motor encuentre algo mucho mejor: es que el objetivo **adaptativo** resolvió distinto en
-cada uno —uno terminó puntuando en puestos y el otro en puntos— y esos dos números no se pueden
-restar. La diferencia absoluta media de 0,86 que reporta el script es esa resta, y no mide
-calidad. Sin P13 es de seis milésimas.
-
-**3. Agente de Aprendizaje por Refuerzo (comparación — Unidad 5).**
-
-El algoritmo genético arma el plan **antes de largar**. Pero en una carrera real las cosas
-cambian: sale un Safety Car, empieza a llover, un rival para antes de lo previsto. Un agente de
-aprendizaje por refuerzo decide **sobre la marcha**.
-
-La idea es la de enseñarle a jugar a alguien que no sabe las reglas, sólo si le fue bien o mal:
-
-1. **El agente ve el estado de la carrera** en cada vuelta: en qué posición está, cuánto se
-   degradó su goma, a cuánto tiene al de adelante y al de atrás, si hay Safety Car.
-2. **Elige una acción:** seguir en pista, o boxear y con qué compuesto.
-3. **Se simula la carrera hasta el final** y se le da un **premio**: las posiciones que ganó o
-   perdió.
-4. **Se repite miles de carreras.** Al principio decide cualquier cosa. Con el tiempo aprende
-   solo que boxear con Safety Car sale barato y que quedarse demasiado con la goma gastada sale
-   caro. Nadie se lo programó: lo dedujo de los premios.
-
-La demo de la cátedra sobre Blackjack (`Q-Blackjack.ipynb`) es el mismo problema con otra ropa:
-decidir "pido carta o me planto" bajo incertidumbre, donde seguir conviene hasta cierto punto y
-después arruina la mano. Cambiar eso por "sigo o boxeo" es casi cambiarle el nombre.
-
-**Lo interesante es la comparación:** planificar todo de antemano (el genético) contra reaccionar
-a lo que va pasando (el agente). Cuál gana, y en qué tipo de carreras gana cada uno, es en sí un
-resultado del trabajo.
-
-El simulador se programa con la interfaz **`gymnasium`**, que es la que usa la demo de la
-cátedra, así sirve para las dos técnicas sin escribirlo dos veces.
-
-**Herramientas:** Python, `fastf1`, `pandas`, `DEAP`, `gymnasium`, `LightGBM`, Google Colab.
-
-**Línea futura:** una red bayesiana con `pgmpy` para modelar la incertidumbre del Safety Car. Se
-declara como línea futura y no como promesa: el trabajo es individual y prometer cuatro técnicas
-para entregar una es peor que proponer dos y cumplirlas.
-
 ---
 
-## 4. Desarrollo
+## 4. Pruebas realizadas
 
-### Lo que ya está hecho
+Qué se probó, con qué parámetros y qué dio. Las pruebas contra carreras reales
+—que son la evaluación del sistema y no una corrida más— van en la sección 5.
 
-- **El pipeline de datos completo**: descarga, limpieza y cálculo de variables, sobre 103
-  carreras y 114.414 vueltas.
-- **El simulador de carrera**, con todo lo que sortea medido: desgaste, pérdida de boxes,
-  Safety Car, ruido de ritmo y tráfico.
-- **El algoritmo genético**, que para cada auto busca el plan de paradas con mejor distribución
-  de resultados sobre cientos de carreras sorteadas.
-- **Una interfaz de simulación** que muestra la carrera corriendo con los insights de estrategia
-  encima del trazado, al estilo de las gráficas de la transmisión.
-- **Tres cuadernos Jupyter** que dejan el registro reproducible de los datos, la limpieza y cada
-  medición, con el cálculo a la vista y no sólo el resultado.
+### Las corridas: qué parámetros se probaron
 
-### Lo que falta
+Cinco semillas por combinación, todas juzgadas sobre las **mismas 20.000 carreras
+retenidas** — si el árbitro fuera tan ruidoso como lo que juzga, la tabla no
+diría nada. Reproducible con `scripts/hyperparameters.py`.
 
-- El agente de Aprendizaje por Refuerzo, que era la comparación propuesta.
-- El tráfico de **rezagados**. El 28,4% de los pilotos terminan al menos una vuelta abajo, y la
-  medición actual los excluye por construcción. Y midiéndolo apareció algo peor: **el modelo dobla
-  al doble de autos que la realidad** —54,8% contra 28,4%, con el cajón de dos vueltas abajo siete
-  veces más grande— porque `pace_from_qualifying` extrapola el hueco de clasificación como un
-  déficit constante por vuelta durante toda la carrera, y el último de la grilla termina 223
-  segundos atrás, casi tres vueltas. El factor 0,835 se validó con r=0,880 comparando hueco de
-  quali contra ritmo de carrera, que es autoconsistente; lo que nunca se chequeó fue la
-  consecuencia. Medido en `scripts/laps_down.py`, sin corregir: tocar el ritmo mueve cada cifra de
-  este informe.
-- ~~La **ventana de parada** sale hoy de una heurística y debería salir del propio genético.~~
-  **Hecho**, y la heurística estaba peor de lo que este renglón sugería: calculaba un rango de
-  *factibilidad* con nombre de rango de *optimalidad* —35 vueltas de ancho, con el cierre en una
-  constante idéntica para los veintidós autos— y para los once que largan en blando describía un
-  plan que el modelo no puede correr. Ahora  mueve la parada por todas las vueltas
-  representables y se queda con la banda que cae dentro de un cuarto de puesto del óptimo, sobre
-  las mismas carreras sorteadas. Se puntúa en **puestos y no en segundos**, que es lo que la hace
-  parecerse a la de la transmisión: nueve vueltas de ancho en blando, catorce a dieciséis en duro.
-  Y resiste la elección de datos, que era la duda razonable: el desgaste de Zandvoort medido con
-  todas las temporadas difiere del de 2026 un 11% en blando, un 14% en duro y un **49,5% en
-  medio**, y aun así la ventana se corre **cero vueltas en la mediana** —doce de los veintidós dan
-  idénticos—. Es una comparación entre vueltas del mismo modelo, no un valor absoluto, y se puntúa
-  en puestos, que son discretos. La excepción es el único auto que larga en medio, que se corre
-  2,5 vueltas: es el compuesto con la celda más fina del circuito, once tandas. Esa celda se
-  revisó aparte y **no es frágil**: sacando cualquiera de las once la mediana se mueve 0,0086,
-  el intervalo del 95% va de 0,0839 a 0,1193 y deja **afuera** al 0,0625 de la otra medición —o
-  sea que la diferencia entre eras es real y no ruido—, y entre los catorce circuitos de 2026
-  Zandvoort sale duodécimo, alto pero no extremo. Lo que sostiene el número pese a la muestra
-  chica es haber elegido la mediana: dos de las once tandas dan 0,22 y 0,59 s/vuelta, que no es
-  desgaste sino autos rotos, y una media daría 0,133 gobernada por ellas.
+| # | Sorteos | Población | Generaciones | Evaluaciones | Tiempo medio | Dispersión entre semillas | |
+|---|---|---|---|---|---|---|---|
+| 1 | 200 | 40 | 25 | 1.040 | 94,36 s | 0,51 | |
+| 2 | 400 | 40 | 25 | 1.040 | 94,05 s | 0,40 | |
+| 3 | 800 | 40 | 25 | 1.040 | **93,99 s** | **0,21** | mejor |
+| 4 | 1.200 | 40 | 25 | 1.040 | 94,05 s | 0,57 | ← la que corre |
+| 5 | 1.200 | 20 | 25 | 520 | 94,23 s | 1,17 | |
+| 6 | 1.200 | 80 | 25 | 2.080 | 94,32 s | 1,17 | |
+| 7 | 1.200 | 40 | 10 | 440 | 94,03 s | 0,59 | |
+| 8 | 1.200 | 40 | 50 | 2.040 | 94,32 s | 1,17 | |
+
+Tres lecturas, y ninguna es la que uno esperaría:
+
+1. **Más sorteos dejan de pagar antes de los 1.200 que usa producción.** El salto
+   real es salir de 200, donde la aptitud es ruido y la búsqueda elige por suerte.
+2. **Población y generaciones casi no mueven la aguja, y de más empeora.** El
+   espacio es chico y el reparador descarta lo ilegal antes de evaluar, así que
+   más presupuesto no compra nada.
+3. **Diez generaciones empatan con veinticinco** (94,03 contra 94,05), que es la
+   misma señal que da la medición de parada temprana más abajo.
+
+> **La advertencia que la tabla se hace a sí misma.** La dispersión entre semillas
+> va de 0,21 a 1,17 s y las diferencias entre configuraciones son de 0,05 a 0,33.
+> Con cinco semillas esto **no puede ordenar las filas con confianza**: distingue
+> la de 200 del resto y poco más. Elegir «la mejor configuración» con estos datos
+> sería leer como señal una diferencia del tamaño del ruido, que es exactamente el
+> error que este trabajo viene documentando.
 
 ### Lo que encontramos al probar
 
@@ -645,7 +683,295 @@ Para Madrid la respuesta honesta es el promedio global con la incertidumbre decl
 
 ---
 
-## 5. Resultados
+### Contra qué se compara, y una comparación que estaba mal armada
+
+La primera versión de esta sección decía que el algoritmo apenas le ganaba a una
+regla simple. **Esa conclusión era producto de una comparación amañada**, y hay
+que corregirla.
+
+La «regla» contra la que se medía tomaba el **mínimo sobre una, dos y tres
+paradas** y siempre calzaba duro. Eso no es una regla que alguien pueda seguir
+antes de una carrera: es un oráculo al que ya le dijeron las dos respuestas
+difíciles, dejándole a la búsqueda sólo las vueltas.
+
+Separando las tres decisiones:
+
+| Decisión | Cuánto vale |
+|---|---|
+| **Cuántas paradas** | **12,5 s de carrera** |
+| A qué compuesto cambiar | 5,7 s entre la mejor y la peor combinación |
+| En qué vuelta parar | 0,30 s |
+
+Y el número correcto de paradas **no es el mismo para todos**: el que larga en
+duro quiere una, los que largan en medio o blando quieren dos.
+
+Contra reglas que sí se pueden enunciar de antemano:
+
+| Regla | Ventaja del algoritmo |
+|---|---|
+| «siempre 1 parada, duro» | **+10,80 s** |
+| «siempre 2 paradas, duro» | +0,07 |
+| «siempre 3 paradas, duro» | **+10,91 s** |
+| el oráculo | +0,07 |
+
+**El algoritmo le gana a cualquier regla enunciable, y lo que gana es exactamente
+el valor de acertar la cantidad de paradas.** Contra el oráculo empata, y ésa era
+la comparación que se venía reportando como si fuera la relevante.
+
+> **La primera fila se movió una vez más, y el motivo es instructivo.** Decía
+> +8,56 s hasta que los tests destaparon que `_enforce_two_compounds` corría
+> *después* del control de presupuesto sin volver a mirarlo. «Siempre 1 parada,
+> duro» es un plan de un solo compuesto, así que la obligación reglamentaria le
+> cambiaba el juego final — y lo dejaba corriendo **37 vueltas de medio** en una
+> carrera de 72, con el medio topado en 31. O sea que la línea base se estaba
+> puntuando con una tanda más larga que cualquier cosa medida, y por eso salía
+> más fuerte de lo que es. Arreglado, la ventaja del algoritmo sobre ella es de
+> **+10,80 s**. Las otras tres filas no se movieron.
+
+Matiz honesto: «siempre dos paradas al duro» queda a siete centésimas del
+algoritmo, porque
+dos paradas es correcto para dos de los tres compuestos de salida. Lo que el
+algoritmo agrega es acertar el caso del duro, donde la respuesta cambia.
+
+### Lo que cambió al medir la parada
+
+Cambiar la pérdida de boxes de una triangular a su distribución medida (§4) movió
+cifras que este informe ya había publicado. Van todas, porque el criterio del
+trabajo es que una cifra que se mueve se declara:
+
+| Cifra | Antes | Ahora |
+|---|---|---|
+| Monza, diferencia a precio normal | +18,40 s | **+19,03 s** |
+| Monza, lo que valieron las neutralizaciones | 21,6 s | **22,2 s** |
+| Tiempo del plan del AG desde la vuelta 1 | 91,7 s | **93,3 s** |
+| Ventaja del AG sobre la mejor regla enunciable | −0,1 s | **−0,2 s** |
+
+(Las dos últimas volvieron a moverse después, al corregir el desfasaje de una
+vuelta: 94,5 s y **+0,3 s**. Ver más abajo.)
+| Cuarto peor del plan de una parada | 13,64 | **13,62** |
+| Cuarto peor del plan de dos paradas | 12,37 | **12,58** |
+
+**Ninguna conclusión se dio vuelta.** Los tiempos absolutos suben porque una
+parada ahora cuesta entre 0,7 y 1,8 s más en promedio, y suben para todos los
+planes por igual, así que las comparaciones —que es lo único que la búsqueda
+usa— casi no se mueven.
+
+Hubo **un resultado que sí cambió de forma**, y es el más interesante de los
+cuatro. El apetito conservador dejó de comprar previsibilidad con una parada
+extra y pasó a comprarla retrasando la única parada: con la cola representada,
+parar dos veces expone dos veces a una parada mala. Está desarrollado en «El
+apetito de riesgo».
+
+Y **el cambio destapó una inconsistencia de método que la forma asumida venía
+tapando.** La pantalla sorteaba sus paradas con cortes de Zandvoort medidos
+contra la mediana verde *de la carrera* —un solo número por carrera, que le carga
+al auto el combustible, la evolución de la pista y el tráfico de esa vuelta—
+mientras el simulador usaba la mediana del campo *en esa misma vuelta*, que es la
+referencia correcta y para la que existe `scripts/effective_pit_loss.py`. Con una
+triangular sólo se le pedían tres cuartiles a cada método y la diferencia pasaba
+inadvertida: 19,8 / 22,7 / 26,7 contra 20,6 / 23,5 / 31,3. Con los nueve cortes se
+separan justo en la cola, que es lo que los nueve cortes vinieron a representar:
+**p95 de 41,1 s con la referencia buena contra 64,7 con la mala**. La pantalla
+pasó a usar la buena.
+
+Pasar a la distribución empírica no creó ese problema: lo hizo visible. Es el
+argumento del trabajo aplicado a sí mismo — asumirle una forma a algo que se
+puede medir no sólo pierde la cola, también esconde los errores que viven en ella.
+
+**Lo que quedó sin corregir, y se declara.** El cálculo del duelo de undercut
+(`insights.py` y su espejo `battle.ts`) sortea la *diferencia* entre las pérdidas
+de dos autos, y para eso sigue usando una triangular. No se cambió porque los
+nueve cortes medidos son los de una parada, no los de una diferencia entre dos, y
+poner unos donde van los otros sería cambiar una forma asumida por otra peor
+disfrazada. Medir la distribución de la diferencia es trabajo pendiente.
+
+### Qué se mide
+
+| Qué | Cómo | Estado |
+|---|---|---|
+| Simulador | Error del modelo de degradación | Mejor que la mediana ✅ |
+| Algoritmo genético | Segundos contra reglas enunciables | +10,8 a +10,9 s ✅ |
+| Sistema completo | ¿La estrategia real cayó en el rango? | Probado en Monza, ver §5 |
+| Reglamento | Planes ilegales generados | Cero ✅ |
+| Pronóstico | Criterios de falsación escritos **antes** de la carrera | 1 de 4 en Bakú, ver §5 |
+| Parada temprana | ¿La última generación es la mejor fuera de muestra? | **No**: parar antes gana 16 de 24 |
+| Tests automatizados | Núcleo del simulador | 143 tests, 1,7 s; dos defectos encontrados |
+
+**La exactitud no se usa como métrica.** «No parar nunca» acierta el 96,6% de las
+vueltas, y además de inútil **es ilegal**.
+
+**Los tests encontraron dos defectos el mismo día que se escribieron**, y los dos
+quedaron sin arreglar a propósito, marcados con `xfail` estricto para que se
+pongan en rojo cuando alguien los corrija. Uno es una trampa latente: `race_trace`
+promete que sin banderas corre todo en verde, y `_pit_cost` revienta porque no
+mira si son `None` — hoy no lo sufre nadie porque todos los llamadores las pasan.
+El otro es más fino: `_enforce_two_compounds` corre *después* del control de
+presupuesto y cambia el compuesto de la última parada sin volver a mirarlo, así
+que puede devolver una tanda pasada del tope de vida. Se midió si importa, y la
+respuesta tiene dos mitades: **los planes que la búsqueda devuelve** no se
+mueven —0 de 36 corridas traen una tanda pasada, porque está demasiado degradada
+para ganar la aptitud— pero **las líneas base sí**. «Siempre 1 parada, duro» es
+un plan de un solo compuesto, pasaba por ahí, y se estaba puntuando con 37
+vueltas de medio. Su cifra publicada se movió de +8,56 a +10,80 s.
+
+### Validación y error, en figuras
+
+Las curvas que uno espera de un trabajo de IA —pérdida de entrenamiento contra
+validación por época— **no se pueden dibujar acá, y conviene decir por qué antes
+de mostrar lo que sí**. El entregable es un algoritmo genético sobre un simulador:
+no hay épocas, no hay clases y no hay una pérdida que descienda. Dibujarlas sería
+inventar un eje.
+
+Lo que sí hay es el mismo problema con otros nombres, y estaba medido desde
+antes: **la generación hace de época, la aptitud hace de pérdida, y la partición
+entrenamiento/validación ya existía en el código** — la búsqueda optimiza contra
+un juego de carreras sorteadas y su resultado se vuelve a puntuar sobre otro que
+nunca vio. Esa diferencia es `Search.optimism`.
+
+Las cuatro figuras salen de `scripts/validation_plots.py`, que lee los números de
+`scripts/holdout_eval.py` y `scripts/early_stopping.py` en vez de copiarlos, para
+que la figura y el número impreso no se puedan desincronizar.
+
+#### La búsqueda, en muestra y fuera de ella
+
+![Aptitud por generación, en muestra contra retenida, y convergencia de la población](figuras/fig-ag-validacion.png)
+
+A la izquierda, el mismo plan puntuado de dos maneras. El trazo azul es la aptitud
+contra la que la búsqueda optimiza y **baja monótonamente por construcción**: el
+motor propio es elitista, el campeón nunca empeora. El naranja es ese mismo plan
+sobre carreras que no intervinieron en elegirlo. Terminan en 93,32 y 93,69 s, y
+la brecha de 0,37 s es exactamente el `optimism` que el sistema ya informaba.
+
+A la derecha, la población concentrándose: arranca repartida (0,30 en la cantidad
+de paradas más votada, que es casi el azar entre cuatro opciones) y termina en
+0,85. **Eso es lo que hace visible que esto es un algoritmo genético y no una
+tabla de consulta.**
+
+Pero la figura muestra algo más incómodo, y es lo que justifica haberla dibujado:
+en la generación 6 las dos curvas **se cruzan**. La búsqueda cambia de
+`M24-H24-H24` a `M24-H28-H20`, gana 0,07 s en muestra y pierde fuera.
+
+#### El algoritmo entrena de más
+
+![Lo que cuesta quedarse con la última generación en vez de parar antes](figuras/fig-parada-temprana.png)
+
+Sobre 80.000 sorteos independientes, el plan que la búsqueda prefirió en la
+generación 6 es **0,608 s más lento** que el que tenía en la 2, con error estándar
+0,053: once veces el error, así que no es ruido.
+
+La pregunta siguiente es si pasa seguido, y hay que medirla con cuidado porque
+tiene una trampa: elegir «la mejor generación» sobre el mismo juego con el que
+después se la juzga es tomar el mínimo de veintiséis estimaciones ruidosas, que
+es el mismo sesgo que este trabajo ya corrige cuando informa `score` y no
+`score_in_sample`. Así que van **tres** particiones: la búsqueda corre contra la
+suya, la generación se elige en validación, y el juicio es sobre prueba.
+
+Con esa precaución, sobre ocho semillas por tres compuestos de salida:
+
+| | |
+|---|---|
+| corridas donde parar antes gana | **16 de 24** |
+| ganancia media cuando gana | **0,387 s** |
+| ganancia máxima | 1,235 s |
+| corridas donde parar antes **pierde** | **0** |
+| ganancia media sobre todas | **+0,258 s** |
+
+**Nunca pierde, y lo que gana es del mismo orden que toda la ventaja del
+algoritmo sobre la mejor regla enunciable.** El arreglo es el de cualquier modelo
+entrenado —parada temprana sobre un juego retenido— y no está implementado: queda
+declarado, medido y reproducible con `scripts/early_stopping.py`.
+
+#### El error del regresor de degradación
+
+![MAE de validación, de prueba y del baseline ingenuo](figuras/fig-error-degradacion.png)
+
+La partición es por carrera y cronológica: las últimas tres de las doce fechas de
+2026 quedan retenidas, que es el 25% que pide la cátedra, y se parte por carrera y
+no por vuelta porque partir por vuelta pondría vueltas de la misma tanda de los
+dos lados y filtraría.
+
+Validación y prueba dan casi lo mismo —0,952 contra 0,943— o sea que **no hay
+sobreajuste**: el modelo no memorizó. Lo que hay es peor y más simple: **con los
+datos de 2026 solos el modelo pierde contra predecir la mediana** (0,943 contra
+0,764) y el R² es negativo. La dispersión entre pliegues, de 0,72 a 1,09, dice que
+tampoco las cuatro particiones coinciden.
+
+Eso no contradice la tabla de §4: ahí la fila que gana es la de **todas las
+temporadas** (0,698 contra 0,726), y la de 2026 sola también perdía. La figura
+muestra la partición exigente, que es la que corresponde enseñar.
+
+#### El clasificador de parar o seguir
+
+![Matriz de confusión y curva precisión-exhaustividad](figuras/fig-matriz-confusion.png)
+
+Es la línea base declarada, no el entregable, y sirve para fijar el piso. Con el
+umbral de mejor F1 atrapa **60 de 118** paradas reales a costa de 333 falsas
+alarmas sobre 3.383 vueltas sin parada. PR-AUC 0,168 contra un azar de 0,034:
+**cinco veces mejor que adivinar, y aun así inservible para decidir solo.**
+
+Y acá está el motivo por el que este trabajo no usa exactitud como métrica, que la
+matriz vuelve evidente: la esquina superior izquierda tiene 3.050 casos. Un modelo
+que diga siempre «seguí» acierta el **96,6%** de las vueltas — y es ilegal, porque
+B6.3.8 obliga a parar.
+
+
+---
+
+---
+
+## 5. Evaluación del Sistema Inteligente
+
+### ¿Predijimos carreras? El marcador
+
+La pregunta que importa, antes que cualquier detalle de cómo está hecho el
+sistema. **Se probó contra cuatro carreras reales de 2026, y la respuesta corta
+es que no: acertó la estructura dos veces y nunca acertó el cuándo.**
+
+| Prueba | Qué dijo el sistema | Qué pasó | Veredicto |
+|---|---|---|---|
+| **Monza**, fecha 13 | una parada, al duro | Antonelli largó 19.º con duro, paró **dos** veces y ganó con medio | **Falló.** 18 s de error en el plan |
+| **Madrid**, fecha 14 | una parada, medio corto y después duro largo | el ganador hizo `M14-H43`: una parada, medio corto, duro largo | **Acertó la forma, falló los números** |
+| **Compuesto de salida**, grilla de 22 | medio **0 de 22** | la realidad pone medio entre el 55% y el 85% | **Falló**, y es el límite más caro |
+| **Bakú**, fecha 15 | cuatro criterios escritos *antes* de la carrera | safety car dos veces; 35 de 38 paradas neutralizadas | **1 de 4 criterios** |
+
+Ninguna es un acierto limpio, y las cuatro enseñan cosas distintas. Conviene
+separarlas, porque «falló» tapa diferencias que importan.
+
+**Monza y Bakú fallaron por lo mismo, y no es el modelo: es el calendario de
+banderas.** En Monza hubo bandera roja en la vuelta 3 y VSC en la 27-29, y el
+**90,6%** de las paradas estratégicas salieron gratis, contra un 23% medido sobre
+103 carreras. En Bakú el safety car salió dos veces y **35 de las 38 paradas** se
+hicieron adentro; contando sólo las tomadas en verde, catorce de los dieciséis
+clasificados no pararon ninguna vez. En Madrid, un VSC en la vuelta 14 se llevó
+10 de las 28 paradas.
+
+O sea que **en tres de las cuatro pruebas la estrategia la escribió una
+neutralización**, y ahí el sistema tiene un techo que ninguna cantidad de datos
+levanta: las distribuciones medidas dicen bien **que** va a haber una
+neutralización —y con qué frecuencia, y cuánto dura— pero no **cuándo**, y el
+cuándo es exactamente lo que decide el plan.
+
+**Madrid es la prueba más útil, porque separa el algoritmo de sus insumos.** El
+modelo acertó la cantidad de paradas y la forma del plan ganador, y falló el
+desgaste por un factor de tres. Volviendo a correr la búsqueda con el desgaste
+medido *en la carrera* y sin tocar nada más, propone `M17-H40` contra el
+`M14-H43` que hizo el ganador: tres vueltas de diferencia. **El algoritmo no
+estaba roto; los insumos sí.** Bakú repitió la lectura con una vuelta de tuerca:
+ahí ni siquiera los insumos explican la diferencia, la explica la bandera.
+
+**El compuesto de salida es el único fallo que es del modelo mismo**, y está
+medido contra una grilla entera en vez de declarado como sospecha. El escalón de
+ritmo entre compuestos (`COMPOUND_OFFSET_S`) vale cero porque no se pudo
+identificar, y sin él el medio no tiene ninguna razón para existir: es intermedio
+en todo y no gana en un modelo que sólo mira el desgaste.
+
+**Qué se puede afirmar, entonces.** Que el sistema arma planes legales y
+razonables, que le gana por casi once segundos a cualquier regla fija que se
+pueda enunciar de antemano, y que cuando se le dan insumos correctos reproduce la
+estrategia que ganó. Y que **como pronosticador de carreras concretas todavía no
+sirve**, por dos motivos distintos que conviene no mezclar: uno es un insumo que
+falta y se puede conseguir (el escalón de compuestos), el otro es información que
+no existe antes de largar (cuándo sale el safety car).
 
 ### Lo que el sistema entrega
 
@@ -800,266 +1126,7 @@ por esa razón.
 **Limitación declarada:** el apetito es binario, no graduado. El primero y el
 undécimo reciben el mismo tratamiento porque la cola es un cuarto fijo.
 
-### Contra qué se compara, y una comparación que estaba mal armada
-
-La primera versión de esta sección decía que el algoritmo apenas le ganaba a una
-regla simple. **Esa conclusión era producto de una comparación amañada**, y hay
-que corregirla.
-
-La «regla» contra la que se medía tomaba el **mínimo sobre una, dos y tres
-paradas** y siempre calzaba duro. Eso no es una regla que alguien pueda seguir
-antes de una carrera: es un oráculo al que ya le dijeron las dos respuestas
-difíciles, dejándole a la búsqueda sólo las vueltas.
-
-Separando las tres decisiones:
-
-| Decisión | Cuánto vale |
-|---|---|
-| **Cuántas paradas** | **12,5 s de carrera** |
-| A qué compuesto cambiar | 5,7 s entre la mejor y la peor combinación |
-| En qué vuelta parar | 0,30 s |
-
-Y el número correcto de paradas **no es el mismo para todos**: el que larga en
-duro quiere una, los que largan en medio o blando quieren dos.
-
-Contra reglas que sí se pueden enunciar de antemano:
-
-| Regla | Ventaja del algoritmo |
-|---|---|
-| «siempre 1 parada, duro» | **+10,80 s** |
-| «siempre 2 paradas, duro» | +0,07 |
-| «siempre 3 paradas, duro» | **+10,91 s** |
-| el oráculo | +0,07 |
-
-**El algoritmo le gana a cualquier regla enunciable, y lo que gana es exactamente
-el valor de acertar la cantidad de paradas.** Contra el oráculo empata, y ésa era
-la comparación que se venía reportando como si fuera la relevante.
-
-> **La primera fila se movió una vez más, y el motivo es instructivo.** Decía
-> +8,56 s hasta que los tests destaparon que `_enforce_two_compounds` corría
-> *después* del control de presupuesto sin volver a mirarlo. «Siempre 1 parada,
-> duro» es un plan de un solo compuesto, así que la obligación reglamentaria le
-> cambiaba el juego final — y lo dejaba corriendo **37 vueltas de medio** en una
-> carrera de 72, con el medio topado en 31. O sea que la línea base se estaba
-> puntuando con una tanda más larga que cualquier cosa medida, y por eso salía
-> más fuerte de lo que es. Arreglado, la ventaja del algoritmo sobre ella es de
-> **+10,80 s**. Las otras tres filas no se movieron.
-
-Matiz honesto: «siempre dos paradas al duro» queda a siete centésimas del
-algoritmo, porque
-dos paradas es correcto para dos de los tres compuestos de salida. Lo que el
-algoritmo agrega es acertar el caso del duro, donde la respuesta cambia.
-
-### Cuatro errores de método en el camino
-
-La conclusión anterior también estaba contaminada por defectos de la búsqueda
-que se corrigieron:
-
-1. **El hueco de la grilla se cobraba cada vuelta.** Con la carrera arrancando en
-   la vuelta 1, el estimador de ritmo base ponía a un auto 19.º cinco minutos y
-   medio atrás. Antes de largar no hay historia de la que inferir ritmo.
-2. **Se reportaba el puntaje en muestra.** El máximo de muchas estimaciones
-   ruidosas está sesgado hacia arriba, igual que evaluar un modelo sobre su
-   entrenamiento: 8,0 s de optimismo con 200 sorteos.
-3. **Los planes no se comparaban contra las mismas carreras.** El mismo plan
-   puntuaba entre 126,6 y 136,0 s. Con números aleatorios comunes baja el error
-   de la *diferencia* entre planes, que es lo único que la búsqueda usa.
-4. **La población inicial era toda al azar.** De 118 planes de dos paradas
-   sorteados, el mejor daba 93,3 s contra 91,0 de una división pareja hecha a
-   mano: el espacio contenía la respuesta y las semillas no caían cerca. Ahora se
-   siembra con las heurísticas, con lo cual la búsqueda arranca desde la regla y
-   sólo puede mejorarla.
-
-El piso de sorteos por defecto subió de 400 a 1.200. Con 400, la búsqueda salía
-0,71 s por carrera **peor** que una regla; con 1.200 la iguala o la supera.
-
-### Lo que cambió al medir la parada
-
-Cambiar la pérdida de boxes de una triangular a su distribución medida (§4) movió
-cifras que este informe ya había publicado. Van todas, porque el criterio del
-trabajo es que una cifra que se mueve se declara:
-
-| Cifra | Antes | Ahora |
-|---|---|---|
-| Monza, diferencia a precio normal | +18,40 s | **+19,03 s** |
-| Monza, lo que valieron las neutralizaciones | 21,6 s | **22,2 s** |
-| Tiempo del plan del AG desde la vuelta 1 | 91,7 s | **93,3 s** |
-| Ventaja del AG sobre la mejor regla enunciable | −0,1 s | **−0,2 s** |
-
-(Las dos últimas volvieron a moverse después, al corregir el desfasaje de una
-vuelta: 94,5 s y **+0,3 s**. Ver más abajo.)
-| Cuarto peor del plan de una parada | 13,64 | **13,62** |
-| Cuarto peor del plan de dos paradas | 12,37 | **12,58** |
-
-**Ninguna conclusión se dio vuelta.** Los tiempos absolutos suben porque una
-parada ahora cuesta entre 0,7 y 1,8 s más en promedio, y suben para todos los
-planes por igual, así que las comparaciones —que es lo único que la búsqueda
-usa— casi no se mueven.
-
-Hubo **un resultado que sí cambió de forma**, y es el más interesante de los
-cuatro. El apetito conservador dejó de comprar previsibilidad con una parada
-extra y pasó a comprarla retrasando la única parada: con la cola representada,
-parar dos veces expone dos veces a una parada mala. Está desarrollado en «El
-apetito de riesgo».
-
-Y **el cambio destapó una inconsistencia de método que la forma asumida venía
-tapando.** La pantalla sorteaba sus paradas con cortes de Zandvoort medidos
-contra la mediana verde *de la carrera* —un solo número por carrera, que le carga
-al auto el combustible, la evolución de la pista y el tráfico de esa vuelta—
-mientras el simulador usaba la mediana del campo *en esa misma vuelta*, que es la
-referencia correcta y para la que existe `scripts/effective_pit_loss.py`. Con una
-triangular sólo se le pedían tres cuartiles a cada método y la diferencia pasaba
-inadvertida: 19,8 / 22,7 / 26,7 contra 20,6 / 23,5 / 31,3. Con los nueve cortes se
-separan justo en la cola, que es lo que los nueve cortes vinieron a representar:
-**p95 de 41,1 s con la referencia buena contra 64,7 con la mala**. La pantalla
-pasó a usar la buena.
-
-Pasar a la distribución empírica no creó ese problema: lo hizo visible. Es el
-argumento del trabajo aplicado a sí mismo — asumirle una forma a algo que se
-puede medir no sólo pierde la cola, también esconde los errores que viven en ella.
-
-**Lo que quedó sin corregir, y se declara.** El cálculo del duelo de undercut
-(`insights.py` y su espejo `battle.ts`) sortea la *diferencia* entre las pérdidas
-de dos autos, y para eso sigue usando una triangular. No se cambió porque los
-nueve cortes medidos son los de una parada, no los de una diferencia entre dos, y
-poner unos donde van los otros sería cambiar una forma asumida por otra peor
-disfrazada. Medir la distribución de la diferencia es trabajo pendiente.
-
-### Qué se mide
-
-| Qué | Cómo | Estado |
-|---|---|---|
-| Simulador | Error del modelo de degradación | Mejor que la mediana ✅ |
-| Algoritmo genético | Segundos contra reglas enunciables | +10,8 a +10,9 s ✅ |
-| Sistema completo | ¿La estrategia real cayó en el rango? | Probado en Monza, ver §6 |
-| Reglamento | Planes ilegales generados | Cero ✅ |
-| Pronóstico | Criterios de falsación escritos **antes** de la carrera | 1 de 4 en Bakú, ver §6 |
-| Parada temprana | ¿La última generación es la mejor fuera de muestra? | **No**: parar antes gana 16 de 24 |
-| Tests automatizados | Núcleo del simulador | 143 tests, 1,7 s; dos defectos encontrados |
-
-**La exactitud no se usa como métrica.** «No parar nunca» acierta el 96,6% de las
-vueltas, y además de inútil **es ilegal**.
-
-**Los tests encontraron dos defectos el mismo día que se escribieron**, y los dos
-quedaron sin arreglar a propósito, marcados con `xfail` estricto para que se
-pongan en rojo cuando alguien los corrija. Uno es una trampa latente: `race_trace`
-promete que sin banderas corre todo en verde, y `_pit_cost` revienta porque no
-mira si son `None` — hoy no lo sufre nadie porque todos los llamadores las pasan.
-El otro es más fino: `_enforce_two_compounds` corre *después* del control de
-presupuesto y cambia el compuesto de la última parada sin volver a mirarlo, así
-que puede devolver una tanda pasada del tope de vida. Se midió si importa, y la
-respuesta tiene dos mitades: **los planes que la búsqueda devuelve** no se
-mueven —0 de 36 corridas traen una tanda pasada, porque está demasiado degradada
-para ganar la aptitud— pero **las líneas base sí**. «Siempre 1 parada, duro» es
-un plan de un solo compuesto, pasaba por ahí, y se estaba puntuando con 37
-vueltas de medio. Su cifra publicada se movió de +8,56 a +10,80 s.
-
-### Validación y error, en figuras
-
-Las curvas que uno espera de un trabajo de IA —pérdida de entrenamiento contra
-validación por época— **no se pueden dibujar acá, y conviene decir por qué antes
-de mostrar lo que sí**. El entregable es un algoritmo genético sobre un simulador:
-no hay épocas, no hay clases y no hay una pérdida que descienda. Dibujarlas sería
-inventar un eje.
-
-Lo que sí hay es el mismo problema con otros nombres, y estaba medido desde
-antes: **la generación hace de época, la aptitud hace de pérdida, y la partición
-entrenamiento/validación ya existía en el código** — la búsqueda optimiza contra
-un juego de carreras sorteadas y su resultado se vuelve a puntuar sobre otro que
-nunca vio. Esa diferencia es `Search.optimism`.
-
-Las cuatro figuras salen de `scripts/validation_plots.py`, que lee los números de
-`scripts/holdout_eval.py` y `scripts/early_stopping.py` en vez de copiarlos, para
-que la figura y el número impreso no se puedan desincronizar.
-
-#### La búsqueda, en muestra y fuera de ella
-
-![Aptitud por generación, en muestra contra retenida, y convergencia de la población](figuras/fig-ag-validacion.png)
-
-A la izquierda, el mismo plan puntuado de dos maneras. El trazo azul es la aptitud
-contra la que la búsqueda optimiza y **baja monótonamente por construcción**: el
-motor propio es elitista, el campeón nunca empeora. El naranja es ese mismo plan
-sobre carreras que no intervinieron en elegirlo. Terminan en 93,32 y 93,69 s, y
-la brecha de 0,37 s es exactamente el `optimism` que el sistema ya informaba.
-
-A la derecha, la población concentrándose: arranca repartida (0,30 en la cantidad
-de paradas más votada, que es casi el azar entre cuatro opciones) y termina en
-0,85. **Eso es lo que hace visible que esto es un algoritmo genético y no una
-tabla de consulta.**
-
-Pero la figura muestra algo más incómodo, y es lo que justifica haberla dibujado:
-en la generación 6 las dos curvas **se cruzan**. La búsqueda cambia de
-`M24-H24-H24` a `M24-H28-H20`, gana 0,07 s en muestra y pierde fuera.
-
-#### El algoritmo entrena de más
-
-![Lo que cuesta quedarse con la última generación en vez de parar antes](figuras/fig-parada-temprana.png)
-
-Sobre 80.000 sorteos independientes, el plan que la búsqueda prefirió en la
-generación 6 es **0,608 s más lento** que el que tenía en la 2, con error estándar
-0,053: once veces el error, así que no es ruido.
-
-La pregunta siguiente es si pasa seguido, y hay que medirla con cuidado porque
-tiene una trampa: elegir «la mejor generación» sobre el mismo juego con el que
-después se la juzga es tomar el mínimo de veintiséis estimaciones ruidosas, que
-es el mismo sesgo que este trabajo ya corrige cuando informa `score` y no
-`score_in_sample`. Así que van **tres** particiones: la búsqueda corre contra la
-suya, la generación se elige en validación, y el juicio es sobre prueba.
-
-Con esa precaución, sobre ocho semillas por tres compuestos de salida:
-
-| | |
-|---|---|
-| corridas donde parar antes gana | **16 de 24** |
-| ganancia media cuando gana | **0,387 s** |
-| ganancia máxima | 1,235 s |
-| corridas donde parar antes **pierde** | **0** |
-| ganancia media sobre todas | **+0,258 s** |
-
-**Nunca pierde, y lo que gana es del mismo orden que toda la ventaja del
-algoritmo sobre la mejor regla enunciable.** El arreglo es el de cualquier modelo
-entrenado —parada temprana sobre un juego retenido— y no está implementado: queda
-declarado, medido y reproducible con `scripts/early_stopping.py`.
-
-#### El error del regresor de degradación
-
-![MAE de validación, de prueba y del baseline ingenuo](figuras/fig-error-degradacion.png)
-
-La partición es por carrera y cronológica: las últimas tres de las doce fechas de
-2026 quedan retenidas, que es el 25% que pide la cátedra, y se parte por carrera y
-no por vuelta porque partir por vuelta pondría vueltas de la misma tanda de los
-dos lados y filtraría.
-
-Validación y prueba dan casi lo mismo —0,952 contra 0,943— o sea que **no hay
-sobreajuste**: el modelo no memorizó. Lo que hay es peor y más simple: **con los
-datos de 2026 solos el modelo pierde contra predecir la mediana** (0,943 contra
-0,764) y el R² es negativo. La dispersión entre pliegues, de 0,72 a 1,09, dice que
-tampoco las cuatro particiones coinciden.
-
-Eso no contradice la tabla de §4: ahí la fila que gana es la de **todas las
-temporadas** (0,698 contra 0,726), y la de 2026 sola también perdía. La figura
-muestra la partición exigente, que es la que corresponde enseñar.
-
-#### El clasificador de parar o seguir
-
-![Matriz de confusión y curva precisión-exhaustividad](figuras/fig-matriz-confusion.png)
-
-Es la línea base declarada, no el entregable, y sirve para fijar el piso. Con el
-umbral de mejor F1 atrapa **60 de 118** paradas reales a costa de 333 falsas
-alarmas sobre 3.383 vueltas sin parada. PR-AUC 0,168 contra un azar de 0,034:
-**cinco veces mejor que adivinar, y aun así inservible para decidir solo.**
-
-Y acá está el motivo por el que este trabajo no usa exactitud como métrica, que la
-matriz vuelve evidente: la esquina superior izquierda tiene 3.050 casos. Un modelo
-que diga siempre «seguí» acierta el **96,6%** de las vueltas — y es ilegal, porque
-B6.3.8 obliga a parar.
-
-
----
-
-## 6. Análisis de los Resultados
-
-### La prueba real: Monza 2026
+### La primera prueba: Monza 2026
 
 El 6 de septiembre, cuatro fechas después de la carrera sobre la que está armado
 el simulador, hubo un caso que pone a prueba todo el sistema. **Antonelli largó
@@ -1145,6 +1212,70 @@ vueltas estaba de nuevo 2.º con HAM 5.º.
 
 Degradar poco no es lo mismo que no degradar. Que el medio sea el mejor compuesto
 de Monza es la razón para tener **dos juegos frescos**, no para estirar uno.
+
+### La segunda prueba: Madrid 2026, o el algoritmo contra sus insumos
+
+Madrid es la fecha 14 y **nunca se había corrido**: no hay desgaste medido del
+circuito, así que el simulador lo corrió con el promedio de la temporada. Es el
+caso más limpio que tiene el trabajo para separar dos preguntas que de otro modo
+van pegadas — *¿la búsqueda encuentra buenos planes?* y *¿los números que le
+damos son correctos?*
+
+La predicción quedó congelada en `data/madrid2026_prediccion.json`, escrita sin
+cargar la carrera. Reproducible con `scripts/madrid_2026_review.py`.
+
+#### Lo que acertó
+
+**La estructura, que es lo que la técnica aporta.** Predijo una parada como
+cantidad modal, y la forma del plan ganador: medio corto y después una tanda
+larga de duro. Antonelli ganó con `M14-H43` — una parada, medio corto, duro
+largo. El modelo había dicho `M23-H34`.
+
+#### Lo que falló
+
+| Insumo | Predicho | Real | |
+|---|---|---|---|
+| Desgaste del medio | severo | el más **suave** de la temporada | falla por un factor de tres |
+| Vueltas con duro | menos del 10% | **76%** | falla feo |
+| Ventana de parada | proyectada | la decidió un VSC en la vuelta 14 | 10 de las 28 paradas |
+
+#### La descomposición, que es el resultado
+
+Se cambia **un supuesto por vez** y se mira si el plan del ganador pasa a ganarle
+al recomendado:
+
+| Escenario | Modelo | Antonelli | Diferencia |
+|---|---|---|---|
+| supuestos previos | 75,70 s | 80,22 s | +4,52 |
+| **+ desgaste real** | 32,14 s | 28,19 s | **−3,95** |
+| + pérdida de boxes real | 23,24 s | 18,75 s | −4,50 |
+
+**El signo se da vuelta corrigiendo una sola cosa.** Con los supuestos previos el
+modelo le decía a Antonelli que estaba equivocado por cuatro segundos y medio;
+con el desgaste real medido en la carrera, Antonelli le gana al modelo por casi
+cuatro. La pérdida de boxes mueve los tiempos absolutos y casi no mueve la
+comparación.
+
+Y el cierre: corriendo la búsqueda entera con los insumos reales, propone
+`M17-H40` contra el `M14-H43` del ganador. **Tres vueltas de diferencia.**
+
+> **El algoritmo nunca estuvo roto. Los insumos sí.** Es la conclusión más
+> importante del trabajo y conviene no suavizarla en ninguna dirección: no dice
+> que el sistema sirva para predecir —con los insumos que había antes de largar
+> no acertó— dice que el error no está en la búsqueda, y por lo tanto que
+> mejorar la búsqueda no es donde está el retorno.
+
+#### Tres cosas que se aprendieron, todas negativas
+
+1. **La calibración práctica → carrera no sobrevivió al circuito 13.** El
+   *leave-one-out* sobre nueve circuitos prometía 47% menos error en el medio; en
+   Madrid dio 0,0574 contra 0,0312 del promedio global. Peor que no mirar.
+2. **El uso de compuestos en práctica mide gestión de juegos, no intención de
+   carrera.** Se leyó «32 vueltas con duro» como «nadie lo va a usar». Es al
+   revés: no lo gastan en práctica *porque* lo quieren para la carrera.
+3. **Cada capa agregada al modelo base lo empeoró**: el escalón de ritmo (pasó de
+   una parada a dos, y la respuesta era una), el desgaste de práctica, y sacar el
+   duro de la mesa. Las tres.
 
 ### La tercera prueba: qué compuesto elige el modelo, y qué eligen los equipos
 
@@ -1354,154 +1485,57 @@ por auto y 1,1 millones de puntos por segundo, y nosotros tiempos por vuelta.**
 Eso explica por qué pueden ver aire sucio y carga sobre el neumático con un
 detalle que acá se aproxima con un promedio. Su metodología no está publicada.
 
-### Rivales que reaccionan, y por qué ninguna cifra de este informe se movió
+### Rivales que reaccionan: dos resultados y un interruptor
 
-Hasta acá el plan del auto elegido se puntuaba contra veintiún rivales que
-corren un plan fijo: sale un safety car y no se mueve nadie. Eso evalúa el plan
-en un mundo que no existe, y el escenario que de verdad le cuesta la carrera a
-un plan —*paró todo el mundo menos yo*— era literalmente insorteable.
+Hasta acá el plan del auto elegido se puntuaba contra veintiún rivales que corren
+un plan fijo: sale un safety car y no se mueve nadie. El escenario que de verdad
+le cuesta la carrera a un plan —*paró todo el mundo menos yo*— era insorteable.
 
-**Lo primero que hubo que medir es que una neutralización no es una parada
-automática**, que era el supuesto implícito. Sobre 2.828 casos auto-por-período
-de 2022 a 2026:
+Se construyó la reactividad y se calibró contra 2.828 casos auto-por-período de
+2022 a 2026. **El detalle de esa construcción está en
+[`rivales-reactivos.md`](../research/rivales-reactivos.md)**, porque es
+ingeniería y no resultado; acá quedan las tres cosas que sí lo son.
 
-| | paran |
-|---|---|
-| bandera roja | 94,9% |
-| safety car | 43,0% |
-| VSC | **24,2%** |
+**Está detrás de un interruptor, y por eso ninguna cifra de este informe se
+movió.** Regenerando el export en modo fijo y comparándolo campo por campo contra
+el publicado hay una sola diferencia: la clave que anota el modo. No salió
+gratis — la primera versión sorteaba el corrimiento de período sin condición y
+eso corre el flujo del generador *también* en modo fijo, lo que habría movido en
+silencio cada número del trabajo. Lo atajó un test.
 
-Bajo VSC tres de cada cuatro autos **no** paran. Lo que decide es la edad de la
-goma: bajo safety car va del 17,0% con menos de cinco vueltas al 93,8% pasadas
-las treinta. La obligación de B6.3.8 no predice limpio —los que no deben parar
-paran *más*— porque está confundida con la edad de goma, y no se usa.
-
-**Y los autos no son monedas independientes.** Los períodos reales son
-estampidas o congelamientos: bajo safety car la cuota del campo que entra va de
-0,05 en el percentil diez a 0,85 en el noventa. Con monedas por auto la varianza
-de la cuenta de paradas queda 1,9 veces por debajo de la observada bajo safety
-car y 2,8 bajo VSC, y el campo se partiría al medio siempre. Por eso cada
-período sortea **un solo corrimiento compartido**, calibrado contra esa varianza
-en vez de elegido.
-
-> **Una cifra propia que estuvo mal tres días.** La primera pasada reportó una
-> sobredispersión de 9,4×. Comparaba la varianza de la cuenta de paradas *entre*
-> períodos contra la varianza binomial *dentro* de un período: la primera incluye
-> que los períodos difieren en cuántos autos hay y en qué goma llevan, y eso es
-> composición, no azar compartido. Con la referencia correcta —una simulación con
-> las mismas composiciones y sin efecto de período— da 1,9×, y bajo VSC resulta
-> *mayor* que bajo safety car, al revés de lo que decía. El efecto existe y hacía
-> falta; era la mitad de grande.
-
-#### Quién cubre una parada, y es el de adelante
-
-Para que un rival responda a la parada del auto elegido hacía falta una tasa
-medida. El control es el **espejo**: mismo hueco, un lado y el otro. Un auto dos
-segundos adelante y otro dos segundos atrás están igual de cerca de la acción y
-sólo uno está amenazado, así que la diferencia entre los dos es el efecto con la
-cercanía ya descontada.
-
-| hueco | adelante | atrás | efecto |
-|---|---|---|---|
-| 0-2 s | 0,237 | 0,159 | **+0,078** |
-| 2-5 s | 0,260 | 0,189 | **+0,071** |
-| 5-10 s | 0,192 | 0,157 | +0,035 |
-| 10-20 s | 0,163 | 0,149 | +0,014 |
-| 20-60 s | 0,162 | 0,091 | +0,071 ← artefacto |
-
-El que reacciona es el que va **adelante**, no el que viene atrás, y visto
-después es obvio: una parada desde atrás es un undercut apuntado a vos, y una
-desde adelante no te deja nada que contestar. Es el mismo punto de vista que la
-tarjeta de undercut de la pantalla ya tomaba.
-
-La última fila se descartó, y el motivo está medido. El efecto se apaga de 0,078
-a 0,014 y después *reaparece* con un intervalo estrechísimo, lo cual no puede ser
-causal. A 0-2 s las dos mitades promedian 10,7 y 10,4 de puesto; a 20-60 s
-promedian **5,0 y 13,6**. A esa distancia el espejo dejó de comparar autos
-comparables y pasó a comparar frente de parrilla contra fondo. Más allá de cinco
-segundos el diseño no puede separar el efecto del puesto, y se declara cero en
-vez de publicar un número que se sabe contaminado.
-
-#### Cómo quedó armado, y qué reproduce
-
-La reactividad va en dos niveles porque cuestan cosas muy distintas. Reaccionar
-a las **banderas** no depende del plan que se está evaluando, así que la traza de
-cada rival se sigue calculando una sola vez y la reactividad sale **gratis**
-dentro de la búsqueda. Reaccionar **al auto elegido** sí depende de él, y se paga
-una vez sobre el plan ganador en vez de mil veces adentro: 6,2 s por piloto pasan
-a 6,9, un 11% y no veinte veces.
-
-Contra lo que se ajustó, sobre los 22 planes reales y 3.000 carreras sorteadas:
-
-| | modelo | medido |
-|---|---|---|
-| paran bajo bandera roja | 0,972 | 0,949 |
-| paran bajo safety car | 0,381 | 0,430 |
-| paran bajo VSC | 0,260 | 0,242 |
-| el equipo mete los dos en la misma vuelta | 0,62 | 0,70 |
-| cubre el que va hasta 5 s adelante | +0,058 | +0,071 |
-| **reparto del equipo bajo SC** (ninguno/uno/dos) | 0,50 / 0,24 / 0,26 | 0,43 / 0,28 / 0,29 |
-
-La última fila es la que más dice, porque **nadie se la enseñó al modelo**: cada
-auto decide solo y el reparto de cuántos de sus dos autos mete un equipo sale
-emergente, a cinco puntos de lo observado. El sorteo compartido por período es lo
-que se lo gana; autos independientes casi nunca meterían los dos juntos.
-
-Las dos filas del medio quedan cortas por la misma razón, y se informa en vez de
-corregirlo: la probabilidad extra sólo alcanza a los autos que podían parar
-igual, y uno que está dentro de `MIN_STINT` de su parada anterior no se mueve con
-ninguno de los dos mecanismos. Subir las constantes para pegarle al número sería
-ajustar alrededor de una restricción que está puesta a propósito.
+En modo reactivo cambian 9 de los 22 planes, y **el puntaje no se puede leer**:
+mejora porque los rivales reactivos paran 2,11 veces contra 1,86 de los autos
+reales y terminan 1,35 s más lentos. El auto elegido sube sin cambiar nada. Los
+puntajes se comparan dentro de un modo, nunca entre modos.
 
 #### La doble parada no se puede decidir en segundos
 
 Cuando un equipo mete los dos autos, el 70% de las veces es en la misma vuelta y
 el segundo hace cola. Pareado dentro del mismo par —mismo equipo, misma vuelta,
 misma carrera— esa cola cuesta **+1,0 s en verde, +3,5 bajo safety car y +3,2
-bajo VSC**.
+bajo VSC**. Eso corrige una nota propia que afirmaba doce segundos, medidos sin
+parear con n=18, y da vuelta la lectura: apilar sale **barato**, que es por qué
+lo hacen.
 
-Eso corrige una nota de investigación propia que afirmaba doce segundos, medidos
-comparando grupo contra grupo con n=18 y sin parear. Y da vuelta la lectura:
-apilar sale **barato**, que es por qué lo hacen.
+Y el modelo **no puede elegir** cuándo apilar. Medido en segundos, partir gana
+fácil: retener un auto una vuelta cuesta una décima de desgaste y ahorra los 3,5
+enteros, así que cualquier cosa que optimice ese reloj partiría siempre y
+quedaría *más* lejos de la realidad que apilando siempre. Los equipos apilan
+porque el segundo auto vuelve detrás del tráfico, que es **posición y no reloj**.
+Es el mismo desacuerdo que este trabajo ya había encontrado en las paradas bajo
+neutralización y en el ancho de la ventana, y la salida es la misma: sortear la
+coordinación a la tasa medida en vez de decidirla.
 
-Lo interesante es que el modelo **no puede elegir** cuándo apilar. Medido en
-segundos, partir gana fácil: retener un auto una vuelta cuesta como una décima
-de desgaste y ahorra los 3,5 s enteros. Cualquier cosa que optimice ese reloj
-partiría siempre y terminaría *más* lejos de la realidad que apilando siempre.
-Los equipos apilan porque el segundo auto vuelve detrás del tráfico, que es
-posición y no reloj. Es el mismo desacuerdo entre segundos y puestos que este
-trabajo ya había encontrado para las paradas bajo neutralización, y la salida es
-la misma: **sortear la coordinación a la tasa medida, no decidirla**.
+#### Un plan de vuelta fija no es lo que hace un equipo
 
-#### Y por qué nada de esto movió una sola cifra publicada
-
-Todo lo anterior está detrás de un interruptor. `fixed` es el modelo como era y
-tiene que seguir siéndolo; `reactive` es el nuevo. Regenerando el export en modo
-fijo y comparándolo campo por campo contra el publicado hay **una sola
-diferencia**, la clave que anota el modo. Todo lo demás idéntico.
-
-Eso no salió gratis: la primera versión sorteaba el corrimiento de período sin
-condición, y eso corre el flujo del generador **también en modo fijo**. Habría
-movido en silencio cada número de este informe. Lo atajó un test.
-
-En modo reactivo cambian **9 de los 22 planes**. Lo que *no* se puede leer es el
-puntaje: mejora, pero no porque el plan mejore. Los rivales reactivos paran 2,11
-veces contra 1,86 de los autos reales, y cada parada de más les cuesta tiempo —
-sobre las mismas carreras el campo termina **1,35 s más lento**. El auto elegido
-sube sin haber cambiado nada: no mejoró él, empeoró el campo. Y ese exceso de
-paradas es el sesgo ya conocido, el del escalón de compuestos sin identificar.
-Los puntajes se comparan dentro de un modo, no entre modos.
-
-#### El hallazgo que no entra en este modelo
-
-Al construirlo apareció la limitación más grande de todas, y ésta sí tiene
-medición. El desgaste del simulador **es** probabilístico, pero el plan fija la
-vuelta y el auto para ahí en todos los sorteos, le esté sobrando goma o se le
-esté cayendo a pedazos. El modelo sortea la incertidumbre y después la ignora.
+Es la limitación más grande que encontró el trabajo, y tiene medición. El
+desgaste del simulador **es** probabilístico, pero el plan fija la vuelta y el
+auto para ahí en todos los sorteos, le sobre goma o se le esté cayendo a pedazos.
+El modelo sortea la incertidumbre y después la ignora.
 
 Los equipos no. Estimando la caída sobre las **primeras ocho vueltas** de cada
 tanda —ajustarla sobre la tanda entera sería usar el futuro para predecir el
-futuro— y preguntando si predice cuánto va a durar, sobre 2.876 tandas:
+futuro— y preguntando si eso predice cuánto va a durar, sobre 2.876 tandas:
 
 | compuesto | correlación | goma que aguanta | goma que se cae |
 |---|---|---|---|
@@ -1509,99 +1543,20 @@ futuro— y preguntando si predice cuánto va a durar, sobre 2.876 tandas:
 | medio | −0,145 | 22,7 | 18,9 |
 | duro | −0,157 | 29,2 | 22,7 |
 
-Entre tres y seis vueltas y media de tanda, según cómo venga la goma. Y no es el
-combustible: dentro del **mismo compuesto y la misma tanda** el efecto sigue —el
-medio en la primera tanda da −0,290, con 23,0 vueltas contra 18,5—.
+Entre tres y seis vueltas y media de tanda según cómo venga la goma, y no es el
+combustible: dentro del mismo compuesto y la misma tanda el efecto sigue —el
+medio en la primera tanda da −0,290, con 23,0 vueltas contra 18,5—. Lo mismo con
+qué se calza: bajo VSC temprano el **75,4%** monta duro contra el 62,3% de los
+que paran temprano en verde, y el 37% llega a la bandera sin volver a parar
+contra el 24%.
 
-Lo mismo pasa con qué se calza. Bajo VSC temprano el **75,4%** monta duro contra
-el 62,3% de los que paran temprano en verde, esa tanda dura 29,7 vueltas contra
-26,3, y el 37% llega a la bandera sin volver a parar contra el 24%. La
-neutralización temprana no sólo adelanta la parada: cambia a qué se cambia.
-
-Las dos cosas dicen lo mismo. **Un plan de vuelta fija no es lo que hace un
-equipo**: el equipo sale con una intención y la corrige con lo que ve —la goma,
-la bandera, el hueco de atrás—. Eso es una *política* y no un plan, y la forma de
-la respuesta cambiaría de «parás en la 21 y en la 48» a «salís a duro; parás
-cuando la caída pase de tanto o cuando salga una neutralización con más de tanta
-goma; si tenés a alguien a menos de dos segundos, te cubrís primero».
-
-Es un entregable distinto del que este trabajo define, y es exactamente la
-comparación que el trabajo ya tenía anotada: **planificar contra reaccionar**.
-Lo que se agrega hoy es que deja de ser una intuición y pasa a tener el tamaño
-medido de lo que está en juego.
-
-### La carrera duraba setenta y una vueltas de setenta y dos
-
-Apareció preguntando otra cosa: cuándo termina una carrera. No termina cuando el
-primero cruza la meta —el que va doblado nunca corre la última vuelta, la bandera
-lo alcanza antes— y el simulador corría la distancia completa para los veintidós.
-Eso se corrigió con `chequered()`, que dice cuántas vueltas completó cada auto.
-
-Pero midiéndolo el líder daba **71**. Y no era el error nuevo, era uno viejo:
-`race_trace` corría `total_laps - from_lap` vueltas, o sea 71 para una carrera de
-72 saliendo desde la parrilla. Se veía en cualquier plan descrito sin que nadie
-lo mirara: `S20-H27-H24` suma 71.
-
-El arreglo son cinco líneas —tres cuentas de distancia y dos de descripción— y la
-corrección es que `from_lap` es la primera vuelta que **falta** correr, así que
-entra en la cuenta. Ahora un plan suma 72.
-
-#### Qué se movió
-
-| Cifra | Antes | Ahora |
-|---|---|---|
-| Monza, diferencia a precio normal | +19,03 s | **+19,20 s** |
-| Tiempo del plan del AG desde la vuelta 1 | 93,3 s | **94,5 s** |
-| Ventaja del AG contra «siempre 1 parada, duro» | +6,93 s | **+8,56 s** |
-| Ventaja del AG contra «siempre 3 paradas, duro» | +10,65 s | **+10,91 s** |
-| Ventaja del AG sobre la mejor regla enunciable | **−0,2 s** | **+0,3 s** |
-
-**La última cambia de signo, y hay que decir qué significa y qué no.** El
-algoritmo pasa de perderle a la mejor regla enunciable a ganarle. Pero medio
-segundo sobre setenta y dos vueltas sigue siendo un empate: la conclusión que
-este trabajo sostiene —que antes de largar el algoritmo no le saca ventaja clara
-a una regla razonable, y que donde sí se la saca es a mitad de carrera, donde la
-ventaja es de casi siete segundos— no cambia. Lo que cambia es de qué lado del
-cero cae el empate.
-
-Los planes se corren una vuelta en todas partes, porque ahora hay una vuelta más
-que repartir: `S20-H27-H24` pasa a `S21-H27-H24` y el resto en proporción.
-
-#### El arreglo quedó por la mitad durante un mes
-
-Se corrigió el código y se actualizaron las tablas, pero **no se regeneró el
-export** que alimenta la interfaz. El JSON publicado se había generado a las
-16:31 y el arreglo entró a las 18:15 del mismo día, así que durante un mes la web
-mostró planes con una vuelta de menos — se ve a simple vista en los planes de los
-rivales, que pasan de `M31-S25-S15` a `M32-S25-S15` al regenerarlo.
-
-No cambia ninguna conclusión del trabajo, pero es exactamente la clase de error
-que ADR-010 existía para evitar, y lo encontró otro arreglo distinto al
-regenerar el archivo por otro motivo. La lección no es «acordate de regenerar»:
-es que un artefacto derivado que se versiona a mano se desincroniza en silencio,
-y el repositorio no tiene hoy ninguna comprobación que lo note.
-
-#### Y destapó que el motor DEAP no era elitista
-
-Al correr los tests después del arreglo falló uno: **«el mejor nunca empeora»**.
-No era consecuencia del cambio. El motor DEAP registra `selTournament` como
-selección, y en `eaMuPlusLambda` eso elige la población nueva de entre padres e
-hijos **sin garantizar que el campeón sobreviva**. El motor propio sí es
-elitista, explícitamente.
-
-Peor: el salón de la fama se calculaba y se **descartaba**. El plan devuelto
-salía de la última población, así que una corrida podía entregar un plan peor que
-el mejor que ella misma había encontrado.
-
-Estuvo ahí desde que se portó a DEAP, y el test venía pasando de casualidad —
-nunca había caído una corrida donde el torneo perdiera al campeón. Lo que la hizo
-caer fue el desfasaje de una vuelta, que corrió el flujo del generador.
-
-Corregido: el salón de la fama entra en el resultado, y la historia por
-generación acumula el máximo en vez de anotar el de esa población. Esto último
-además vuelve cierto algo que el código ya afirmaba: que las dos historias «se
-leen igual y son comparables». No lo eran — la del motor propio era monótona por
-ser elitista y la de DEAP podía bajar.
+**El equipo sale con una intención y la corrige con lo que ve.** Eso es una
+*política*, no un plan, y la forma de la respuesta cambiaría de «parás en la 21 y
+en la 48» a «salís a duro; parás cuando la caída pase de tanto o cuando salga una
+neutralización con más de tanta goma; si tenés a alguien a menos de dos segundos,
+te cubrís primero». Es un entregable distinto del que este trabajo define, es
+exactamente la comparación anotada —**planificar contra reaccionar**— y ahora
+tiene el tamaño medido de lo que está en juego.
 
 ### Límites estructurales: lo que el modelo no puede representar
 
@@ -1747,7 +1702,119 @@ ventaja de reaccionar saldría optimista.
 
 ---
 
+---
+
+## 6. Problemas e inconvenientes encontrados
+
+Los problemas de este trabajo no fueron de programación: fueron **mediciones que
+daban un número confiado y plausible, y estaban mal**. Ninguno se cayó solo; cada
+uno se descubrió porque algo aguas abajo salió absurdo, y por eso valen como
+inconveniente y no como anécdota.
+
+Van los dos grupos grandes. El resto está repartido donde corresponde —cada
+sección documenta el error que la afecta— y las secciones 4 y 5 señalan cuál es
+cuál.
+
+### Cuatro errores de método en el camino
+
+La conclusión anterior también estaba contaminada por defectos de la búsqueda
+que se corrigieron:
+
+1. **El hueco de la grilla se cobraba cada vuelta.** Con la carrera arrancando en
+   la vuelta 1, el estimador de ritmo base ponía a un auto 19.º cinco minutos y
+   medio atrás. Antes de largar no hay historia de la que inferir ritmo.
+2. **Se reportaba el puntaje en muestra.** El máximo de muchas estimaciones
+   ruidosas está sesgado hacia arriba, igual que evaluar un modelo sobre su
+   entrenamiento: 8,0 s de optimismo con 200 sorteos.
+3. **Los planes no se comparaban contra las mismas carreras.** El mismo plan
+   puntuaba entre 126,6 y 136,0 s. Con números aleatorios comunes baja el error
+   de la *diferencia* entre planes, que es lo único que la búsqueda usa.
+4. **La población inicial era toda al azar.** De 118 planes de dos paradas
+   sorteados, el mejor daba 93,3 s contra 91,0 de una división pareja hecha a
+   mano: el espacio contenía la respuesta y las semillas no caían cerca. Ahora se
+   siembra con las heurísticas, con lo cual la búsqueda arranca desde la regla y
+   sólo puede mejorarla.
+
+El piso de sorteos por defecto subió de 400 a 1.200. Con 400, la búsqueda salía
+0,71 s por carrera **peor** que una regla; con 1.200 la iguala o la supera.
+
+### La carrera duraba setenta y una vueltas de setenta y dos
+
+Apareció preguntando otra cosa: cuándo termina una carrera. No termina cuando el
+primero cruza la meta —el que va doblado nunca corre la última vuelta, la bandera
+lo alcanza antes— y el simulador corría la distancia completa para los veintidós.
+Eso se corrigió con `chequered()`, que dice cuántas vueltas completó cada auto.
+
+Pero midiéndolo el líder daba **71**. Y no era el error nuevo, era uno viejo:
+`race_trace` corría `total_laps - from_lap` vueltas, o sea 71 para una carrera de
+72 saliendo desde la parrilla. Se veía en cualquier plan descrito sin que nadie
+lo mirara: `S20-H27-H24` suma 71.
+
+El arreglo son cinco líneas —tres cuentas de distancia y dos de descripción— y la
+corrección es que `from_lap` es la primera vuelta que **falta** correr, así que
+entra en la cuenta. Ahora un plan suma 72.
+
+#### Qué se movió
+
+| Cifra | Antes | Ahora |
+|---|---|---|
+| Monza, diferencia a precio normal | +19,03 s | **+19,20 s** |
+| Tiempo del plan del AG desde la vuelta 1 | 93,3 s | **94,5 s** |
+| Ventaja del AG contra «siempre 1 parada, duro» | +6,93 s | **+8,56 s** |
+| Ventaja del AG contra «siempre 3 paradas, duro» | +10,65 s | **+10,91 s** |
+| Ventaja del AG sobre la mejor regla enunciable | **−0,2 s** | **+0,3 s** |
+
+**La última cambia de signo, y hay que decir qué significa y qué no.** El
+algoritmo pasa de perderle a la mejor regla enunciable a ganarle. Pero medio
+segundo sobre setenta y dos vueltas sigue siendo un empate: la conclusión que
+este trabajo sostiene —que antes de largar el algoritmo no le saca ventaja clara
+a una regla razonable, y que donde sí se la saca es a mitad de carrera, donde la
+ventaja es de casi siete segundos— no cambia. Lo que cambia es de qué lado del
+cero cae el empate.
+
+Los planes se corren una vuelta en todas partes, porque ahora hay una vuelta más
+que repartir: `S20-H27-H24` pasa a `S21-H27-H24` y el resto en proporción.
+
+#### El arreglo quedó por la mitad durante un mes
+
+Se corrigió el código y se actualizaron las tablas, pero **no se regeneró el
+export** que alimenta la interfaz. El JSON publicado se había generado a las
+16:31 y el arreglo entró a las 18:15 del mismo día, así que durante un mes la web
+mostró planes con una vuelta de menos — se ve a simple vista en los planes de los
+rivales, que pasan de `M31-S25-S15` a `M32-S25-S15` al regenerarlo.
+
+No cambia ninguna conclusión del trabajo, pero es exactamente la clase de error
+que ADR-010 existía para evitar, y lo encontró otro arreglo distinto al
+regenerar el archivo por otro motivo. La lección no es «acordate de regenerar»:
+es que un artefacto derivado que se versiona a mano se desincroniza en silencio,
+y el repositorio no tiene hoy ninguna comprobación que lo note.
+
+#### Y destapó que el motor DEAP no era elitista
+
+Al correr los tests después del arreglo falló uno: **«el mejor nunca empeora»**.
+No era consecuencia del cambio. El motor DEAP registra `selTournament` como
+selección, y en `eaMuPlusLambda` eso elige la población nueva de entre padres e
+hijos **sin garantizar que el campeón sobreviva**. El motor propio sí es
+elitista, explícitamente.
+
+Peor: el salón de la fama se calculaba y se **descartaba**. El plan devuelto
+salía de la última población, así que una corrida podía entregar un plan peor que
+el mejor que ella misma había encontrado.
+
+Estuvo ahí desde que se portó a DEAP, y el test venía pasando de casualidad —
+nunca había caído una corrida donde el torneo perdiera al campeón. Lo que la hizo
+caer fue el desfasaje de una vuelta, que corrió el flujo del generador.
+
+Corregido: el salón de la fama entra en el resultado, y la historia por
+generación acumula el máximo en vez de anotar el de esa población. Esto último
+además vuelve cierto algo que el código ya afirmaba: que las dos historias «se
+leen igual y son comparables». No lo eran — la del motor propio era monótona por
+ser elitista y la de DEAP podía bajar.
+
+---
+
 ## 7. Conclusiones
+
 
 1. **La incertidumbre es más grande que la señal.** El desvío del ritmo de caída
    de una tanda supera a la mediana del ritmo mismo. Ése es el argumento central
@@ -1854,7 +1921,56 @@ lo que un pronóstico pre-registrado sirve para encontrar.
 
 ---
 
+### Lo que ya está hecho
+
+- **El pipeline de datos completo**: descarga, limpieza y cálculo de variables, sobre 103
+  carreras y 114.414 vueltas.
+- **El simulador de carrera**, con todo lo que sortea medido: desgaste, pérdida de boxes,
+  Safety Car, ruido de ritmo y tráfico.
+- **El algoritmo genético**, que para cada auto busca el plan de paradas con mejor distribución
+  de resultados sobre cientos de carreras sorteadas.
+- **Una interfaz de simulación** que muestra la carrera corriendo con los insights de estrategia
+  encima del trazado, al estilo de las gráficas de la transmisión.
+- **Tres cuadernos Jupyter** que dejan el registro reproducible de los datos, la limpieza y cada
+  medición, con el cálculo a la vista y no sólo el resultado.
+
+### Lo que falta
+
+- El agente de Aprendizaje por Refuerzo, que era la comparación propuesta.
+- El tráfico de **rezagados**. El 28,4% de los pilotos terminan al menos una vuelta abajo, y la
+  medición actual los excluye por construcción. Y midiéndolo apareció algo peor: **el modelo dobla
+  al doble de autos que la realidad** —54,8% contra 28,4%, con el cajón de dos vueltas abajo siete
+  veces más grande— porque `pace_from_qualifying` extrapola el hueco de clasificación como un
+  déficit constante por vuelta durante toda la carrera, y el último de la grilla termina 223
+  segundos atrás, casi tres vueltas. El factor 0,835 se validó con r=0,880 comparando hueco de
+  quali contra ritmo de carrera, que es autoconsistente; lo que nunca se chequeó fue la
+  consecuencia. Medido en `scripts/laps_down.py`, sin corregir: tocar el ritmo mueve cada cifra de
+  este informe.
+- ~~La **ventana de parada** sale hoy de una heurística y debería salir del propio genético.~~
+  **Hecho**, y la heurística estaba peor de lo que este renglón sugería: calculaba un rango de
+  *factibilidad* con nombre de rango de *optimalidad* —35 vueltas de ancho, con el cierre en una
+  constante idéntica para los veintidós autos— y para los once que largan en blando describía un
+  plan que el modelo no puede correr. Ahora  mueve la parada por todas las vueltas
+  representables y se queda con la banda que cae dentro de un cuarto de puesto del óptimo, sobre
+  las mismas carreras sorteadas. Se puntúa en **puestos y no en segundos**, que es lo que la hace
+  parecerse a la de la transmisión: nueve vueltas de ancho en blando, catorce a dieciséis en duro.
+  Y resiste la elección de datos, que era la duda razonable: el desgaste de Zandvoort medido con
+  todas las temporadas difiere del de 2026 un 11% en blando, un 14% en duro y un **49,5% en
+  medio**, y aun así la ventana se corre **cero vueltas en la mediana** —doce de los veintidós dan
+  idénticos—. Es una comparación entre vueltas del mismo modelo, no un valor absoluto, y se puntúa
+  en puestos, que son discretos. La excepción es el único auto que larga en medio, que se corre
+  2,5 vueltas: es el compuesto con la celda más fina del circuito, once tandas. Esa celda se
+  revisó aparte y **no es frágil**: sacando cualquiera de las once la mediana se mueve 0,0086,
+  el intervalo del 95% va de 0,0839 a 0,1193 y deja **afuera** al 0,0625 de la otra medición —o
+  sea que la diferencia entre eras es real y no ruido—, y entre los catorce circuitos de 2026
+  Zandvoort sale duodécimo, alto pero no extremo. Lo que sostiene el número pese a la muestra
+  chica es haber elegido la mediana: dos de las once tandas dan 0,22 y 0,59 s/vuelta, que no es
+  desgaste sino autos rotos, y una media daría 0,133 gobernada por ellas.
+
+---
+
 ## Referencias
+
 
 Chaudhary, S. et al. (2025). *Data-driven pit stop decision support for Formula 1 using deep
 learning models*. Frontiers in Artificial Intelligence, vol. 8.

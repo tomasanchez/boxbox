@@ -14,6 +14,23 @@ consigna pide, para no tener que buscarla en las 1.700 líneas de
 > su posterior prueba incluyendo el análisis de las métricas aplicadas para su
 > evaluación.»
 
+## Estructura del informe
+
+Sigue el esqueleto de los ejemplos de entrega de prototipo de la cátedra
+(`Ejemplo BIA - E4`, `Ejemplo Gpinturas - E4`):
+
+| | Sección | Qué contiene |
+|---|---|---|
+| | Resumen | el marcador de las cuatro pruebas, primero |
+| 1 | Introducción | el problema |
+| 2 | Herramientas, frameworks y librerías | el stack y la **topología** del sistema en tres diagramas |
+| 3 | Método empleado para seleccionar los datos | la partición por carrera y cronológica, 25% retenido |
+| 4 | Pruebas realizadas | la tabla de corridas, las métricas y las figuras de validación |
+| 5 | Evaluación del Sistema Inteligente | las cuatro pruebas contra carreras reales |
+| 6 | Problemas e inconvenientes encontrados | los errores propios y cómo se encontraron |
+| 7 | Conclusiones | qué queda hecho, qué falta |
+| | Referencias | |
+
 ## El problema, en una línea
 
 Dado un auto, una grilla y un circuito, decidir **cuántas paradas hacer, en qué
@@ -37,7 +54,7 @@ aptitud.
 | Calidad | uv, ruff, pytest, oxlint, TypeScript | Lint y tests en CI |
 
 **Se implementaron dos motores evolutivos sobre la misma función de aptitud** —DEAP
-y uno propio— y se compararon. Esa comparación está en el informe, §5, y no es
+y uno propio— y se compararon. Esa comparación está en el informe, §4, y no es
 decorativa: destapó que `eaMuPlusLambda` con `selTournament` **no es elitista** y
 que el salón de la fama se estaba calculando y descartando.
 
@@ -54,7 +71,7 @@ que el salón de la fama se estaba calculando y descartando.
 | Interfaz | `apps/web/src/` |
 | Decisiones de diseño | `decisions/boxbox/` (ADR) |
 
-Narrativa de construcción: **informe §4 (Desarrollo)**.
+Narrativa de construcción: **informe §2 (Herramientas, frameworks y librerías)**.
 
 ## 3. La prueba
 
@@ -111,10 +128,10 @@ Es la que de verdad evalúa el sistema, y son cuatro:
 
 | Prueba | Qué pone a prueba | Dónde |
 |---|---|---|
-| **Monza 2026** | El sistema completo, cuatro fechas después del circuito base | §6 |
-| **Madrid 2026** | Un circuito sin datos del año en curso | §6, `scripts/madrid_2026_review.py` |
-| **Elección de compuesto** | Contra una grilla real de 22 autos | §6 |
-| **Bakú 2026** | Un pronóstico **pre-registrado** | §6, `scripts/baku_2026_review.py` |
+| **Monza 2026** | El sistema completo, cuatro fechas después del circuito base | §5 |
+| **Madrid 2026** | Un circuito sin datos del año en curso | §5, `scripts/madrid_2026_review.py` |
+| **Elección de compuesto** | Contra una grilla real de 22 autos | §5 |
+| **Bakú 2026** | Un pronóstico **pre-registrado** | §5, `scripts/baku_2026_review.py` |
 
 La de Bakú es metodológicamente la más limpia y conviene explicar por qué. Las
 otras tres se corrieron sabiendo el resultado; aunque nadie haga trampa, el
@@ -135,7 +152,7 @@ destapó un límite estructural del modelo que no estaba declarado.
 | Planes ilegales generados (B6.3.8) | **Cero** |
 | ¿La estrategia real cayó en el rango? | Probado en Monza |
 | Criterios de falsación acertados | 1 de 4 en Bakú |
-| DEAP contra motor propio | §5 |
+| DEAP contra motor propio | §4 |
 
 **La exactitud no se usa como métrica, y el motivo está medido:** «no parar
 nunca» acierta el 96,6% de las vueltas, y además de inútil es ilegal.
@@ -143,7 +160,7 @@ nunca» acierta el 96,6% de las vueltas, y además de inútil es ilegal.
 ### Las figuras de validación y error
 
 Están en `docs/tp/figuras/`, las dibuja `scripts/validation_plots.py` y el
-informe las comenta en §5. No son curvas de pérdida por época porque el
+informe las comenta en §4. No son curvas de pérdida por época porque el
 entregable no es una red: son el equivalente para un algoritmo genético, donde la
 generación hace de época y la partición entrenamiento/validación ya estaba en el
 código.
@@ -160,7 +177,7 @@ La segunda es un hallazgo nuevo de esta entrega y el más accionable: el algorit
 contamine el juicio, parar temprano rinde +0,258 s de media, que es del orden de
 toda la ventaja del algoritmo sobre la mejor regla enunciable.
 
-Análisis completo en **§6**, que ocupa la mayor parte del informe. Incluye los
+Análisis completo en **§5**, que ocupa la mayor parte del informe. Incluye los
 **errores de método propios** que se encontraron y corrigieron —cada uno daba
 números confiados y plausibles hasta que algo aguas abajo salió absurdo— y los
 **cinco límites estructurales**: cosas que el modelo no tiene dónde representar y
@@ -179,7 +196,7 @@ olvido:
   y lo declara.
 - **El escalón de ritmo entre compuestos** (`COMPOUND_OFFSET_S` vale cero). Es una
   falla de identificación declarada, y es la limitación más cara del trabajo:
-  está contrastada contra una grilla real en §6.
+  está contrastada contra una grilla real en §5.
 
 ## Cómo correrlo
 
