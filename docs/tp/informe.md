@@ -2276,19 +2276,27 @@ pone entre el 55% y el 85%.
 | Restricción de **asignación de neumáticos** | Sólo el 15% de los autos monta dos duros frescos, y la recomendación los pide | Sí, hay que decidir de dónde sale la asignación |
 | Bajar **`MIN_STINT`** de seis vueltas | No puede representar la parada de bandera roja temprana, que hicieron los 22 autos de Monza | Sí |
 | ~~Portar a **DEAP**~~ | Es la herramienta que recomienda la cátedra | **Hecho.** Los dos motores conviven, se elige con un parámetro |
-| Tráfico de **rezagados** | 23,1% de los pilotos terminan una vuelta abajo | Requiere comparar por posición y no por vuelta |
+| Tráfico de **rezagados** | 28,4% de los clasificados terminan al menos una vuelta abajo | Requiere comparar por posición y no por vuelta |
 | ~~**Anticipar una movida** en el buscador: elegir el plan asumiendo que los vecinos cubren~~ | El escenario que le cuesta la carrera a un plan era insorteable: nadie reaccionaba a nada | **Hecho.** Los rivales responden a las banderas dentro de la búsqueda y al auto elegido al puntuarlo, detrás de un interruptor |
 | **Posición dentro de la vuelta** al parar | Cuesta 0,1 s con un plan fijo y es decisivo para reaccionar | Requisito de la Entrega 3, no deuda de hoy |
 | **Re-salida del safety car** | 11 despliegues contra 8 períodos contados en 2026; es lo que decidió Bakú | Sí: contar despliegues y no corridas contiguas |
 | Agente de **Refuerzo** | La comparación propuesta: planificar contra reaccionar | Para la Entrega 3 |
 
 Un pendiente no entra en esa tabla porque es un **hallazgo** y no una tarea: el modelo
-**dobla al doble de autos que la realidad** —54,8% contra 28,4%— porque extrapola el
-hueco de clasificación como un déficit constante por vuelta, y el último de la grilla
-termina 223 segundos atrás, casi tres vueltas. El factor se había validado con
-r = 0,880 contra el ritmo de carrera, que es autoconsistente; lo que nunca se chequeó
-fue la consecuencia. Queda medido y sin corregir a propósito: tocar el ritmo mueve cada
-cifra de este informe.
+**dobla a más autos que la realidad** —54,8% contra el 41,9% que se mide en 2026— porque
+extrapola el hueco de clasificación como un déficit constante por vuelta, y el último de la
+grilla termina 223 segundos atrás, casi tres vueltas. El factor se había validado con
+r = 0,880 contra el ritmo de carrera, que es autoconsistente; lo que nunca se chequeó fue la
+consecuencia.
+
+> **Una corrección sobre esta misma cifra.** Una versión anterior decía «dobla al **doble** de
+> autos que la realidad, 54,8% contra 28,4%». Los dos números existen pero no son comparables:
+> el 54,8% sale del simulador corriendo 2026 y el 28,4% es el promedio de las cinco temporadas.
+> Medido sobre 2026 sola, la realidad dobla al **41,9%** de los clasificados —104 de 248—, así
+> que el exceso del modelo es de un tercio y no del doble. El defecto es real; su tamaño estaba
+> exagerado por comparar contra la población equivocada.
+
+Queda medido y sin corregir a propósito: tocar el ritmo mueve cada cifra de este informe.
 
 **Lo que no se va a hacer:** más términos en la aptitud esperando que deje de ser
 plana. El tráfico se midió, se implementó correctamente y no movió el resultado;
