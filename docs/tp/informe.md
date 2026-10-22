@@ -30,8 +30,10 @@ como pronosticador.** Se probó contra cuatro carreras reales de 2026 y el marca
 | **Compuesto de salida**, grilla de 22 | falló: pone medio 0 de 22 y la realidad lo pone entre 55% y 85% |
 | **Bakú**, fecha 15 | 1 de 4 criterios, escritos y commiteados **antes** de la carrera |
 
-Tres de esas cuatro las decidió **una neutralización**, y ahí hay un techo que ningún dato
-levanta: las distribuciones medidas aciertan *que* va a salir un safety car, no *cuándo*, y el
+Tres de esas cuatro las decidió **una neutralización**. Conviene decir qué significa eso,
+porque es la diferencia entre dos problemas: una bandera cambia la estrategia **en tiempo
+real**, y lo que este trabajo entrega es un plan **pre-carrera** que sólo puede usar la
+**probabilidad** de que esa bandera aparezca. Ahí hay un techo que ningún dato levanta: las distribuciones medidas aciertan *que* va a salir un safety car, no *cuándo*, y el
 cuándo es lo que fija el plan. En Monza el 90,6% de las paradas salieron gratis; en Bakú, 35 de
 38; en Madrid, un VSC en la vuelta 14 se llevó 10 de 28.
 
@@ -1119,6 +1121,51 @@ B6.3.8 obliga a parar.
 
 ## 5. Evaluación del Sistema Inteligente
 
+### Qué se está evaluando: probabilidad, no tiempo real
+
+Antes de leer el marcador hay que cerrar una confusión posible, porque atraviesa
+las cuatro pruebas y porque ya hizo fallar un criterio.
+
+**En una carrera real, la salida de un safety car, un VSC o una bandera roja cambia
+la estrategia en tiempo real.** El muro ve la bandera, calcula en segundos si al
+auto le conviene entrar *ahora*, y decide. Esa decisión usa información que no
+existía antes de largar: que la bandera salió, en qué vuelta, cuánto va a durar, y
+dónde está cada auto en ese momento.
+
+**Este trabajo no hace eso.** Lo que entrega es un plan **pre-carrera**, y las
+neutralizaciones entran como lo único que se puede saber de ellas antes de largar:
+**su probabilidad**. El simulador sortea mil doscientas carreras en las que el
+safety car sale con la frecuencia medida, empieza donde históricamente empieza y
+dura lo que históricamente dura; el plan se elige por cómo le va **en promedio
+sobre todas esas carreras**, no por cómo le iría en una.
+
+Son dos problemas distintos, y conviene verlos lado a lado:
+
+| | Decisión en tiempo real | Pronóstico pre-carrera |
+|---|---|---|
+| Cuándo se decide | cuando aparece la bandera | antes de largar |
+| Qué sabe de la neutralización | que salió, en qué vuelta, dónde está cada auto | sólo con qué frecuencia suele salir y cuánto dura |
+| Qué optimiza | esta carrera | el promedio sobre las carreras posibles |
+| Qué entrega | «entrá ahora» | «parás en la 24 y en la 48» |
+| Es el entregable de | la Entrega 3 | **éste** |
+
+De ahí salen dos consecuencias para leer los resultados:
+
+1. **Acertar «va a haber un safety car» no es acertar «hay que parar en la vuelta
+   32».** El modelo puede tener razón sobre la distribución y equivocarse en la
+   carrera concreta, y eso no lo refuta — es lo que una predicción probabilística
+   hace. Lo que sí lo refutaría es que la distribución estuviera mal medida.
+2. **Por eso una parada tomada bajo bandera y una tomada en verde no son el mismo
+   dato.** La segunda es una decisión y se puede comparar contra un pronóstico; la
+   primera es, en buena medida, un regalo del azar. Bakú lo dejó claro: ahí se
+   contaron paradas crudas y la carrera dio dos en el 94% de los autos, pero
+   treinta y cinco de las treinta y ocho fueron neutralizadas, y **contando sólo
+   las de bandera verde catorce de los dieciséis clasificados no pararon ninguna
+   vez** — que es exactamente lo que el pronóstico de una parada describía.
+
+El marcador que sigue informa las dos cuentas por separado donde se puede, y
+señala en cada caso cuál decidió la carrera.
+
 ### ¿Predijimos carreras? El marcador
 
 La pregunta que importa, antes que cualquier detalle de cómo está hecho el
@@ -1634,6 +1681,40 @@ de medición cuando se realimenta como insumo** — ahí vuelve preferible una
 estrategia ilegal. Ninguna cifra publicada se mueve, porque el simulador corre con
 desgastes positivos, pero es la razón concreta por la que una pendiente medida no
 se puede enchufar sin mirarle el signo.
+
+### Tres pruebas más, ya escritas y todavía sin resolver
+
+Bakú mostró que una predicción pre-registrada enseña más que cuatro hechas a
+posteriori. Así que quedan tres más escritas, con sus criterios de falsación, antes
+de ver nada:
+
+| | Circuito | Vueltas | Qué sabe el simulador | Estado |
+|---|---|---|---|---|
+| **R16** | Kuala Lumpur | 56 | **nada**: cero vueltas, de ninguna temporada | corrida; sólo se cargó la clasificación |
+| **R17** | Marina Bay | 62 | 4.439 vueltas de 2022-2025, nada de 2026 | corrida; sólo se cargó la clasificación |
+| **R18** | Austin | 56 | 4 carreras 2022-2025, nada de 2026 | **no corrió todavía** |
+
+De las dos primeras se cargó la sesión de clasificación y **no** la de carrera. La
+tercera no se corrió: es la predicción más limpia que el trabajo puede hacer,
+porque no hay nada que mirar ni queriendo.
+
+En las tres, el historial y el modelo **se contradicen de frente**: el historial
+pide medio en las tres —entre el 56% y el 78% de las salidas reales de cada
+circuito— y el modelo pide duro en dos y blando en una. No hay forma de que los dos
+acierten, que es lo que hace que el caso valga la pena.
+
+#### Un resultado que no depende de que corran
+
+El modelo devuelve **exactamente el mismo plan para Kuala Lumpur y para Austin**:
+`H31-S25`, una parada. No es un error: los dos son de 56 vueltas y ninguno tiene
+datos de 2026, así que corren con el mismo promedio de temporada y **el modelo no
+tiene con qué distinguirlos**. Un circuito callejero tropical y uno permanente de
+veinte curvas rápidas reciben la misma recomendación porque el sistema sólo los
+conoce por su longitud.
+
+Eso mide el techo del enfoque sin esperar ninguna carrera, y precisa el hallazgo
+sobre granularidad por circuito: **sin datos del año en curso, el modelo no
+distingue circuitos, distingue distancias.**
 
 ### Por qué es difícil ganarle a una regla razonable
 
