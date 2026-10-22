@@ -68,15 +68,38 @@ cd apps/ml && uv run ruff check . && uv run ruff format --check .
 cd apps/web && npm run lint && npm run build
 ```
 
-Cubren la instrumentación del algoritmo genético —que el histograma de puestos y
-la historia por generación queden guardados cuando se los pide, y que pedirlos
-**no cambie el resultado**— además del lint y el tipado de las tres aplicaciones.
+**143 tests, que corren en 1,7 segundos.** Cubren el núcleo del simulador:
 
-Conviene decir el tamaño real en vez de dejarlo implícito: **es la parte más
-delgada del trabajo.** El núcleo del simulador —el reparador de planes, el costo
-de parar por bandera, el sorteo de neutralizaciones— está validado por los
-scripts de medición y por las cuatro pruebas empíricas de abajo, no por tests
-unitarios. Es una deuda declarada, no una omisión.
+| Archivo | Qué prueba | Tests |
+|---|---|---|
+| `test_strategy_repair.py` | El reparador: `MIN_STINT`, `MAX_STINT`, orden de paradas, paradas demasiado tardías | 60 |
+| `test_strategy_distancia.py` | Que un plan desde la parrilla sume **exactamente** las vueltas de la carrera | 21 |
+| `test_strategy_dos_compuestos.py` | La obligación reglamentaria B6.3.8 | 15 |
+| `test_strategy_chequered.py` | Cuántas vueltas completa cada auto cuando cae la bandera | 14 |
+| `test_strategy_costo_parada.py` | El costo de parar según la bandera encontrada | 11 |
+| `test_strategy_neutralizaciones.py` | El sorteo de banderas y la identidad de los períodos | 11 |
+| `test_strategy_instrumentation.py` | Que instrumentar el AG no cambie el resultado | 11 |
+
+Dos de ellos son **regresiones de errores reales y caros** que este trabajo ya se
+comió: que la carrera duraba 71 vueltas de 72, y que vueltas abajo es
+`floor(hueco / vuelta verde)` y no una resta de segundos.
+
+**La suite encontró dos defectos latentes, y quedaron sin arreglar a propósito**,
+marcados con `xfail` estricto para que se pongan en rojo el día que alguien los
+corrija:
+
+1. `race_trace` documenta que `flags=None` corre todo en verde, pero `_pit_cost`
+   hace `flags.shape` sin mirar si es `None`: cualquier plan **con paradas**
+   revienta. Hoy no lo sufre nadie porque todos los llamadores pasan banderas.
+2. `_enforce_two_compounds` corre **después** del control de presupuesto y le
+   cambia el compuesto a la última parada sin volver a mirarlo, así que puede
+   devolver una tanda final pasada del tope de vida — `H35-M37` en una carrera de
+   72, con el medio topado en 31. Medido: **la búsqueda no lo alcanza**, 0 de 36
+   corridas devuelven un plan que se pase, porque una tanda así está demasiado
+   degradada para ganar la aptitud. No mueve ninguna cifra publicada.
+
+Que la suite haya encontrado dos bugs el mismo día que se escribió es el
+argumento a favor de tenerla.
 
 ### Prueba empírica contra carreras reales
 

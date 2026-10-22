@@ -920,9 +920,22 @@ disfrazada. Medir la distribución de la diferencia es trabajo pendiente.
 | Sistema completo | ¿La estrategia real cayó en el rango? | Probado en Monza, ver §6 |
 | Reglamento | Planes ilegales generados | Cero ✅ |
 | Pronóstico | Criterios de falsación escritos **antes** de la carrera | 1 de 4 en Bakú, ver §6 |
+| Tests automatizados | Núcleo del simulador | 143 tests, 1,7 s; dos defectos encontrados |
 
 **La exactitud no se usa como métrica.** «No parar nunca» acierta el 96,6% de las
 vueltas, y además de inútil **es ilegal**.
+
+**Los tests encontraron dos defectos el mismo día que se escribieron**, y los dos
+quedaron sin arreglar a propósito, marcados con `xfail` estricto para que se
+pongan en rojo cuando alguien los corrija. Uno es una trampa latente: `race_trace`
+promete que sin banderas corre todo en verde, y `_pit_cost` revienta porque no
+mira si son `None` — hoy no lo sufre nadie porque todos los llamadores las pasan.
+El otro es más fino: `_enforce_two_compounds` corre *después* del control de
+presupuesto y cambia el compuesto de la última parada sin volver a mirarlo, así
+que puede devolver una tanda pasada del tope de vida. Se midió si importa: **la
+búsqueda no lo alcanza**, 0 de 36 corridas devuelven un plan que se pase, porque
+una tanda así está demasiado degradada para ganar la aptitud. Ninguna cifra de
+este informe se mueve.
 
 ---
 
