@@ -412,6 +412,14 @@ particiones, para que elegir no contamine el juicio— parar antes gana 0,387 s 
 **nunca pierde**, y rinde 0,258 s de media: del orden de toda la ventaja del algoritmo sobre la
 mejor regla enunciable.
 
+**Qué es «ganar» no es lo mismo para todos.** Los puntos van sólo a los diez primeros, así
+que un auto que larga 18.º saca cero con cualquier plan — y la búsqueda no puede ordenar planes
+que valen todos lo mismo. Medido sobre la grilla de Zandvoort: para el 5.º la diferencia entre
+sus cinco mejores planes es 0,157; para el 18.º es **exactamente 0,0000**. Usar esa vara no da
+una respuesta prudente, da una al azar. Por eso el objetivo se resuelve según dónde está el
+auto: **puntos** si puntúa cómodo, **probabilidad de entrar a los diez** si está en el borde, y
+**puestos ganados** si no llega.
+
 **Por qué es difícil ganarle a una regla razonable.** Desde mitad de carrera el espacio es casi
 unidimensional —una parada, y la única pregunta es en qué vuelta— y esa dimensión vale 0,30 s.
 Donde el algoritmo se gana el sueldo es **antes de largar**, decidiendo cuántas paradas.

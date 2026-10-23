@@ -1712,19 +1712,51 @@ B6.3.8 obliga a parar.
 
 ### Qué es «ganar», y por qué no es lo mismo para todos
 
-La aptitud son los **puntos absolutos** en la bandera. Mantener un puesto de
-puntos gana por construcción: quedarse quinto paga 10 en cada sorteo, y un plan
-que la mitad de las veces da tercero y la otra mitad octavo (0,5·15 + 0,5·4 =
-9,5) no lo alcanza.
+Para elegir el mejor plan hay que poder **comparar** planes. Y la vara obvia
+—«el que sume más puntos»— sirve para unos autos y para otros no mide nada.
 
-Pero para un auto cuyos planes suman cero, ese objetivo está **plano** y la
-búsqueda no tiene nada que escalar. Medido: un auto 18.º con objetivo puntos
-termina con la población repartida 0,21 / 0,33 / 0,17 / 0,29 entre una y cuatro
-paradas, que es ruido. Con objetivo posición converge en una parada al 0,87.
+Los puntos de la Fórmula 1 van sólo a los diez primeros: 25, 18, 15, 12, 10, 8,
+6, 4, 2, 1. **Del 11.º para atrás, cero.**
 
-**Un auto fuera de los puntos sí puede ganar, pero no con la misma vara, y usar
-la equivocada no da una respuesta prudente sino una al azar.** Por eso el
-objetivo es adaptativo.
+Ahí está el problema: un auto que larga 18.º saca cero con cualquier plan, y
+cero es igual a cero. Medido sobre la grilla real de Zandvoort, con tres autos
+de distinta zona:
+
+| Larga | Auto | Puntos esperados | Diferencia entre sus 5 mejores planes |
+|---|---|---|---|
+| 5.º | HAM | 8,87 | 0,157 |
+| 11.º | GAS | 0,61 | 0,329 |
+| **18.º** | **ALO** | **0,000** | **0,0000** |
+
+La última fila es la que importa: los cinco mejores planes de ALO valen
+**exactamente lo mismo**. La búsqueda no puede ordenarlos, así que devuelve el
+que quedó arriba por casualidad.
+
+**Y eso no es una respuesta conservadora, es una al azar** — con la misma cara
+de recomendación que cualquier otra.
+
+Hay un segundo efecto, más sutil, en el otro extremo de la grilla: para un auto
+que ya puntúa, maximizar puntos **es conservador por construcción**. Un quinto
+puesto seguro paga 10 en todos los sorteos; un plan que la mitad de las veces da
+tercero y la otra mitad octavo paga 0,5 × 15 + 0,5 × 4 = 9,5. Gana el seguro,
+porque la escala está hecha para que perder lugares cueste más de lo que
+ganarlos paga. No es un defecto —un equipo real también defiende el quinto—
+pero conviene saber que la inclinación está en el objetivo y no es una
+conclusión del modelo.
+
+**Por eso el objetivo se elige según dónde está el auto**, y resuelve en tres
+casos. Se sondea con puntos y se mira cuántos saca:
+
+| Si el auto… | Se mide en | Por qué |
+|---|---|---|
+| puntúa cómodo | **puntos** | hay algo que ganar y algo que defender |
+| está en el borde de los diez | **probabilidad de entrar a los puntos** | lo que le decide la carrera es cruzar el umbral |
+| no llega a puntuar | **puestos ganados** | puntos está plano; lugares no |
+
+El umbral es 0,1 puntos esperados, y cuesta una evaluación extra contra una
+búsqueda entera. En la grilla de arriba los tres autos resuelven, en ese orden,
+`points`, `in_points` y `position` — que es exactamente lo que la tabla
+anterior predice.
 
 ### La posición de largada, que el modelo no estaba mirando
 
